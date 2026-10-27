@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Model Logos",
+    "description": "Shows each model's brand mark beside its name in the composer model selector and model picker, matched by provider and model heuristics."
+  }
+}

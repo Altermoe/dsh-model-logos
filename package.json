@@ -1,0 +1,46 @@
+{
+  "name": "dsh-model-logos",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Shows each model's brand mark beside its name in the composer model selector and model picker.",
+  "license": "MIT",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "src",
+    "scripts",
+    "test",
+    "reference",
+    "docs",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node scripts/build-client.mjs",
+    "check": "node scripts/build-client.mjs --check",
+    "preview": "node scripts/preview-logos.mjs",
+    "verify-live": "node scripts/verify-live.mjs",
+    "test": "node --test \"test/*.test.mjs\""
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-model-selection",
+        "@deepseek-ai/dsh-client-ui-renderer"
+      ]
+    }
+  }
+}

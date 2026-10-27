@@ -1,0 +1,5 @@
+# dsh-model-logos bundle patch: mount the host half; the browser half is the
+# `dsh.client` declaration in package.json, loaded by the client modules kernel.
+- insert:
+    - id: dsh-model-logos
+      name: dsh-model-logos
