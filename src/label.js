@@ -32,7 +32,7 @@ const LABEL_CSS = `
 .dshml-vendor { width: 1em; height: 1em; font-size: 14px; }
 .dshml-vendor > svg, .dshml-model-mark > svg { display: block; width: 100%; height: 100%; }
 .dshml-model-icon-btn { box-sizing: border-box; flex: none; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 3px; border: 0; border-radius: 6px; background: transparent; color: var(--dsw-alias-label-tertiary, #8a90a0); cursor: pointer; line-height: 0; }
-.dshml-model-icon-btn:hover { background: var(--dsw-alias-bg-layer-2, rgba(0, 0, 0, .06)); }
+.dshml-model-icon-btn:hover { background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, .06)); }
 .dshml-model-icon-btn:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary, #5686FE); outline-offset: 1px; }
 .dshml-model-icon-btn .dshml-model-mark { width: 16px; height: 16px; display: inline-flex; }
 .dshml-model-placeholder { opacity: .55; }
@@ -51,7 +51,7 @@ const LABEL_CSS = `
 .dshml-combo-chevron > svg { display: block; width: 100%; height: 100%; }
 .dshml-combo-menu { position: absolute; z-index: 60; top: calc(100% + 4px); left: 0; right: 0; max-height: 280px; overflow-y: auto; padding: 4px; border: .5px solid var(--dsw-alias-border-l3, #dcdde2); border-radius: var(--dsw-radius-lg, 10px); background: var(--dsw-alias-bg-layer-1, #fff); box-shadow: 0 10px 30px rgba(16, 20, 28, .18); }
 .dshml-combo-item { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 4px 8px; border-radius: 6px; color: var(--dsw-alias-label-primary, #1b1f27); font-size: 14px; line-height: 22px; cursor: pointer; }
-.dshml-combo-item:hover, .dshml-combo-item[data-active="true"] { background: var(--dsw-alias-bg-layer-2, rgba(0, 0, 0, .06)); }
+.dshml-combo-item:hover, .dshml-combo-item[data-active="true"] { background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, .06)); }
 .dshml-combo-item[aria-selected="true"] { color: var(--dsw-alias-state-business-primary, #5686FE); }
 .dshml-combo-item-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 `;
