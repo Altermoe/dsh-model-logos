@@ -4,15 +4,18 @@
  * This is a design-iteration aid, not part of the shipped plugin: it imports the
  * artwork modules directly and screenshots them at shipped sizes (14/16px) plus
  * larger reference sizes, on light and dark surfaces, next to a mock of the
- * composer trigger and model menu.
+ * composer trigger and model menu (`--only-set vendors` swaps those for a mock
+ * of the Settings → Models provider rows, where vendor marks actually appear).
  *
  * Usage:
- *   node scripts/preview-logos.mjs                 # full sheet -> .preview/logos.png
- *   node scripts/preview-logos.mjs --only openai   # one logo, large -> .preview/openai.png
- *   node scripts/preview-logos.mjs --no-shot       # only write .preview/logos.html
+ *   node scripts/preview-logos.mjs                          # full sheet -> .preview/logos.png
+ *   node scripts/preview-logos.mjs --out docs/preview.png   # also copy the png to docs/
+ *   node scripts/preview-logos.mjs --only openai            # one logo, large -> .preview/openai.png
+ *   node scripts/preview-logos.mjs --only-set vendors       # vendor marks -> .preview/logos-vendors.png
+ *   node scripts/preview-logos.mjs --no-shot                # only write the html
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, writeFileSync, statSync, rmSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, writeFileSync, statSync, rmSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -23,6 +26,10 @@ mkdirSync(PREVIEW, { recursive: true });
 const args = process.argv.slice(2);
 const onlyIndex = args.indexOf('--only');
 const only = onlyIndex >= 0 ? args[onlyIndex + 1] : null;
+const setIndex = args.indexOf('--only-set');
+const onlySet = setIndex >= 0 ? args[setIndex + 1] : null;
+const outIndex = args.indexOf('--out');
+const outFile = outIndex >= 0 ? args[outIndex + 1] : null;
 const noShot = args.includes('--no-shot');
 const numeric = (flag, fallback) => {
   const at = args.indexOf(flag);
@@ -33,15 +40,25 @@ const scale = numeric('--scale', only ? 2 : 1);
 const forcedWidth = numeric('--width', null);
 const forcedHeight = numeric('--height', null);
 
-const [{ LOGOS: INTL }, { LOGOS: CN }, match] = await Promise.all([
+const [{ LOGOS: INTL }, { LOGOS: CN }, { LOGOS: VENDORS }, match, artwork] = await Promise.all([
   import('../src/logos-intl.mjs'),
   import('../src/logos-cn.mjs'),
+  import('../src/logos-vendors.mjs'),
   import('../src/match.mjs'),
+  import('../src/artwork.mjs'),
 ]);
-const LOGOS = { ...INTL, ...CN };
-const keys = Object.keys(LOGOS).sort();
+const SETS = { intl: INTL, cn: CN, vendors: VENDORS };
+if (onlySet !== null && !(onlySet in SETS)) {
+  console.error(`error: unknown --only-set "${onlySet}" (expected: ${Object.keys(SETS).join(', ')})`);
+  process.exit(1);
+}
+const LOGOS = { ...INTL, ...CN, ...VENDORS };
+const allKeys = Object.keys(LOGOS).sort();
+const keys = onlySet ? Object.keys(SETS[onlySet]).sort() : allKeys;
+// Vendor marks are expected even before src/match.mjs lists their keys yet.
+const expected = new Set([...match.LOGO_KEYS, ...Object.keys(VENDORS)]);
 const missing = match.LOGO_KEYS.filter((key) => !(key in LOGOS));
-const unused = keys.filter((key) => !match.LOGO_KEYS.includes(key));
+const unused = allKeys.filter((key) => !expected.has(key));
 
 if (missing.length > 0) console.warn('warning: matcher keys without artwork: ' + missing.join(', '));
 if (unused.length > 0) console.warn('warning: artwork keys the matcher never returns: ' + unused.join(', '));
@@ -74,6 +91,26 @@ const SAMPLES = [
   ['groq', 'Groq'],
   ['openrouter', 'OpenRouter'],
 ];
+
+/** Official channel rows, as they are titled in the provider directory. */
+const PROVIDERS = [
+  ['xiaomi', 'Xiaomi MiMo'],
+  ['opencode', 'OpenCode Zen'],
+  ['cerebras', 'Cerebras'],
+  ['cloudflare', 'Cloudflare AI Gateway'],
+  ['together', 'Together AI'],
+  ['fireworks', 'Fireworks'],
+  ['github', 'GitHub Copilot'],
+  ['vercel', 'Vercel AI Gateway'],
+  ['baseten', 'Baseten'],
+  ['azure', 'Microsoft Azure'],
+  ['antling', 'Ant Ling'],
+  ['radius', 'Radius'],
+  ['typesafe', 'TypeSafe'],
+];
+
+/** Names that exercise the deterministic letter-tile fallback (Latin + CJK). */
+const LETTER_SAMPLES = ['Qwen3-Max', '通义千问', 'Claude Sonnet 4.5', 'llama-3.1-70b', 'kiro', 'OpenCode Zen', ''];
 
 const escape = (value) =>
   String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -113,6 +150,38 @@ const composerMock = (theme) => `
   </div>
 </section>`;
 
+const providerMock = (theme) => `
+<section class="mock mock-${theme}">
+  <h3>${theme === 'light' ? 'Light surface' : 'Dark surface'} — Settings → Models provider rows (14px text, 16px vendor mark)</h3>
+  <div class="providers">
+    ${PROVIDERS.map(
+      ([key, name]) => `
+    <div class="provider-row">
+      ${mark(key, 16)}
+      <span class="provider-name">${escape(name)}</span>
+    </div>`,
+    ).join('')}
+  </div>
+</section>`;
+
+const letterMock = () => {
+  const rows = LETTER_SAMPLES.map((name) => {
+    const entry = artwork.letterTile(name);
+    const svg = entry.svg;
+    return `
+    <div class="letter-row">
+      <span class="mark" style="width:24px;height:24px">${svg}</span>
+      <span class="mark" style="width:16px;height:16px">${svg}</span>
+      <span class="letter-label">${escape(name || '(empty)')} → “${escape(entry.title)}”</span>
+    </div>`;
+  }).join('');
+  return `
+<section class="mock mock-light">
+  <h3>Deterministic letter-tile fallback (src/artwork.mjs) — 24px + 16px</h3>
+  <div class="letters">${rows}</div>
+</section>`;
+};
+
 const artworkCard = (key) => {
   const entry = LOGOS[key];
   return `
@@ -122,24 +191,22 @@ const artworkCard = (key) => {
       <span class="on-dark">${mark(key, 96)}</span>
     </div>
     <div class="small">
-      ${[48, 24, 16].map((size) => `<span class="on-light">${mark(key, size)}</span>`).join('')}
-      ${[24, 16].map((size) => `<span class="on-dark">${mark(key, size)}</span>`).join('')}
+      ${[48, 24, 16, 14].map((size) => `<span class="on-light">${mark(key, size)}</span>`).join('')}
+      ${[24, 16, 14].map((size) => `<span class="on-dark">${mark(key, size)}</span>`).join('')}
     </div>
     <figcaption><b>${escape(key)}</b><span>${escape(entry ? entry.title : 'MISSING')}</span></figcaption>
   </figure>`;
 };
 
+const sheetTitle = onlySet ? `${onlySet} artwork — ${keys.length} marks` : `Artwork sheet — ${keys.length} marks`;
+
 const body = only
   ? `
-${composerMock('light')}
-${composerMock('dark')}
+${onlySet === 'vendors' ? providerMock('light') + providerMock('dark') + letterMock() : composerMock('light') + composerMock('dark')}
 <section class="sheet"><h2>${escape(only)}</h2>${artworkCard(only)}</section>`
   : `
-${composerMock('light')}
-${composerMock('dark')}
-<section class="sheet"><h2>Artwork sheet — ${keys.length} marks</h2><div class="grid">${keys
-      .map(artworkCard)
-      .join('')}</div></section>`;
+${onlySet === 'vendors' ? providerMock('light') + providerMock('dark') + letterMock() : composerMock('light') + composerMock('dark')}
+<section class="sheet"><h2>${sheetTitle}</h2><div class="grid">${keys.map(artworkCard).join('')}</div></section>`;
 
 const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>dsh-model-logos preview</title>
@@ -167,6 +234,12 @@ const html = `<!doctype html>
   .option-copy { display: inline-flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
   .option-name { font-size: 13px; line-height: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .check { flex: 0 0 14px; opacity: .8; font-size: 12px; }
+  .providers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 24px; }
+  .provider-row { display: flex; align-items: center; gap: 8px; min-height: 30px; }
+  .provider-name { font-size: 14px; line-height: 22px; }
+  .letters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 24px; }
+  .letter-row { display: flex; align-items: center; gap: 8px; }
+  .letter-label { font-size: 12px; color: #5b6270; }
   .mark { display: inline-block; line-height: 0; flex: none; }
   .mark > svg { display: block; width: 100%; height: 100%; }
   .sheet { margin-top: 8px; }
@@ -187,10 +260,11 @@ const html = `<!doctype html>
   .missing { color: #d64545; font-weight: 700; }
 </style></head>
 <body>${body}
-<p style="font-size:11px;color:#8b93a1;margin-top:24px">Static preview of src/logos-*.mjs — shipped sizes are 14px (trigger/menu) and 16px (options).</p>
+<p style="font-size:11px;color:#8b93a1;margin-top:24px">Static preview of src/logos-*.mjs — shipped sizes are 14px (trigger/menu/settings text) and 16px (options).</p>
 </body></html>`;
 
-const htmlPath = join(PREVIEW, only ? `${only}.html` : 'logos.html');
+const suffix = only ? only : onlySet ? `logos-${onlySet}` : 'logos';
+const htmlPath = join(PREVIEW, `${suffix}.html`);
 writeFileSync(htmlPath, html);
 console.log('wrote ' + htmlPath);
 
@@ -209,7 +283,7 @@ if (!noShot) {
   const rows = Math.ceil(keys.length / columns);
   const width = forcedWidth ?? (only ? 720 : 1280);
   const height = forcedHeight ?? (only ? 900 : 500 + Math.max(1, rows) * 340);
-  const pngPath = join(PREVIEW, only ? `${only}.png` : 'logos.png');
+  const pngPath = join(PREVIEW, `${suffix}.png`);
   const profileDir = join(PREVIEW, `edge-profile-${process.pid}`);
   mkdirSync(profileDir, { recursive: true });
   const fileUrl = 'file:///' + htmlPath.replace(/\\/g, '/');
@@ -250,4 +324,10 @@ if (!noShot) {
     process.exit(1);
   }
   console.log(`wrote ${pngPath} (${statSync(pngPath).size} bytes)`);
+  if (outFile) {
+    const target = resolve(ROOT, outFile);
+    mkdirSync(dirname(target), { recursive: true });
+    copyFileSync(pngPath, target);
+    console.log(`copied to ${target} (${statSync(target).size} bytes)`);
+  }
 }

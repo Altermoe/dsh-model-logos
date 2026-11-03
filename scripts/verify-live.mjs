@@ -11,9 +11,11 @@
  *   2. the HMR transport has published that generation (no restart needed).
  *
  * Runs read-only against the local GUI; pass `--url` to point elsewhere and
- * `--wait <ms>` to allow the poller time to notice a fresh build.
+ * `--wait <ms>` to allow the poller time to notice a fresh build. The default
+ * target is `$DSH_WEB_URL` (set inside a DSH session) or the historical desktop
+ * port.
  *
- * Usage: node scripts/verify-live.mjs [--url http://127.0.0.1:49892] [--wait 8000]
+ * Usage: node scripts/verify-live.mjs [--url http://127.0.0.1:56750] [--wait 8000]
  */
 import { createHash } from 'node:crypto';
 import { readFileSync, statSync } from 'node:fs';
@@ -29,7 +31,7 @@ const valueOf = (flag, fallback) => {
   const at = args.indexOf(flag);
   return at >= 0 && args[at + 1] !== undefined ? args[at + 1] : fallback;
 };
-const baseUrl = valueOf('--url', 'http://127.0.0.1:49892').replace(/\/$/, '');
+const baseUrl = valueOf('--url', process.env.DSH_WEB_URL ?? 'http://127.0.0.1:49892').replace(/\/$/, '');
 const waitMs = Number(valueOf('--wait', '8000'));
 
 /** Artifact revision as computed by the Host client-modules service. */

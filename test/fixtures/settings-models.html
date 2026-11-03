@@ -1,0 +1,1521 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>dsh-model-logos — Settings → Models DOM fixture</title>
+<!--
+  Faithful static reproduction of the DSH "Settings → Models" page, used only by
+  scripts/verify-dom.mjs (never shipped).
+
+  Provenance:
+  - Page markup + `.jrmgQW_*` CSS: compiled `@deepseek-ai/dsh-client-ui-settings-models`
+    (lib/client.js from app.asar; ModelsSection / ProviderEditor / ModelRow /
+    add-provider card).
+  - Dialog shell markup + `.AnXs9G_*` CSS: compiled
+    `@deepseek-ai/dsh-client-ui-settings-general` (SettingsPanel / SettingsRoot).
+  - `--dsw-static-*` / `--dsw-alias-*` design tokens: compiled
+    `@deepseek-ai/dsh-client-ui-theme` (light theme blocks), copied verbatim so the
+    fixture renders like the real dialog instead of an unstyled page.
+  - Locale: zh (the strings the shipped page renders with `active: 'zh'`).
+
+  Deliberate simplifications, all visual only:
+  - The add-provider card's provider editor keeps the catalog `<select>` and its
+    field layout but omits its own model rows, so the model-row assertions have a
+    fixed count of three.
+  - Inline SVG approximations of the primitive icons (chevron / trash / plus / close).
+  - The shell nav lists a representative set of sections; the dialog is always open.
+
+  The three saved provider rows are (account-first, as the shipped store sorts them):
+    0. DeepSeek 账号 (provider `deepseek-account`; localized `deepSeekAccount` copy,
+       not the directory's "DeepSeek Account"; no Edit/Delete buttons because the
+       page suppresses Edit for the account route and it is not removable)
+    1. anthropic  (official catalog channel; catalog display names equal route ids) + open editor
+    2. 火山 Coding Plan (hand-declared, provider id `volcengine`, `declared: true`, user-set display name)
+  The add-provider catalog select offers openai / google / moonshotai / xai / openrouter
+  (option text equals the catalog display name, i.e. the route id).
+-->
+<style>
+/* font + radius tokens — @deepseek-ai/dsh-client-ui-theme (base CSS) */
+:root {
+  --dsh-font-family-text-default:-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --dsw-font-family:var(--dsh-font-family-text-default);
+  --dsw-font-family-brand:"Montserrat", var(--dsh-font-family-text-default);
+  --dsh-font-family-code-default:"SF Mono", "JetBrains Mono", "Fira Code", Consolas, "Liberation Mono", Menlo, Courier, "PingFang SC", "Microsoft YaHei";
+  --ds-font-family-code:var(--dsh-font-family-code-default);
+  --ds-ease-in-out:cubic-bezier(.4, 0, .2, 1);
+  --ds-transition-duration:.2s;
+  --ds-transition-duration-fast:.1s;
+  --ds-transition-duration-slow:.3s;
+  --dsw-radius-xs:4px;
+  --dsw-radius-sm:8px;
+  --dsw-radius-md:12px;
+  --dsw-radius-lg:16px;
+  --dsw-radius-xl:20px;
+  --dsw-radius-panel:28px
+}
+
+/* static palette — theme design_platform CSS */
+:root {
+  --dsw-static-amber-100:#fef5e7;
+  --dsw-static-amber-400:#f7ad31;
+  --dsw-static-amber-500:#f59e0b;
+  --dsw-static-amber-600:#dd8629;
+  --dsw-static-amber-900:#27241f;
+  --dsw-static-blue-100:#dbeafe;
+  --dsw-static-blue-300:#93c5fd;
+  --dsw-static-blue-400:#60a5fa;
+  --dsw-static-blue-450:#4d93f8;
+  --dsw-static-blue-500:#3b82f6;
+  --dsw-static-blue-50:#eff6ff;
+  --dsw-static-blue-50p:#eaf3ff;
+  --dsw-static-blue-600:#2563eb;
+  --dsw-static-blue-75:#e5f0ff;
+  --dsw-static-blue-800:#1e40af;
+  --dsw-static-blue-900:#0e3074;
+  --dsw-static-blue-950:#172554;
+  --dsw-static-deepseek-100:#e4edfd;
+  --dsw-static-deepseek-200:#d3e2ff;
+  --dsw-static-deepseek-300:#b7c8fe;
+  --dsw-static-deepseek-400:#7aaaff;
+  --dsw-static-deepseek-450:#5686fe;
+  --dsw-static-deepseek-500:#4176e6;
+  --dsw-static-deepseek-50:#edf3fe;
+  --dsw-static-deepseek-600:#4868b2;
+  --dsw-static-deepseek-700-delete:#2f4c8f;
+  --dsw-static-deepseek-800:#34415b;
+  --dsw-static-deepseek-900:#283142;
+  --dsw-static-green-100:#e6faed;
+  --dsw-static-green-400:#4ed17e;
+  --dsw-static-green-500:#22c55e;
+  --dsw-static-green-500-a08:#22c55e14;
+  --dsw-static-green-500-a12:#22c55e1f;
+  --dsw-static-green-900:#233c2c;
+  --dsw-static-neutral-00:#fff;
+  --dsw-static-neutral-1000:#000;
+  --dsw-static-neutral-100:#f5f5f5;
+  --dsw-static-neutral-150:#ededed;
+  --dsw-static-neutral-200:#e5e5e5;
+  --dsw-static-neutral-250:#dcdcdc;
+  --dsw-static-neutral-300:#d4d4d4;
+  --dsw-static-neutral-400:#a2a4a6;
+  --dsw-static-neutral-500:#7f8287;
+  --dsw-static-neutral-50:#fafafa;
+  --dsw-static-neutral-550:#65676b;
+  --dsw-static-neutral-600:#545557;
+  --dsw-static-neutral-700:#3c3c3d;
+  --dsw-static-neutral-800:#292929;
+  --dsw-static-neutral-850:#212123;
+  --dsw-static-neutral-900:#0f0f0f;
+  --dsw-static-neutral-bluish-00:#fff;
+  --dsw-static-neutral-bluish-1000:#0f1115;
+  --dsw-static-neutral-bluish-100:#ebeef2;
+  --dsw-static-neutral-bluish-150:#e9ecf2;
+  --dsw-static-neutral-bluish-200:#e1e5ee;
+  --dsw-static-neutral-bluish-300:#cfd3d6;
+  --dsw-static-neutral-bluish-400:#adb2b8;
+  --dsw-static-neutral-bluish-500:#979da6;
+  --dsw-static-neutral-bluish-50:#f9fafb;
+  --dsw-static-neutral-bluish-600:#81858c;
+  --dsw-static-neutral-bluish-60:#f5f6f7;
+  --dsw-static-neutral-bluish-700:#61666b;
+  --dsw-static-neutral-bluish-750:#43454a;
+  --dsw-static-neutral-bluish-75:#f1f3f5;
+  --dsw-static-neutral-bluish-800:#353638;
+  --dsw-static-neutral-bluish-850:#2c2c2e;
+  --dsw-static-neutral-bluish-875:#232324;
+  --dsw-static-neutral-bluish-900:#1b1b1c;
+  --dsw-static-neutral-bluish-950:#151517;
+  --dsw-static-red-100:#fee2e2;
+  --dsw-static-red-400:#f25a5a;
+  --dsw-static-red-400-a12:#f25a5a1f;
+  --dsw-static-red-500:#ef4444;
+  --dsw-static-red-50:#fef2f2;
+  --dsw-static-red-600:#ec1313;
+  --dsw-static-red-600-a08:#ec131314;
+  --dsw-static-red-900:#570c0c
+}
+
+/* light-theme alias tokens — theme light CSS block */
+body {
+  --dsw-alias-bg-base:var(--dsw-static-neutral-bluish-00);
+  --dsw-alias-bg-document-preview:var(--dsw-static-neutral-bluish-100);
+  --dsw-alias-bg-document-selection:color-mix(in srgb, var(--dsw-static-blue-500) 40%, transparent);
+  --dsw-alias-label-document-preview:var(--dsw-static-neutral-bluish-700);
+  --dsw-alias-bg-layer-1:var(--dsw-static-neutral-bluish-00);
+  --dsw-alias-bg-layer-2:var(--dsw-static-neutral-bluish-00);
+  --dsw-alias-bg-layer-3:var(--dsw-static-neutral-bluish-00);
+  --dsw-alias-bg-mask-1:#0000003d;
+  --dsw-alias-bg-mask-2:#0000001f;
+  --dsw-alias-bg-mask-3:#0000007a;
+  --dsw-alias-bg-mask-photo:#000000e0;
+  --dsw-alias-bg-mask-drop:#ffffffb3;
+  --dsw-alias-bg-module-platform:var(--dsw-static-neutral-bluish-60);
+  --dsw-alias-bg-multi-select:var(--dsw-static-neutral-bluish-60);
+  --dsw-alias-bg-overlay:var(--dsw-static-neutral-bluish-150);
+  --dsw-alias-bg-skeleton:#0000000a;
+  --dsw-alias-border-inverted2:#0000;
+  --dsw-alias-border-inverted:#0000;
+  --dsw-alias-border-l1:#0000000a;
+  --dsw-alias-border-l2-darkmode-thin:#0000001a;
+  --dsw-alias-border-l2:#0000001a;
+  --dsw-alias-border-l3:#0000001f;
+  --dsw-alias-border-l4:#00000029;
+  --dsw-alias-brand-primary-invert:var(--dsw-static-neutral-bluish-1000);
+  --dsw-alias-brand-primary-new-colorprimary-new-color:#4176e6;
+  --dsw-alias-brand-primary:var(--dsw-static-neutral-bluish-1000);
+  --dsw-alias-brand-text:var(--dsw-static-neutral-bluish-1000);
+  --dsw-alias-button-contrast-fill:var(--dsw-static-neutral-bluish-700);
+  --dsw-alias-button-elevated-fill:var(--dsw-static-neutral-bluish-00);
+  --dsw-alias-button-floating-fill:var(--dsw-static-neutral-bluish-00);
+  --dsw-alias-button-floating-hover:var(--dsw-static-neutral-bluish-75);
+  --dsw-alias-button-ghost-active-border:var(--dsw-static-neutral-bluish-500);
+  --dsw-alias-button-ghost-active-fill:var(--dsw-static-neutral-bluish-100);
+  --dsw-alias-button-ghost-active-hover:var(--dsw-static-neutral-bluish-150);
+  --dsw-alias-button-info-fill:var(--dsw-static-deepseek-500);
+  --dsw-alias-button-info-hover:var(--dsw-static-deepseek-400);
+  --dsw-alias-button-primary-dimmed:var(--dsw-static-neutral-bluish-100);
+  --dsw-alias-button-primary-fill:var(--dsw-alias-brand-primary);
+  --dsw-alias-button-primary-hover:var(--dsw-static-neutral-bluish-750);
+  --dsw-alias-button-tool-bar-fill-invisible:#1f1f1f5c;
+  --dsw-alias-button-tool-bar-fill:#54555780;
+  --dsw-alias-button-tool-bar-hover:#54555799;
+  --dsw-alias-interactive-bg-active:#2631481a;
+  --dsw-alias-interactive-bg-hover-accent:#26314824;
+  --dsw-alias-interactive-bg-hover-danger:#ec13130d;
+  --dsw-alias-interactive-bg-hover-solid:var(--dsw-static-neutral-bluish-75);
+  --dsw-alias-interactive-bg-hover:#2631480f;
+  --dsw-alias-label-caption:var(--dsw-static-neutral-bluish-400);
+  --dsw-alias-label-deep-diving:color-mix(in srgb, var(--dsw-static-deepseek-500) 70%, var(--dsw-static-blue-950));
+  --dsw-alias-label-deep-diving-shimmer:color-mix(in srgb, var(--dsw-static-deepseek-500) 30%, var(--dsw-static-blue-950));
+  --dsw-alias-label-dimmed:var(--dsw-static-neutral-bluish-200);
+  --dsw-alias-label-primary-bluish:var(--dsw-static-blue-900);
+  --dsw-alias-label-primary-dimmed:var(--dsw-static-neutral-bluish-950);
+  --dsw-alias-label-primary-foreground:var(--dsw-static-neutral-bluish-00);
+  --dsw-alias-label-primary-inverted:var(--dsw-static-neutral-bluish-00);
+  --dsw-alias-label-primary:var(--dsw-static-neutral-bluish-1000);
+  --dsw-alias-label-secondary:var(--dsw-static-neutral-bluish-700);
+  --dsw-alias-label-shimmer:color-mix(in srgb, var(--dsw-static-neutral-1000) 30%, transparent);
+  --dsw-alias-label-tertiary:var(--dsw-static-neutral-bluish-600);
+  --dsw-alias-menu-icon:var(--dsw-static-neutral-bluish-800);
+  --dsw-alias-link:var(--dsw-static-deepseek-500);
+  --dsw-alias-markdown-citation:var(--dsw-static-neutral-bluish-100);
+  --dsw-alias-markdown-code-block-banner:var(--dsw-static-neutral-bluish-50);
+  --dsw-alias-markdown-code-block:var(--dsw-static-neutral-bluish-50);
+  --dsw-alias-markdown-code-segment-selected:var(--dsw-static-neutral-bluish-00);
+  --dsw-alias-markdown-code-segment-unselected:var(--dsw-static-neutral-bluish-75);
+  --dsw-alias-markdown-inline-code:var(--dsw-static-neutral-50);
+  --dsw-alias-markdown-placeholder:var(--dsw-static-neutral-bluish-60);
+  --dsw-alias-markdown-tag:var(--dsw-static-neutral-bluish-75);
+  --dsw-alias-scrollbar-bg-l1:var(--dsw-static-neutral-200);
+  --dsw-alias-scrollbar-bg-l2:var(--dsw-static-neutral-200);
+  --dsw-alias-scrollbar-hover-l1:var(--dsw-static-neutral-300);
+  --dsw-alias-scrollbar-hover-l2:var(--dsw-static-neutral-300);
+  --dsw-alias-state-business-primary:var(--dsw-static-deepseek-500);
+  --dsw-alias-state-business-tertiary:var(--dsw-static-deepseek-100);
+  --dsw-alias-code-diff-added:var(--dsw-static-green-500-a08);
+  --dsw-alias-code-diff-deleted:var(--dsw-static-red-600-a08);
+  --dsw-alias-file-diff-added-bg:#e6f4e7;
+  --dsw-alias-file-diff-added-gutter:#edf7ed;
+  --dsw-alias-file-diff-added-marker:#01a241;
+  --dsw-alias-file-diff-deleted-bg:#fce6e2;
+  --dsw-alias-file-diff-deleted-gutter:#fdece9;
+  --dsw-alias-file-diff-deleted-marker:#ba2723;
+  --dsw-alias-state-error-primary:var(--dsw-static-red-600);
+  --dsw-alias-state-error-secondary:var(--dsw-static-red-400);
+  --dsw-alias-state-idle-primary:var(--dsw-static-neutral-300);
+  --dsw-alias-state-success-primary:var(--dsw-static-green-500);
+  --dsw-alias-state-success-secondary:var(--dsw-static-green-400);
+  --dsw-alias-state-success-tertiary:var(--dsw-static-green-100);
+  --dsw-alias-state-warn-label:var(--dsw-static-amber-600);
+  --dsw-alias-state-warn-primary:var(--dsw-static-amber-500);
+  --dsw-alias-state-warn-secondary:var(--dsw-static-amber-400);
+  --dsw-alias-state-warn-tertiary:var(--dsw-static-amber-100);
+  --dsw-alias-switch-thumb:var(--dsw-static-neutral-bluish-00);
+  --dsw-alias-toast-bg:var(--dsw-static-neutral-bluish-800);
+  --dsw-alias-toast-label:var(--dsw-static-neutral-bluish-00);
+  --dsw-alias-tooltip-bg:var(--dsw-static-neutral-bluish-850);
+  --dsw-alias-tooltip-key-bg:color-mix(in srgb, var(--dsw-alias-tooltip-bg), white 18%);
+  --dsw-alias-turn-trigger-bg:var(--dsw-alias-markdown-code-block);
+  --dsw-alias-turn-trigger-bg-hover:var(--dsw-alias-interactive-bg-hover);
+  --dsw-specific-bubble-highlight:var(--dsw-static-deepseek-200);
+  --dsw-specific-bubble:var(--dsw-static-deepseek-50);
+  --dsw-specific-input-major:var(--dsw-static-neutral-bluish-00);
+  --dsw-specific-login-input:var(--dsw-static-neutral-bluish-50);
+  --dsw-menu-surface-fill:#f8f9fa94;
+  --dsw-alias-menu-group-header-fill:#f8f9faf0;
+  --dsw-specific-menu:var(--dsw-menu-surface-fill);
+  --dsw-specific-selector:var(--dsw-static-neutral-bluish-60);
+  --dsw-specific-sidebar-fill:var(--dsw-static-neutral-bluish-50);
+  --dsw-specific-sidebar-nav-item-active-accent:var(--dsw-static-deepseek-100);
+  --dsw-specific-sidebar-nav-item-active:var(--dsw-static-neutral-bluish-100);
+  --dsw-specific-sidebar-nav-item-hover:var(--dsw-static-neutral-bluish-75);
+  --dsw-specific-tip:var(--dsw-static-neutral-bluish-60);
+  background-color:var(--dsw-alias-bg-base)
+}
+
+/* light-theme gradients / shadows / elevation — theme blocks */
+body {
+  --dsw-linear-gradient-think:linear-gradient(180deg, #fff 20.19%, #fff0 100%);
+  --dsw-linear-think-select:linear-gradient(180deg, #f5f6f7 20.19%, #f5f6f700 100%);
+  --dsw-shadow-lv1:0 2px 4px 0 #0000000d;
+  --dsw-shadow-lv1-blur:0 4px 12px 0 #00000005;
+  --dsw-shadow-lv2:0 4px 12px 0 #00000005, 0 2px 8px 0 #0000000a;
+  --dsw-shadow-lv3:0 0 1px 0 #0003, 0 0 4px 0 #00000005, 0 12px 32px 0 #00000014;
+  --dsw-elevation-stroke-color:var(--dsw-alias-border-l4);
+  --dsw-mask-blur:none;
+  --dsw-menu-backdrop-filter:blur(40px) saturate(150%)
+}
+
+body, body * {
+  --dsw-elevation-stroke:0 0 0 .5px var(--dsw-elevation-stroke-color);
+  --dsw-elevation-panel:var(--dsw-elevation-stroke), 0 3px 8px 0 #00000008, 0 0 16px 0 #00000005;
+  --dsw-elevation-prominent:var(--dsw-elevation-stroke), 0 3px 8px 0 #0000000a, 0 0 20px 0 #0000000d;
+  --dsw-elevation-soft:var(--dsw-elevation-stroke), 0 4px 16px 0 #00000008, 0 0 24px 0 #00000008
+}
+
+/* Settings dialog shell — @deepseek-ai/dsh-client-ui-settings-general/SettingsRoot.module.css */
+.AnXs9G_triggerRow {
+  flex:none;
+  align-items:center;
+  gap:8px;
+  width:calc(100% + 4px);
+  margin:4px -2px;
+  display:flex;
+  position:relative
+}
+
+.AnXs9G_triggerRow.AnXs9G_railRow {
+  width:36px;
+  margin:8px 0 10px
+}
+
+.AnXs9G_trigger {
+  box-sizing:border-box;
+  border-radius:var(--dsw-radius-md);
+  cursor:pointer;
+  width:auto;
+  min-width:0;
+  height:42px;
+  color:var(--dsw-alias-label-primary);
+  background:0 0;
+  border:none;
+  flex:1;
+  align-items:center;
+  gap:8px;
+  margin:0;
+  padding:0 10px 0 8px;
+  font-family:inherit;
+  font-size:14px;
+  line-height:22px;
+  display:flex;
+  overflow:hidden
+}
+
+.AnXs9G_trigger:hover {
+  background:var(--dsw-alias-interactive-bg-hover)
+}
+
+.AnXs9G_trigger.AnXs9G_rail {
+  flex:none;
+  justify-content:center;
+  gap:0;
+  width:36px;
+  height:36px;
+  margin:0;
+  padding:0
+}
+
+.AnXs9G_triggerLabel {
+  white-space:nowrap;
+  overflow:hidden
+}
+
+.AnXs9G_overlay {
+  z-index:1000;
+  justify-content:center;
+  align-items:center;
+  display:flex;
+  position:fixed;
+  inset:0
+}
+
+.AnXs9G_mask {
+  inset:var(--dsh-frame-chrome-top,0px) 0 0;
+  background:var(--dsw-alias-bg-mask-1);
+  backdrop-filter:var(--dsw-mask-blur);
+  position:absolute
+}
+
+.AnXs9G_panel {
+  z-index:1;
+  width:800px;
+  height:min(800px, calc(100vh - 2 * max(24px, var(--dsh-frame-overlay-top,24px))));
+  border-radius:var(--dsw-radius-panel);
+  background:var(--dsw-alias-bg-layer-2);
+  max-width:calc(100vw - 48px);
+  box-shadow:var(--dsw-elevation-prominent);
+  --dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2);
+  display:flex;
+  position:relative;
+  overflow:hidden
+}
+
+.AnXs9G_panel:focus {
+  outline:none
+}
+
+.AnXs9G_nav {
+  box-sizing:border-box;
+  flex-direction:column;
+  flex:none;
+  gap:18px;
+  width:188px;
+  padding:22px 12px 0;
+  display:flex
+}
+
+.AnXs9G_navTitle {
+  color:var(--dsw-alias-label-primary);
+  padding:0 12px;
+  font-size:16px;
+  font-weight:500;
+  line-height:24px
+}
+
+.AnXs9G_navList {
+  flex-direction:column;
+  gap:4px;
+  display:flex;
+  overflow-y:auto
+}
+
+.AnXs9G_navCell {
+  box-sizing:border-box;
+  border-radius:var(--dsw-radius-md);
+  cursor:pointer;
+  height:40px;
+  color:var(--dsw-alias-label-primary);
+  text-align:left;
+  background:0 0;
+  border:none;
+  align-items:center;
+  gap:8px;
+  padding:9px 16px 9px 12px;
+  font-family:inherit;
+  font-size:14px;
+  font-weight:400;
+  line-height:22px;
+  display:flex
+}
+
+.AnXs9G_navCell:hover {
+  background:var(--dsw-specific-sidebar-nav-item-hover)
+}
+
+.AnXs9G_navCell.AnXs9G_active {
+  background:var(--dsw-specific-sidebar-nav-item-active)
+}
+
+.AnXs9G_navIcon {
+  flex:none
+}
+
+.AnXs9G_navLabel {
+  white-space:nowrap;
+  text-overflow:ellipsis;
+  flex:1;
+  min-width:0;
+  overflow:hidden
+}
+
+.AnXs9G_content {
+  flex-direction:column;
+  flex:1;
+  min-width:0;
+  display:flex
+}
+
+.AnXs9G_header {
+  box-sizing:border-box;
+  flex:none;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:8px;
+  height:54px;
+  padding:20px 14px 8px 10px;
+  display:flex
+}
+
+.AnXs9G_actions {
+  justify-content:flex-end;
+  align-items:center;
+  gap:8px;
+  min-width:0;
+  margin-left:auto;
+  display:flex
+}
+
+.AnXs9G_close {
+  border-radius:var(--dsw-radius-sm);
+  cursor:pointer;
+  width:28px;
+  height:28px;
+  color:var(--dsw-alias-label-primary);
+  background:0 0;
+  border:none;
+  justify-content:center;
+  align-items:center;
+  padding:0;
+  display:inline-flex
+}
+
+.AnXs9G_close:hover {
+  background:var(--dsw-alias-interactive-bg-hover)
+}
+
+.AnXs9G_options {
+  flex:1;
+  min-height:0;
+  padding:0 24px 24px;
+  overflow-y:auto
+}
+
+.AnXs9G_hiddenLabel {
+  clip:rect(0 0 0 0);
+  white-space:nowrap;
+  width:1px;
+  height:1px;
+  position:absolute;
+  overflow:hidden
+}
+
+/* Models section — @deepseek-ai/dsh-client-ui-settings-models/ModelsSection.module.css */
+.jrmgQW_section {
+  max-width:720px;
+  color:var(--dsw-alias-label-primary);
+  flex-direction:column;
+  gap:12px;
+  display:flex
+}
+
+.jrmgQW_title {
+  color:var(--dsw-alias-label-primary);
+  margin:0;
+  font-size:16px;
+  font-weight:500;
+  line-height:24px
+}
+
+.jrmgQW_intro {
+  color:var(--dsw-alias-label-tertiary);
+  margin:0;
+  font-size:14px;
+  line-height:22px
+}
+
+.jrmgQW_notice {
+  color:var(--dsw-alias-state-warn-label);
+  margin:0;
+  font-size:12px;
+  line-height:18px
+}
+
+.jrmgQW_savedNotice {
+  color:var(--dsw-alias-state-success-primary);
+  margin:0;
+  font-size:12px;
+  line-height:18px
+}
+
+.jrmgQW_rows {
+  flex-direction:column;
+  gap:8px;
+  margin:12px 0 0;
+  padding:0;
+  list-style:none;
+  display:flex
+}
+
+.jrmgQW_rowCard {
+  border:.5px solid var(--dsw-alias-settings-card-stroke);
+  background:var(--dsw-alias-settings-card-fill);
+  border-radius:var(--dsw-radius-xl);
+  flex-direction:column;
+  gap:12px;
+  padding:12px 14px;
+  display:flex
+}
+
+.jrmgQW_rowHead {
+  align-items:center;
+  gap:10px;
+  display:flex
+}
+
+.jrmgQW_rowIdentity {
+  align-items:center;
+  gap:6px;
+  min-width:0;
+  display:inline-flex
+}
+
+.jrmgQW_rowName {
+  color:var(--dsw-alias-label-primary);
+  font-size:14px;
+  font-weight:500;
+  line-height:22px
+}
+
+.jrmgQW_rowTag {
+  border:.5px solid var(--dsw-alias-border-l3);
+  border-radius:var(--dsw-radius-xs);
+  color:var(--dsw-alias-label-secondary);
+  flex:none;
+  padding:1px 6px;
+  font-size:11px;
+  line-height:16px
+}
+
+.jrmgQW_credentialDot {
+  box-sizing:border-box;
+  corner-shape:round;
+  border-radius:50%;
+  flex:none;
+  width:8px;
+  height:8px;
+  display:inline-block
+}
+
+.jrmgQW_credentialDotConfigured {
+  background:var(--dsw-alias-state-success-primary)
+}
+
+.jrmgQW_credentialDotMissing {
+  background:var(--dsw-alias-state-error-primary)
+}
+
+.jrmgQW_accountStatus {
+  color:var(--dsw-alias-state-success-primary);
+  flex:none;
+  align-items:center;
+  gap:6px;
+  font-size:13px;
+  line-height:20px;
+  display:inline-flex
+}
+
+.jrmgQW_rowActions {
+  align-items:center;
+  gap:4px;
+  margin-left:auto;
+  display:inline-flex
+}
+
+.jrmgQW_primaryButton,.jrmgQW_secondaryButton,.jrmgQW_addButton {
+  box-sizing:border-box;
+  border-radius:var(--dsw-radius-md);
+  height:36px;
+  font:inherit;
+  cursor:pointer;
+  border:none;
+  justify-content:center;
+  align-items:center;
+  gap:4px;
+  padding:0 14px;
+  font-size:14px;
+  line-height:22px;
+  display:inline-flex
+}
+
+.jrmgQW_primaryButton {
+  background:var(--dsw-alias-button-primary-fill);
+  color:var(--dsw-alias-label-primary-foreground)
+}
+
+.jrmgQW_primaryButton:hover:not(:disabled) {
+  background:var(--dsw-alias-button-primary-hover)
+}
+
+.jrmgQW_secondaryButton,.jrmgQW_addButton {
+  border:.5px solid var(--dsw-alias-border-l3);
+  color:var(--dsw-alias-label-primary);
+  background:0 0
+}
+
+.jrmgQW_secondaryButton:hover:not(:disabled),.jrmgQW_addButton:hover:not(:disabled) {
+  background:var(--dsw-alias-interactive-bg-hover)
+}
+
+.jrmgQW_secondaryButton:hover:not(:disabled) {
+  background:var(--dsw-alias-interactive-bg-hover-solid)
+}
+
+.jrmgQW_dangerButton {
+  box-sizing:border-box;
+  border-radius:var(--dsw-radius-md);
+  height:36px;
+  color:var(--dsw-alias-state-error-primary);
+  font:inherit;
+  cursor:pointer;
+  background:0 0;
+  border:none;
+  justify-content:center;
+  align-items:center;
+  padding:0 14px;
+  font-size:14px;
+  line-height:22px;
+  display:inline-flex
+}
+
+.jrmgQW_dangerButton:hover:not(:disabled) {
+  background:var(--dsw-alias-interactive-bg-hover-danger)
+}
+
+.jrmgQW_rowActions .jrmgQW_secondaryButton,.jrmgQW_rowActions .jrmgQW_dangerButton {
+  border-radius:var(--dsw-radius-sm);
+  height:28px;
+  padding:0 10px;
+  font-size:12px;
+  line-height:18px
+}
+
+.jrmgQW_primaryButton:disabled,.jrmgQW_secondaryButton:disabled,.jrmgQW_dangerButton:disabled,.jrmgQW_addButton:disabled,.jrmgQW_linkButton:disabled,.jrmgQW_addModelButton:disabled {
+  opacity:.4;
+  cursor:default
+}
+
+.jrmgQW_primaryButton:focus-visible,.jrmgQW_secondaryButton:focus-visible,.jrmgQW_dangerButton:focus-visible,.jrmgQW_addButton:focus-visible,.jrmgQW_linkButton:focus-visible,.jrmgQW_addModelButton:focus-visible,.jrmgQW_iconButton:focus-visible,.jrmgQW_customizedSummary:focus-visible {
+  box-shadow:0 0 0 2px var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));
+  outline:none
+}
+
+.jrmgQW_editor {
+  border-radius:var(--dsw-radius-lg);
+  background:var(--dsw-alias-bg-module-platform);
+  flex-direction:column;
+  gap:14px;
+  padding:14px 16px;
+  display:flex
+}
+
+.jrmgQW_editorHeader {
+  align-items:baseline;
+  gap:8px;
+  display:flex
+}
+
+.jrmgQW_editorTitle {
+  color:var(--dsw-alias-label-primary);
+  font-size:14px;
+  font-weight:500;
+  line-height:22px
+}
+
+.jrmgQW_editorRoute {
+  color:var(--dsw-alias-label-tertiary);
+  font-size:12px;
+  line-height:18px
+}
+
+.jrmgQW_field {
+  flex-direction:column;
+  gap:6px;
+  display:flex
+}
+
+.jrmgQW_fieldLabel {
+  color:var(--dsw-alias-label-secondary);
+  align-items:center;
+  gap:10px;
+  font-size:12px;
+  font-weight:500;
+  line-height:18px;
+  display:inline-flex
+}
+
+.jrmgQW_helpButton {
+  border:.5px solid var(--dsw-alias-border-l3);
+  corner-shape:round;
+  width:16px;
+  height:16px;
+  color:var(--dsw-alias-label-tertiary);
+  font:inherit;
+  text-align:center;
+  cursor:help;
+  background:0 0;
+  border-radius:50%;
+  padding:0;
+  font-size:11px;
+  line-height:15px
+}
+
+.jrmgQW_helpButton:hover,.jrmgQW_helpButton:focus-visible {
+  color:var(--dsw-alias-label-primary);
+  border-color:var(--dsw-alias-label-tertiary)
+}
+
+.jrmgQW_linkButton {
+  box-sizing:border-box;
+  border-radius:var(--dsw-radius-sm);
+  height:28px;
+  color:var(--dsw-alias-label-tertiary);
+  font:inherit;
+  cursor:pointer;
+  background:0 0;
+  border:none;
+  align-items:center;
+  padding:0 10px;
+  font-size:12px;
+  line-height:18px;
+  display:inline-flex
+}
+
+.jrmgQW_linkButton:hover:not(:disabled) {
+  background:var(--dsw-alias-interactive-bg-hover);
+  color:var(--dsw-alias-label-secondary)
+}
+
+.jrmgQW_advancedHint {
+  color:var(--dsw-alias-label-tertiary);
+  margin:0;
+  font-size:12px;
+  line-height:18px
+}
+
+.jrmgQW_editorActions {
+  justify-content:flex-end;
+  gap:8px;
+  display:flex
+}
+
+.jrmgQW_addBlock {
+  flex-direction:column;
+  gap:12px;
+  display:flex
+}
+
+.jrmgQW_addActions {
+  display:flex
+}
+
+.jrmgQW_addButton {
+  border:1px dashed var(--dsw-alias-border-l3);
+  border-radius:var(--dsw-radius-lg);
+  flex:1 1 0;
+  gap:6px;
+  min-width:180px;
+  height:44px
+}
+
+.jrmgQW_addModes {
+  flex-direction:column;
+  align-items:flex-start;
+  gap:8px;
+  display:flex
+}
+
+.jrmgQW_addPanel {
+  flex-direction:column;
+  gap:14px;
+  display:flex
+}
+
+.jrmgQW_addPanel[hidden] {
+  display:none
+}
+
+.jrmgQW_addCard,.jrmgQW_setupCard {
+  border-radius:var(--dsw-radius-lg);
+  background:var(--dsw-alias-bg-module-platform);
+  flex-direction:column;
+  gap:14px;
+  padding:14px 16px;
+  list-style:none;
+  display:flex
+}
+
+.jrmgQW_addCard .jrmgQW_editor,.jrmgQW_setupCard .jrmgQW_editor {
+  background:0 0;
+  padding:0
+}
+
+.jrmgQW_customized {
+  border-top:.5px solid var(--dsw-alias-border-l2);
+  padding-top:10px
+}
+
+.jrmgQW_customizedSummary {
+  border-radius:var(--dsw-radius-sm);
+  cursor:pointer;
+  width:fit-content;
+  color:var(--dsw-alias-label-secondary);
+  align-items:center;
+  gap:6px;
+  margin-left:-4px;
+  padding:2px 4px;
+  font-size:12px;
+  font-weight:500;
+  line-height:18px;
+  list-style:none;
+  display:flex
+}
+
+.jrmgQW_customizedSummary::-webkit-details-marker {
+  display:none
+}
+
+.jrmgQW_customizedSummary:before {
+  content:"";
+  border-bottom:1.5px solid;
+  border-right:1.5px solid;
+  width:5px;
+  height:5px;
+  transition:transform .12s;
+  transform:rotate(-45deg)translate(-1px,-1px)
+}
+
+.jrmgQW_customized[open]>.jrmgQW_customizedSummary:before {
+  transform:rotate(45deg)translate(-1px,-1px)
+}
+
+.jrmgQW_customizedSummary:hover {
+  color:var(--dsw-alias-label-primary)
+}
+
+.jrmgQW_customizedBody {
+  flex-direction:column;
+  gap:12px;
+  padding-top:12px;
+  display:flex
+}
+
+.jrmgQW_modelCatalog {
+  border-top:.5px solid var(--dsw-alias-border-l2);
+  flex-direction:column;
+  gap:10px;
+  padding-top:12px;
+  display:flex
+}
+
+.jrmgQW_modelCatalogHeading {
+  flex-direction:column;
+  gap:2px;
+  display:flex
+}
+
+.jrmgQW_modelCatalogTitle {
+  color:var(--dsw-alias-label-secondary);
+  font-size:12px;
+  font-weight:500;
+  line-height:18px
+}
+
+.jrmgQW_modelCatalogMeta,.jrmgQW_modelEmpty {
+  color:var(--dsw-alias-label-tertiary);
+  margin:0;
+  font-size:12px;
+  line-height:18px
+}
+
+.jrmgQW_modelList {
+  flex-direction:column;
+  gap:8px;
+  display:flex
+}
+
+.jrmgQW_modelListHead {
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:12px;
+  display:flex
+}
+
+.jrmgQW_modelEntry {
+  border:.5px solid var(--dsw-alias-border-l4);
+  border-radius:var(--dsw-radius-lg);
+  padding:6px
+}
+
+.jrmgQW_modelRow {
+  grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) auto auto;
+  align-items:center;
+  gap:6px;
+  display:grid
+}
+
+.jrmgQW_iconButton {
+  box-sizing:border-box;
+  border-radius:var(--dsw-radius-sm);
+  width:28px;
+  height:28px;
+  color:var(--dsw-alias-label-tertiary);
+  cursor:pointer;
+  background:0 0;
+  border:none;
+  justify-content:center;
+  align-items:center;
+  display:inline-flex
+}
+
+.jrmgQW_iconButton:hover:not(:disabled) {
+  background:var(--dsw-alias-interactive-bg-hover);
+  color:var(--dsw-alias-label-primary)
+}
+
+.jrmgQW_iconButton:disabled {
+  cursor:default;
+  opacity:.4
+}
+
+.jrmgQW_iconButtonDanger:hover:not(:disabled) {
+  background:var(--dsw-alias-interactive-bg-hover-danger);
+  color:var(--dsw-alias-state-error-primary)
+}
+
+.jrmgQW_modelAdvanced {
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
+  padding:8px 4px 2px;
+  display:grid
+}
+
+.jrmgQW_modelField {
+  flex-direction:column;
+  gap:4px;
+  min-width:0;
+  display:flex
+}
+
+.jrmgQW_modelInputTypes {
+  border:none;
+  grid-column:1/-1;
+  min-width:0;
+  margin:0;
+  padding:0
+}
+
+.jrmgQW_modelInputTypes legend {
+  margin-bottom:4px;
+  padding:0
+}
+
+.jrmgQW_modelInputChoices {
+  flex-wrap:wrap;
+  align-items:center;
+  gap:16px;
+  min-height:32px;
+  display:flex
+}
+
+.jrmgQW_modelFieldLabel {
+  color:var(--dsw-alias-label-tertiary);
+  font-size:12px;
+  line-height:18px
+}
+
+.jrmgQW_modelReasoning {
+  flex-direction:column;
+  grid-column:1/-1;
+  gap:6px;
+  min-width:0;
+  display:flex
+}
+
+.jrmgQW_modelReasoningLabel {
+  align-items:center;
+  gap:6px;
+  display:inline-flex
+}
+
+.jrmgQW_modelReasoningHead {
+  justify-content:space-between;
+  align-items:center;
+  gap:8px;
+  display:flex
+}
+
+.jrmgQW_modelReasoningRow {
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;
+  align-items:center;
+  gap:6px;
+  display:grid
+}
+
+.jrmgQW_modelReasoningRow .jrmgQW_selectInput {
+  max-width:none
+}
+
+.jrmgQW_modelReasoningValueInput {
+  font-family:var(--ds-font-family-code);
+  font-size:13px
+}
+
+.jrmgQW_modelEmpty {
+  border:1px dashed var(--dsw-alias-border-l3);
+  border-radius:var(--dsw-radius-lg);
+  text-align:center;
+  padding:12px
+}
+
+.jrmgQW_addModelButton {
+  box-sizing:border-box;
+  border:.5px solid var(--dsw-alias-border-l3);
+  border-radius:var(--dsw-radius-sm);
+  height:28px;
+  color:var(--dsw-alias-label-primary);
+  font:inherit;
+  cursor:pointer;
+  background:0 0;
+  align-self:flex-start;
+  align-items:center;
+  gap:4px;
+  padding:0 10px;
+  font-size:12px;
+  line-height:18px;
+  display:inline-flex
+}
+
+.jrmgQW_addModelButton:hover:not(:disabled) {
+  background:var(--dsw-alias-interactive-bg-hover)
+}
+
+.jrmgQW_input {
+  box-sizing:border-box;
+  border:.5px solid var(--dsw-alias-border-l4);
+  border-radius:var(--dsw-radius-md);
+  width:100%;
+  height:32px;
+  font:inherit;
+  background:var(--dsw-alias-bg-layer-1);
+  color:var(--dsw-alias-label-primary);
+  padding:0 10px;
+  font-size:14px;
+  line-height:22px
+}
+
+select.jrmgQW_input {
+  cursor:pointer;
+  max-width:240px
+}
+
+.jrmgQW_input:focus {
+  border-color:var(--dsw-alias-state-business-primary);
+  outline:none
+}
+
+.jrmgQW_input::placeholder {
+  color:var(--dsw-alias-label-dimmed)
+}
+
+.jrmgQW_input:disabled {
+  opacity:.6;
+  cursor:default
+}
+
+.jrmgQW_keyInput {
+  position:relative
+}
+
+.jrmgQW_keyInputFilled {
+  padding-right:40px
+}
+
+.jrmgQW_keyToggle {
+  border-radius:var(--dsw-radius-md);
+  width:32px;
+  color:var(--dsw-alias-label-secondary);
+  cursor:pointer;
+  background:0 0;
+  border:none;
+  justify-content:center;
+  align-items:center;
+  padding:0;
+  display:inline-flex;
+  position:absolute;
+  inset:1px 1px 1px auto
+}
+
+.jrmgQW_keyToggle:hover:not(:disabled) {
+  color:var(--dsw-alias-label-primary)
+}
+
+.jrmgQW_keyToggle:focus-visible {
+  outline:var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));
+  outline-offset:-2px
+}
+
+.jrmgQW_keyToggle:disabled {
+  opacity:.6;
+  cursor:default
+}
+
+.jrmgQW_selectInput {
+  appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5' stroke='%2381858C' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-position:right 12px center;
+  background-repeat:no-repeat;
+  background-size:12px 12px;
+  padding-right:32px
+}
+
+.jrmgQW_error {
+  color:var(--dsw-alias-state-error-primary);
+  margin:0;
+  font-size:12px;
+  line-height:18px
+}
+
+.jrmgQW_deleteDialog {
+  width:min(480px,100%)
+}
+
+.jrmgQW_deleteConfirm:not(:disabled) {
+  border-color:var(--dsw-alias-state-error-primary);
+  color:var(--dsw-alias-state-error-primary)
+}
+
+.jrmgQW_deleteConfirm:hover:not(:disabled) {
+  background:var(--dsw-alias-interactive-bg-hover-danger)
+}
+
+.jrmgQW_hiddenLabel {
+  clip:rect(0 0 0 0);
+  white-space:nowrap;
+  width:1px;
+  height:1px;
+  position:absolute;
+  overflow:hidden
+}
+
+@media (prefers-reduced-motion:reduce) {
+  .jrmgQW_customizedSummary:before,.jrmgQW_switchThumb {
+  transition:none
+}
+
+}
+
+.jrmgQW_fetchDialog {
+  --dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2);
+  max-width:520px
+}
+
+.jrmgQW_candidateToolbar {
+  align-items:center;
+  gap:8px;
+  margin-bottom:6px;
+  display:flex
+}
+
+.jrmgQW_candidateSearch {
+  flex:240px;
+  min-width:0
+}
+
+.jrmgQW_candidateList {
+  flex-direction:column;
+  gap:2px;
+  max-height:320px;
+  margin:0;
+  padding:0;
+  list-style:none;
+  display:flex;
+  overflow-y:auto
+}
+
+.jrmgQW_candidate {
+  border-radius:var(--dsw-radius-md)
+}
+
+.jrmgQW_candidateLabel {
+  cursor:pointer;
+  align-items:center;
+  gap:8px;
+  padding:6px 8px;
+  display:flex
+}
+
+.jrmgQW_candidateId {
+  min-width:0;
+  font-family:var(--ds-font-family-code);
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  flex:auto;
+  font-size:13px;
+  overflow:hidden
+}
+
+.jrmgQW_candidateEmpty {
+  color:var(--dsw-alias-label-secondary);
+  text-align:center;
+  margin:24px 0;
+  font-size:13px;
+  line-height:20px
+}
+
+/* ---------------------------------------------------------------------------
+   Tokens referenced by the shell/models CSS that live outside the two copied
+   theme blocks above (elevation / mask / gradients). Values taken from the same
+   theme package.
+   --------------------------------------------------------------------------- */
+:root {
+  --dsh-frame-overlay-top: 24px;
+  --dsh-frame-chrome-top: 0px;
+  --dsw-elevation-stroke-color: var(--dsw-alias-border-l4);
+  --dsw-elevation-stroke: 0 0 0 .5px var(--dsw-elevation-stroke-color);
+  --dsw-elevation-prominent: var(--dsw-elevation-stroke), 0 3px 8px 0 #0000000a, 0 0 20px 0 #0000000d;
+  --dsw-mask-blur: none;
+  --dsw-menu-backdrop-filter: blur(40px) saturate(150%);
+  --dsw-focus-ring-width: 2px;
+  --dsw-focus-ring-color: transparent;
+  --dsw-specific-sidebar-nav-item-active: var(--dsw-static-neutral-bluish-100);
+  --dsw-specific-sidebar-nav-item-hover: var(--dsw-static-neutral-bluish-75);
+}
+
+/* Fixture-only page chrome (not part of the shipped page). */
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+  font-family: var(--dsw-font-family);
+  font-size: 14px;
+  line-height: 22px;
+  -webkit-font-smoothing: antialiased;
+}
+.fixture-app {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 24px;
+  overflow: hidden;
+}
+.fixture-app-title { font-size: 15px; font-weight: 600; color: var(--dsw-alias-label-secondary); }
+.fixture-app-line { height: 10px; border-radius: 6px; background: var(--dsw-alias-bg-module-platform); }
+.fixture-app-line.w60 { width: 60%; }
+.fixture-app-line.w80 { width: 80%; }
+.fixture-app-line.w40 { width: 40%; }
+</style>
+</head>
+<body>
+  <!-- Mock app surface behind the dialog; the real dialog portals over the app. -->
+  <div class="fixture-app" aria-hidden="true">
+    <div class="fixture-app-title">DeepSeek Harness</div>
+    <div class="fixture-app-line w80"></div>
+    <div class="fixture-app-line w60"></div>
+    <div class="fixture-app-line w40"></div>
+    <div class="fixture-app-line w80"></div>
+    <div class="fixture-app-line w60"></div>
+  </div>
+
+  <!-- Settings dialog shell (SettingsPanel: body portal, overlay + mask + panel). -->
+  <div class="AnXs9G_overlay" role="presentation">
+    <div class="AnXs9G_mask" aria-hidden="true"></div>
+    <div tabindex="-1" data-shortcut-modal="settings" class="AnXs9G_panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <nav class="AnXs9G_nav">
+        <div class="AnXs9G_navTitle" id="settings-title" tabindex="-1">设置</div>
+        <div class="AnXs9G_navList">
+          <button type="button" class="AnXs9G_navCell">
+            <svg class="AnXs9G_navIcon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3 4h10M3 8h10M3 12h7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/></svg>
+            <span class="AnXs9G_navLabel">常规</span>
+          </button>
+          <button type="button" class="AnXs9G_navCell AnXs9G_active" aria-current="true">
+            <svg class="AnXs9G_navIcon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11" rx="3" stroke="currentColor" stroke-width="1.4" fill="none"/><path d="M5.5 8h5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            <span class="AnXs9G_navLabel">模型</span>
+          </button>
+          <button type="button" class="AnXs9G_navCell">
+            <svg class="AnXs9G_navIcon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.4" fill="none"/><path d="M8 5v3.5l2.2 1.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            <span class="AnXs9G_navLabel">智能体循环</span>
+          </button>
+          <button type="button" class="AnXs9G_navCell">
+            <svg class="AnXs9G_navIcon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M8 2.5l5 2.5v3c0 3-2.1 5.2-5 5.9-2.9-.7-5-2.9-5-5.9v-3z" stroke="currentColor" stroke-width="1.4" fill="none"/></svg>
+            <span class="AnXs9G_navLabel">网络搜索</span>
+          </button>
+        </div>
+      </nav>
+      <div class="AnXs9G_content">
+        <div class="AnXs9G_header">
+          <div class="AnXs9G_actions"></div>
+          <button type="button" class="AnXs9G_close">
+            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <span class="AnXs9G_hiddenLabel">关闭</span>
+          </button>
+        </div>
+        <div class="AnXs9G_options">
+          <!-- Models settings section (ModelsSection ready state). -->
+          <div class="jrmgQW_section">
+            <h2 class="jrmgQW_title">模型</h2>
+            <p class="jrmgQW_intro">填入各提供商的 API 密钥即可使用其模型。</p>
+            <ul class="jrmgQW_rows">
+
+              <!--
+                Saved provider row 0: the signed-in DeepSeek account. The shipped
+                page renders its row name with the localized `deepSeekAccount`
+                copy ("DeepSeek 账号"), not the directory's "DeepSeek Account";
+                its rowActions span is empty because the page suppresses Edit for
+                the account route and the route is not removable (settingsPath []).
+              -->
+              <li class="jrmgQW_rowCard">
+                <div class="jrmgQW_rowHead">
+                  <span class="jrmgQW_rowIdentity">
+                    <span class="jrmgQW_rowName">DeepSeek 账号</span>
+                    <span class="jrmgQW_accountStatus">
+                      <span class="jrmgQW_credentialDot jrmgQW_credentialDotConfigured" aria-hidden="true"></span>
+                      已登录
+                    </span>
+                  </span>
+                  <span class="jrmgQW_rowActions"></span>
+                </div>
+              </li>
+
+              <!-- Saved provider row 1: official catalog channel (route id shows as its display name), editor expanded. -->
+              <li class="jrmgQW_rowCard">
+                <div class="jrmgQW_rowHead">
+                  <span class="jrmgQW_rowIdentity">
+                    <span class="jrmgQW_rowName">anthropic</span>
+                    <span class="jrmgQW_credentialDot jrmgQW_credentialDotConfigured" role="img" aria-label="API 密钥已配置" title="API 密钥已配置"></span>
+                  </span>
+                  <span class="jrmgQW_rowActions">
+                    <button type="button" class="jrmgQW_secondaryButton" aria-label="编辑 anthropic">编辑</button>
+                    <button type="button" class="jrmgQW_dangerButton" aria-label="删除 anthropic">删除</button>
+                  </span>
+                </div>
+                <!-- ProviderEditor (saved-row editor): header + fields + model catalog + footer. -->
+                <div class="jrmgQW_editor">
+                  <div class="jrmgQW_editorHeader">
+                    <span class="jrmgQW_editorTitle">anthropic</span>
+                  </div>
+                  <div class="jrmgQW_field">
+                    <span class="jrmgQW_fieldLabel">API 密钥</span>
+                    <input class="jrmgQW_input" type="password" value="sk-ant-xxxxxxxx" aria-label="API 密钥" placeholder="留空使用已保存凭据">
+                  </div>
+                  <section class="jrmgQW_modelCatalog" aria-label="模型目录">
+                    <div class="jrmgQW_modelListHead">
+                      <div class="jrmgQW_modelCatalogHeading">
+                        <span class="jrmgQW_modelCatalogTitle">模型目录</span>
+                        <span class="jrmgQW_modelCatalogMeta">已自定义模型目录</span>
+                      </div>
+                      <button type="button" class="jrmgQW_linkButton">获取可用模型</button>
+                    </div>
+                    <div class="jrmgQW_modelList">
+
+                      <div class="jrmgQW_modelEntry">
+                        <div class="jrmgQW_modelRow">
+                          <input class="jrmgQW_input" type="text" value="claude-sonnet-4.5" placeholder="模型 ID" aria-label="模型 ID 1">
+                          <input class="jrmgQW_input" type="text" value="Claude Sonnet 4.5" placeholder="显示名称" aria-label="显示名称 1">
+                          <button type="button" class="jrmgQW_iconButton" aria-label="模型选项 1" aria-expanded="false" title="模型选项">
+                            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+                          </button>
+                          <button type="button" class="jrmgQW_iconButton jrmgQW_iconButtonDanger" aria-label="删除模型 1" title="删除模型">
+                            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3.5 4.5h9M6 4.5V3.2h4v1.3M5 4.5l.5 8.3h5l.5-8.3M6.7 6.6v3.9M9.3 6.6v3.9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div class="jrmgQW_modelEntry">
+                        <div class="jrmgQW_modelRow">
+                          <input class="jrmgQW_input" type="text" value="gpt-5.2" placeholder="模型 ID" aria-label="模型 ID 2">
+                          <input class="jrmgQW_input" type="text" value="GPT-5.2" placeholder="显示名称" aria-label="显示名称 2">
+                          <button type="button" class="jrmgQW_iconButton" aria-label="模型选项 2" aria-expanded="false" title="模型选项">
+                            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+                          </button>
+                          <button type="button" class="jrmgQW_iconButton jrmgQW_iconButtonDanger" aria-label="删除模型 2" title="删除模型">
+                            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3.5 4.5h9M6 4.5V3.2h4v1.3M5 4.5l.5 8.3h5l.5-8.3M6.7 6.6v3.9M9.3 6.6v3.9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div class="jrmgQW_modelEntry">
+                        <div class="jrmgQW_modelRow">
+                          <input class="jrmgQW_input" type="text" value="my-local-qwen" placeholder="模型 ID" aria-label="模型 ID 3">
+                          <input class="jrmgQW_input" type="text" value="本地 Qwen" placeholder="显示名称" aria-label="显示名称 3">
+                          <button type="button" class="jrmgQW_iconButton" aria-label="模型选项 3" aria-expanded="false" title="模型选项">
+                            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+                          </button>
+                          <button type="button" class="jrmgQW_iconButton jrmgQW_iconButtonDanger" aria-label="删除模型 3" title="删除模型">
+                            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3.5 4.5h9M6 4.5V3.2h4v1.3M5 4.5l.5 8.3h5l.5-8.3M6.7 6.6v3.9M9.3 6.6v3.9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+                          </button>
+                        </div>
+                      </div>
+
+                    </div>
+                    <button type="button" class="jrmgQW_addModelButton">
+                      <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                      添加模型
+                    </button>
+                  </section>
+                  <div class="jrmgQW_editorActions">
+                    <button type="button" class="jrmgQW_secondaryButton">取消</button>
+                    <button type="button" class="jrmgQW_primaryButton">保存</button>
+                  </div>
+                </div>
+              </li>
+
+              <!-- Saved provider row 2: hand-declared custom provider (no vendor logo). -->
+              <li class="jrmgQW_rowCard">
+                <div class="jrmgQW_rowHead">
+                  <span class="jrmgQW_rowIdentity">
+                    <span class="jrmgQW_rowName">火山 Coding Plan</span>
+                    <span class="jrmgQW_rowTag">自定义</span>
+                    <span class="jrmgQW_credentialDot jrmgQW_credentialDotMissing" role="img" aria-label="API 密钥缺失" title="API 密钥缺失"></span>
+                  </span>
+                  <span class="jrmgQW_rowActions">
+                    <button type="button" class="jrmgQW_secondaryButton" aria-label="编辑 火山 Coding Plan">编辑</button>
+                    <button type="button" class="jrmgQW_dangerButton" aria-label="删除 火山 Coding Plan">删除</button>
+                  </span>
+                </div>
+              </li>
+
+            </ul>
+
+            <!-- Add-provider card (catalog mode, always open in the fixture). -->
+            <div class="jrmgQW_addBlock">
+              <div class="jrmgQW_addCard">
+                <div class="jrmgQW_addModes">
+                  <div class="jrmgQW_editorHeader">
+                    <span class="jrmgQW_editorTitle">第三方模型提供商</span>
+                  </div>
+                  <p class="jrmgQW_advancedHint">从内置目录中选择 OpenAI、Anthropic、Kimi 等提供商，填入其 API 密钥即可使用。</p>
+                </div>
+                <div id="model-logos-add-catalog-panel" class="jrmgQW_addPanel">
+                  <div class="jrmgQW_field">
+                    <span class="jrmgQW_fieldLabel">提供商</span>
+                    <select class="jrmgQW_input jrmgQW_selectInput" aria-label="提供商">
+                      <option value="openai">openai</option>
+                      <option value="google">google</option>
+                      <option value="moonshotai">moonshotai</option>
+                      <option value="xai">xai</option>
+                      <option value="openrouter">openrouter</option>
+                    </select>
+                  </div>
+                  <div class="jrmgQW_field">
+                    <span class="jrmgQW_fieldLabel">API 密钥</span>
+                    <input class="jrmgQW_input" type="password" aria-label="API 密钥" placeholder="输入 API 密钥">
+                  </div>
+                  <section class="jrmgQW_modelCatalog" aria-label="模型目录">
+                    <div class="jrmgQW_modelListHead">
+                      <div class="jrmgQW_modelCatalogHeading">
+                        <span class="jrmgQW_modelCatalogTitle">模型目录</span>
+                        <span class="jrmgQW_modelCatalogMeta">正在使用适配器默认模型</span>
+                      </div>
+                    </div>
+                    <p class="jrmgQW_modelEmpty">模型选择器中将不显示任何模型；目录外 ID 仍可直接发送。</p>
+                  </section>
+                  <div class="jrmgQW_editorActions">
+                    <button type="button" class="jrmgQW_secondaryButton">取消</button>
+                    <button type="button" class="jrmgQW_primaryButton">保存</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

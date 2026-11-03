@@ -1,5 +1,16 @@
 /**
- * Heuristic brand matcher for model labels.
+ * Brand matcher for model-logos.
+ *
+ * Two separate questions are answered here:
+ *
+ *  1. `matchModelLogo` — which model/brand mark belongs to a provider+model
+ *     identity. Used by the composer label and the Settings model rows. This is
+ *     the *heuristic*: it only chooses the initial icon, because a per-model
+ *     override (stored in the user settings document) always wins in
+ *     `resolveModelIcon`.
+ *  2. `matchVendorLogo` — which vendor mark belongs to an *official channel*
+ *     route id (the Settings → Models provider list and the add-provider
+ *     dropdown). Hand-declared custom providers have no vendor mark.
  *
  * One ordered rule table maps a normalized provider/model description to a logo
  * key. Model-level evidence wins over provider-level evidence so an aggregator
@@ -38,6 +49,20 @@ export const LOGO_KEYS = Object.freeze([
   'openrouter',
   'stepfun',
   'yi',
+  // Vendor-only marks (official channels that do not match a model family).
+  'azure',
+  'baseten',
+  'cerebras',
+  'cloudflare',
+  'fireworks',
+  'github',
+  'opencode',
+  'radius',
+  'together',
+  'typesafe',
+  'vercel',
+  'xiaomi',
+  'antling',
 ]);
 
 /** Token boundary shared by the word-like rules. */
@@ -75,6 +100,8 @@ export const MODEL_RULES = Object.freeze([
   ['openrouter', /openrouter/],
   ['stepfun', new RegExp(`stepfun|step[-\\s]?fun|阶跃|${B}step[-\\s]?\\d`)],
   ['yi', new RegExp(`${B}(?:yi|01\\.?ai|lingyi)${E}|零一`)],
+  ['xiaomi', /mimo|小米|xiaomi/],
+  ['antling', new RegExp(`${B}ling[-\\s]?(?:mini|flash|plus|pro)${E}|ant[-\\s]?ling|蚂蚁灵光`)],
 ]);
 
 /**
@@ -107,6 +134,111 @@ export const PROVIDER_RULES = Object.freeze([
   ['openrouter', /openrouter/],
   ['stepfun', /stepfun|阶跃/],
   ['yi', /01\.?ai|lingyi|零一/],
+  ['azure', /azure/],
+  ['baseten', /baseten/],
+  ['cerebras', /cerebras/],
+  ['cloudflare', /cloudflare/],
+  ['fireworks', /fireworks/],
+  ['github', /github|copilot/],
+  ['opencode', /opencode/],
+  ['radius', /radius/],
+  ['together', /together/],
+  ['typesafe', /typesafe/],
+  ['vercel', /vercel/],
+  ['xiaomi', /xiaomi|mimo|小米/],
+  ['antling', /ant[-\s]?ling|蚂蚁灵光/],
+]);
+
+/**
+ * Official channel route ids → vendor logo key.
+ *
+ * This is the *complete* directory of shipped provider routes
+ * (`@deepseek-ai/dsh-llm-pi-ai`'s generated catalog plus the two DeepSeek
+ * adapters). A route id outside this table is either a hand-declared custom
+ * provider (no vendor mark) or a newer channel the UI falls back to a letter
+ * tile for.
+ * @type {Readonly<Record<string, string>>}
+ */
+export const VENDOR_CHANNELS = Object.freeze({
+  'amazon-bedrock': 'aws',
+  'ant-ling': 'antling',
+  'anthropic': 'claude',
+  'azure': 'azure',
+  'baseten': 'baseten',
+  'cerebras': 'cerebras',
+  'cloudflare-ai-gateway': 'cloudflare',
+  'cloudflare-workers-ai': 'cloudflare',
+  'deepseek': 'deepseek',
+  'deepseek-account': 'deepseek',
+  'deepseek-official': 'deepseek',
+  'fireworks': 'fireworks',
+  'github-copilot': 'github',
+  'google': 'gemini',
+  'google-vertex': 'gemini',
+  'groq': 'groq',
+  'huggingface': 'huggingface',
+  'kimi-coding': 'kimi',
+  'meta': 'meta',
+  'minimax': 'minimax',
+  'minimax-cn': 'minimax',
+  'mistral': 'mistral',
+  'moonshotai': 'kimi',
+  'moonshotai-cn': 'kimi',
+  'nvidia': 'nvidia',
+  'openai': 'openai',
+  'openai-codex': 'openai',
+  'opencode': 'opencode',
+  'opencode-go': 'opencode',
+  'openrouter': 'openrouter',
+  'qwen-token-plan': 'qwen',
+  'qwen-token-plan-cn': 'qwen',
+  'qwen-token-plan-individual': 'qwen',
+  'radius': 'radius',
+  'together': 'together',
+  'typesafe': 'typesafe',
+  'vercel-ai-gateway': 'vercel',
+  'xai': 'xai',
+  'xiaomi': 'xiaomi',
+  'xiaomi-token-plan-ams': 'xiaomi',
+  'xiaomi-token-plan-cn': 'xiaomi',
+  'xiaomi-token-plan-sgp': 'xiaomi',
+  'zai': 'zhipu',
+  'zai-coding-cn': 'zhipu',
+});
+
+/**
+ * Ordered vendor rules (route id patterns, first hit wins). Kept as a rule list
+ * so a future variant of an official channel (for example a new
+ * `xiaomi-token-plan-*` region) still resolves without a table edit.
+ * @type {ReadonlyArray<readonly [string, RegExp]>}
+ */
+export const VENDOR_RULES = Object.freeze([
+  ['deepseek', /^(?:deepseek(?:-account|-official)?|llm-deepseek)$/],
+  ['openai', /^openai(?:-codex)?$/],
+  ['claude', /^anthropic$/],
+  ['gemini', /^(?:google|google-vertex)$/],
+  ['zhipu', /^z(?:ai|ai-coding-cn)$/],
+  ['kimi', /^(?:moonshotai|moonshotai-cn|kimi-coding)$/],
+  ['minimax', /^minimax(?:-cn)?$/],
+  ['qwen', /^qwen-token-plan(?:-cn|-individual)?$/],
+  ['xiaomi', /^xiaomi(?:-token-plan-(?:ams|cn|sgp))?$/],
+  ['mistral', /^mistral$/],
+  ['meta', /^meta$/],
+  ['xai', /^xai$/],
+  ['nvidia', /^nvidia$/],
+  ['aws', /^(?:amazon-bedrock|aws)$/],
+  ['azure', /^azure$/],
+  ['baseten', /^baseten$/],
+  ['cerebras', /^cerebras$/],
+  ['cloudflare', /^cloudflare-/],
+  ['fireworks', /^fireworks$/],
+  ['github', /^github-copilot$/],
+  ['opencode', /^opencode(?:-go)?$/],
+  ['radius', /^radius$/],
+  ['together', /^together$/],
+  ['typesafe', /^typesafe$/],
+  ['vercel', /^vercel-ai-gateway$/],
+  ['antling', /^ant-ling$/],
 ]);
 
 /** Lowercase and normalize separators so both id and display name are searchable. */
@@ -149,4 +281,33 @@ export function matchModelLogo(input) {
     }
   }
   return null;
+}
+
+/**
+ * Match an official channel route id to its vendor logo key.
+ *
+ * Exact directory ids win first; the pattern list is the forward-compatible
+ * fallback for channel variants. Hand-declared custom providers are not
+ * official channels and must be filtered out by the caller before asking.
+ * @param {string} providerId - provider route id (`anthropic`, `xiaomi-token-plan-cn`, …).
+ * @returns {string | null} A key from {@link LOGO_KEYS}, or null when the id is not a known channel.
+ */
+export function matchVendorLogo(providerId) {
+  const id = normalizeModelText(providerId);
+  if (id === '') return null;
+  const exact = VENDOR_CHANNELS[id];
+  if (exact !== undefined) return exact;
+  for (const [key, pattern] of VENDOR_RULES) {
+    if (pattern.test(id)) return key;
+  }
+  return null;
+}
+
+/**
+ * Whether a route id is one of the shipped official channels.
+ * @param {string} providerId - provider route id.
+ * @returns {boolean}
+ */
+export function isOfficialVendorChannel(providerId) {
+  return matchVendorLogo(providerId) !== null;
 }
