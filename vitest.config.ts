@@ -8,7 +8,7 @@ import { defineConfig } from 'vitest/config';
  *   2. the generated browser bundle, evaluated in a minimal fake DOM/React/settings
  *      stand-in (`test/client.test.ts`);
  *   3. the headless-Edge fixture harness, which lives in `scripts/verify-dom.ts`
- *      because it needs a real browser and is run through `npm run verify:dom`.
+ *      because it needs a real browser and is run through `pnpm run verify:dom`.
  */
 export default defineConfig({
   test: {

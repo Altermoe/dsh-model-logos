@@ -8,11 +8,11 @@
  * of the Settings → Models provider rows, where vendor marks actually appear).
  *
  * Usage:
- *   npx tsx scripts/preview-logos.ts                          # full sheet -> .preview/logos.png
- *   npx tsx scripts/preview-logos.ts --out docs/preview.png   # also copy the png to docs/
- *   npx tsx scripts/preview-logos.ts --only openai            # one logo, large -> .preview/openai.png
- *   npx tsx scripts/preview-logos.ts --only-set vendors       # vendor marks -> .preview/logos-vendors.png
- *   npx tsx scripts/preview-logos.ts --no-shot                # only write the html
+ *   pnpm exec tsx scripts/preview-logos.ts                          # full sheet -> .preview/logos.png
+ *   pnpm exec tsx scripts/preview-logos.ts --out docs/preview.png   # also copy the png to docs/
+ *   pnpm exec tsx scripts/preview-logos.ts --only openai            # one logo, large -> .preview/openai.png
+ *   pnpm exec tsx scripts/preview-logos.ts --only-set vendors       # vendor marks -> .preview/logos-vendors.png
+ *   pnpm exec tsx scripts/preview-logos.ts --no-shot                # only write the html
  */
 import { execFileSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, writeFileSync, statSync, rmSync } from 'node:fs';

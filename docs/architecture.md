@@ -181,7 +181,7 @@ Client reads/writes it through `configForms.get('dsh-model-logos')`:
 - value sentinel `'none'` = user explicitly disabled the icon. Absent = auto
   (heuristic initial icon).
 - `@deepseek-ai/schemastery` must be a real dependency of the plugin (the host
-  imports it; a linked local install needs `npm install` in this repo).
+  imports it; a linked local install needs `pnpm install` in this repo).
 
 Note: the host half is loaded at Host start / plugin reload. Changing `index.js`
 requires the plugin entry to be reloaded (plugin manager toggle or app restart);
@@ -437,8 +437,8 @@ above.
   a stub `window.__ModuleLoader__` + fake ctx; drive the faithful Settings markup;
   assert vendor/model logos, combobox, picker override write; screenshot
   `docs/preview-settings.png`.
-- Gates: `npm run verify` (typecheck + lint + fmt:check + test + check),
-  `npm run verify:dom`, `npm run preview`, `npm run verify:live`.
+- Gates: `pnpm run verify` (typecheck + lint + fmt:check + test + check),
+  `pnpm run verify:dom`, `pnpm run preview`, `pnpm run verify:live`.
 - Live GUI visual check by the user after the Host plugin reloads (the host half
   changed).
 

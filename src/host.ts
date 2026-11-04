@@ -17,7 +17,7 @@
  * A missing entry means "auto" (the heuristic picks the initial icon); the
  * sentinel value `none` means the user explicitly turned the icon off.
  *
- * `npm run build` compiles this module into the committed `index.js` entry
+ * `pnpm run build` compiles this module into the committed `index.js` entry
  * declared by `package.json` `exports["."]`.
  */
 import z from '@deepseek-ai/schemastery';

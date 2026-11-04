@@ -38,8 +38,8 @@
     "preview": "tsx scripts/preview-logos.ts",
     "verify:dom": "tsx scripts/verify-dom.ts",
     "verify:live": "tsx scripts/verify-live.ts",
-    "verify": "npm run typecheck && npm run lint && npm run fmt:check && npm run test && npm run build && npm run check",
-    "prepare": "simple-git-hooks && npm run build"
+    "verify": "pnpm run typecheck && pnpm run lint && pnpm run fmt:check && pnpm run test && pnpm run build && pnpm run check",
+    "prepare": "simple-git-hooks && pnpm run build"
   },
   "dependencies": {
     "@deepseek-ai/schemastery": "^3.18.5"
@@ -61,7 +61,7 @@
     "vitest": "^5.1.0"
   },
   "simple-git-hooks": {
-    "pre-commit": "npx lint-staged"
+    "pre-commit": "pnpm exec lint-staged"
   },
   "lint-staged": {
     "*.{ts,mts,json,jsonc,yml,yaml,md,css}": [
@@ -70,8 +70,9 @@
     ]
   },
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=26.13.0"
   },
+  "packageManager": "pnpm@12.16.1",
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"

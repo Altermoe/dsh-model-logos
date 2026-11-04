@@ -22,13 +22,13 @@
  *   - dispose removes every inserted node and restores the native select
  *
  * Usage:
- *   npx tsx scripts/verify-dom.ts                          # assertions (exit 1 on failure)
- *   npx tsx scripts/verify-dom.ts --json .preview/dom.json # also save the raw result
- *   npx tsx scripts/verify-dom.ts --screenshot docs/preview-settings.png
- *                                                          # decorated page screenshot
- *   npx tsx scripts/verify-dom.ts --screenshot docs/preview-settings.png --open picker
- *                                                          # ... with the picker modal open
- *   npx tsx scripts/verify-dom.ts --harness <path>         # keep the generated page
+ *   pnpm exec tsx scripts/verify-dom.ts                          # assertions (exit 1 on failure)
+ *   pnpm exec tsx scripts/verify-dom.ts --json .preview/dom.json # also save the raw result
+ *   pnpm exec tsx scripts/verify-dom.ts --screenshot docs/preview-settings.png
+ *                                                                # decorated page screenshot
+ *   pnpm exec tsx scripts/verify-dom.ts --screenshot docs/preview-settings.png --open picker
+ *                                                                # ... with the picker modal open
+ *   pnpm exec tsx scripts/verify-dom.ts --harness <path>         # keep the generated page
  *
  * Requires Edge (`EDGE` env var may point at msedge.exe).
  */
@@ -1724,7 +1724,7 @@ async function main(): Promise<void> {
   if (stale) {
     console.error('warning: client.js looks stale (no Settings decoration code found):');
     for (const name of missingMarkers) console.error('  - missing ' + name);
-    console.error('  ask the Lead to run `npm run build` first');
+    console.error('  ask the Lead to run `pnpm run build` first');
     if (requireBuild) process.exit(2);
   }
   if (!existsSync(REACT_UMD) || !existsSync(REACT_DOM_UMD)) {

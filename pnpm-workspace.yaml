@@ -1,0 +1,58 @@
+# pnpm project settings for this single-package repository (no sub-packages).
+#
+# pnpm 11+ no longer reads project settings from the `pnpm` field in
+# package.json: everything but auth/registry lives here. The pnpm version itself
+# is pinned by the `packageManager` field there.
+#
+# Dependencies with lifecycle scripts must be allow-listed explicitly, otherwise
+# pnpm skips their build scripts. `esbuild` needs its install script for the
+# native binary; `simple-git-hooks` installs the commit hook.
+allowBuilds:
+  esbuild: true
+  simple-git-hooks: true
+
+# pnpm v11+ applies a built-in 24-hour quarantine to freshly published versions
+# (`minimumReleaseAge`). In its default loose mode it lets the install proceed
+# and persists the exceptions here, so these new oxfmt/oxlint builds stay
+# installable from the lockfile on a clean clone and in CI.
+minimumReleaseAgeExclude:
+  - '@oxfmt/binding-android-arm-eabi@0.76.0'
+  - '@oxfmt/binding-android-arm64@0.76.0'
+  - '@oxfmt/binding-darwin-arm64@0.76.0'
+  - '@oxfmt/binding-darwin-x64@0.76.0'
+  - '@oxfmt/binding-freebsd-x64@0.76.0'
+  - '@oxfmt/binding-linux-arm-gnueabihf@0.76.0'
+  - '@oxfmt/binding-linux-arm-musleabihf@0.76.0'
+  - '@oxfmt/binding-linux-arm64-gnu@0.76.0'
+  - '@oxfmt/binding-linux-arm64-musl@0.76.0'
+  - '@oxfmt/binding-linux-ppc64-gnu@0.76.0'
+  - '@oxfmt/binding-linux-riscv64-gnu@0.76.0'
+  - '@oxfmt/binding-linux-riscv64-musl@0.76.0'
+  - '@oxfmt/binding-linux-s390x-gnu@0.76.0'
+  - '@oxfmt/binding-linux-x64-gnu@0.76.0'
+  - '@oxfmt/binding-linux-x64-musl@0.76.0'
+  - '@oxfmt/binding-openharmony-arm64@0.76.0'
+  - '@oxfmt/binding-win32-arm64-msvc@0.76.0'
+  - '@oxfmt/binding-win32-ia32-msvc@0.76.0'
+  - '@oxfmt/binding-win32-x64-msvc@0.76.0'
+  - '@oxlint/binding-android-arm-eabi@1.91.0'
+  - '@oxlint/binding-android-arm64@1.91.0'
+  - '@oxlint/binding-darwin-arm64@1.91.0'
+  - '@oxlint/binding-darwin-x64@1.91.0'
+  - '@oxlint/binding-freebsd-x64@1.91.0'
+  - '@oxlint/binding-linux-arm-gnueabihf@1.91.0'
+  - '@oxlint/binding-linux-arm-musleabihf@1.91.0'
+  - '@oxlint/binding-linux-arm64-gnu@1.91.0'
+  - '@oxlint/binding-linux-arm64-musl@1.91.0'
+  - '@oxlint/binding-linux-ppc64-gnu@1.91.0'
+  - '@oxlint/binding-linux-riscv64-gnu@1.91.0'
+  - '@oxlint/binding-linux-riscv64-musl@1.91.0'
+  - '@oxlint/binding-linux-s390x-gnu@1.91.0'
+  - '@oxlint/binding-linux-x64-gnu@1.91.0'
+  - '@oxlint/binding-linux-x64-musl@1.91.0'
+  - '@oxlint/binding-openharmony-arm64@1.91.0'
+  - '@oxlint/binding-win32-arm64-msvc@1.91.0'
+  - '@oxlint/binding-win32-ia32-msvc@1.91.0'
+  - '@oxlint/binding-win32-x64-msvc@1.91.0'
+  - oxfmt@0.76.0
+  - oxlint@1.91.0

@@ -15,7 +15,7 @@
  * target is `$DSH_WEB_URL` (set inside a DSH session) or the historical desktop
  * port.
  *
- * Usage: npx tsx scripts/verify-live.ts [--url http://127.0.0.1:56750] [--wait 8000]
+ * Usage: pnpm exec tsx scripts/verify-live.ts [--url http://127.0.0.1:56750] [--wait 8000]
  */
 import { createHash } from 'node:crypto';
 import { readFileSync, statSync } from 'node:fs';

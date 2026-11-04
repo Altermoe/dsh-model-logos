@@ -164,9 +164,9 @@ a plain letter "M" on the same orange tile, so they were easy to confuse):
 
 `client.js` and `index.js` are generated — never edit them by hand, and they are
 not committed: they land in the package root only because the local DSH install
-loads the bundle from disk. `npm install` regenerates them (via the `prepare`
-script); after editing a source file run `npm run build` before reloading the
-plugin in DSH. The sources are TypeScript:
+loads the bundle from disk. A fresh `pnpm install` regenerates them (via the
+`prepare` script); after editing a source file run `pnpm run build` before
+reloading the plugin in DSH. The sources are TypeScript:
 
 - `src/client.ts` is bundled by esbuild into the browser module: one
   `window.__ModuleLoader__` factory closure with `react` / `react-dom/client` left
@@ -182,19 +182,24 @@ The whole toolchain — strict TypeScript, Vitest, oxlint, oxfmt, the module map
 and the contribution rules — is documented in
 [`docs/engineering.md`](docs/engineering.md).
 
+The toolchain requires Node.js **≥ 26.13.0** — the 26.x line before 26.12.1 ships
+a Brotli decoder vulnerable to CVE-2026-111497 — and pnpm, whose exact version is
+pinned by `packageManager` and fetched automatically on first use.
+
 ```sh
-npm run build          # generate client.js + index.js
-npm run check          # fail when an artifact is missing or stale
-npm test               # matcher + artwork + resolver + bundle tests (Vitest)
-npm run typecheck      # tsc --noEmit
-npm run lint           # oxlint
-npm run fmt            # oxfmt --write .
-npm run verify         # typecheck + lint + fmt:check + test + build + check
-npm run preview        # design sheet -> .preview/logos.png
-npm run preview -- --only claude      # one mark, large -> .preview/claude.png
-npm run preview -- --only-set vendors # the vendor marks sheet
-npm run verify:dom     # decorate the Settings fixture in headless Edge
-npm run verify:live    # the running GUI serves this exact build
+pnpm install            # install dependencies (the prepare script also builds both artifacts)
+pnpm run build          # generate client.js + index.js
+pnpm run check          # fail when an artifact is missing or stale
+pnpm test               # matcher + artwork + resolver + bundle tests (Vitest)
+pnpm run typecheck      # tsc --noEmit
+pnpm run lint           # oxlint
+pnpm run fmt            # oxfmt --write .
+pnpm run verify         # typecheck + lint + fmt:check + test + build + check
+pnpm run preview        # design sheet -> .preview/logos.png
+pnpm run preview -- --only claude      # one mark, large -> .preview/claude.png
+pnpm run preview -- --only-set vendors # the vendor marks sheet
+pnpm run verify:dom     # decorate the Settings fixture in headless Edge
+pnpm run verify:live    # the running GUI serves this exact build
 ```
 
 `scripts/preview-logos.ts` renders the marks at shipped sizes on light and dark

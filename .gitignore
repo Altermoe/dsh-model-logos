@@ -3,7 +3,7 @@ node_modules/
 
 # Generated plugin artifacts. They are built into the package root because the
 # local DSH install loads them from disk, but they are not source: never commit
-# them. `npm ci` / `npm run build` regenerates both.
+# them. `pnpm install` / `pnpm run build` regenerates both.
 client.js
 index.js
 
@@ -27,4 +27,4 @@ Thumbs.db
 !.vscode/extensions.json
 !.vscode/settings.json
 
-# package-lock.json is committed: reproducible installs are a project invariant.
+# pnpm-lock.yaml is committed: reproducible installs are a project invariant.

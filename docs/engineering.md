@@ -8,9 +8,11 @@ module graph, a real bundler, a linter/formatter pair and a test runner.
 
 | Concern             | Tool                                                                                              | Where                                   |
 | ------------------- | ------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| Runtime             | Node.js ≥ 26.13.0 (the Brotli decoder fix landed in 26.12.1, so older 26.x is not acceptable)     | `package.json` (`engines`)              |
 | Language            | TypeScript 7 (`strict`, `noUncheckedIndexedAccess`, `verbatimModuleSyntax`, `erasableSyntaxOnly`) | `tsconfig.json`                         |
+| Package manager     | pnpm 12 (pinned by `packageManager`; lockfile committed)                                          | `package.json`, `pnpm-workspace.yaml`   |
 | Bundle + host build | esbuild (programmatic API)                                                                        | `scripts/build.ts`                      |
-| Script runner       | tsx (Node ESM + TS without a build step)                                                          | `npm run build`, `verify:*`, `preview`  |
+| Script runner       | tsx (Node ESM + TS without a build step)                                                          | `pnpm run build`, `verify:*`, `preview` |
 | Unit/bundle tests   | Vitest (node environment)                                                                         | `vitest.config.ts`, `test/**/*.test.ts` |
 | DOM verification    | headless Edge driver script                                                                       | `scripts/verify-dom.ts`                 |
 | Lint                | oxlint                                                                                            | `.oxlintrc.json`                        |
@@ -21,25 +23,26 @@ module graph, a real bundler, a linter/formatter pair and a test runner.
 ## 2. Commands
 
 ```bash
-npm run typecheck    # tsc --noEmit
-npm run lint         # oxlint
-npm run lint:fix     # oxlint --fix
-npm run fmt          # oxfmt --write .
-npm run fmt:check    # oxfmt --check .
-npm test             # vitest run
-npm run test:coverage
-npm run build        # generate client.js + index.js (also runs on npm install)
-npm run check        # assert both generated artifacts match their sources
-npm run verify:dom   # headless-Edge DOM fixture harness (needs Edge)
-npm run verify:live  # assert the running GUI serves this exact client.js
-npm run verify       # typecheck + lint + fmt:check + test + build + check (CI gate)
+pnpm install          # install dependencies (prepare: artifact build + git hooks)
+pnpm run typecheck    # tsc --noEmit
+pnpm run lint         # oxlint
+pnpm run lint:fix     # oxlint --fix
+pnpm run fmt          # oxfmt --write .
+pnpm run fmt:check    # oxfmt --check .
+pnpm test             # vitest run
+pnpm run test:coverage
+pnpm run build        # generate client.js + index.js (also runs on pnpm install)
+pnpm run check        # assert both generated artifacts match their sources
+pnpm run verify:dom   # headless-Edge DOM fixture harness (needs Edge)
+pnpm run verify:live  # assert the running GUI serves this exact client.js
+pnpm run verify       # typecheck + lint + fmt:check + test + build + check (CI gate)
 ```
 
 `client.js` and `index.js` are **generated, never committed**. They are written
 into the package root because the local DSH install loads the bundle from disk,
-but they are build output: `.gitignore` excludes them and `npm install` (via the
+but they are build output: `.gitignore` excludes them and `pnpm install` (via the
 `prepare` script) regenerates them. Never edit them by hand; run
-`npm run build` after changing a source file and `npm run check` to prove the
+`pnpm run build` after changing a source file and `pnpm run check` to prove the
 on-disk artifacts match the sources.
 
 ## 3. Output contract
