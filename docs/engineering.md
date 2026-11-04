@@ -145,3 +145,61 @@ Dependency direction (no cycles): `types` ← `runtime` ← everything;
 - Browser modules must not assume Node globals. `document`/`window` guards in the
   existing code stay.
 - 120-column lines, single quotes, semicolons — oxfmt enforces it.
+
+## 6. Verification log
+
+This record moved here from the README when the README was rewritten for a general
+audience. It describes the 0.4.0 tree; byte sizes and revision ids are from the run
+that recorded them, not from the current build.
+
+- Build validation rejects malformed artwork (missing title, non-`<svg>` string,
+  `id` attributes, scripts, event handlers, external references), duplicate keys,
+  and artwork keys no rule can reach.
+- Matcher tests pin the configured providers, aggregator rows, provider fallbacks,
+  the no-match case, all 44 official channel ids, and the closed
+  `LOGO_KEYS`/artwork invariants.
+- Artwork tests pin the letter-tile generator (determinism, safe SVG, CJK text,
+  escaping) and the brand marks' inlining rules.
+- Resolver tests pin override precedence (`brand` / `none` / `letter` / stale
+  value), immutability, and per-provider keys.
+- Bundle tests load the generated `client.js` in a DOM/React stand-in and check the
+  label contribution (slot, priority −1, override rendering, letter and none
+  sentinels, the shipped release badge), the settings-section registration, and
+  that `apply()` disposers remove the stylesheet, listeners and observer.
+- `scripts/verify-dom.ts` drives the faithful Settings fixture in headless Edge and
+  screenshots the decorated page: **42 assertions pass** — vendor logos on official
+  rows/editor titles (including the localized DeepSeek account row), none on the
+  declared custom provider, model-row buttons and the 5-track grid, the hidden
+  native select, the custom combobox (option marks, write-back, bubbling `change`,
+  face re-sync), the picker write path into `configForms.mutate`, the composer label
+  override/`none` rendering, the plugin's own settings-nav row (marked by label,
+  shipped gear hidden, 16 px `currentColor` mask glyph painted, no other row
+  marked), full disposal reversibility (including the nav marker) and observer
+  disconnection.
+- Live verification against a real `dsh web` instance from this bundle (fresh
+  profile, seeded providers, headless Edge over CDP): **15/15 assertions pass** — the
+  settings dialog and both navigation entries, vendor logos before the DeepSeek
+  account (localized label), DeepSeek and a configured `anthropic` row at 14 px,
+  model icons on the model rows (`claude-sonnet-4.5`, `my-local-qwen`), the
+  add-provider combobox hiding the native select and listing every official channel
+  with exactly one mark (write-back → `google`), the picker opening with 41 options
+  (auto / none / letter + all 38 brands) and a search box, the picked override
+  persisted into the profile's `cordis.patch.yml` (`modelIcons: anthropic →
+  claude-sonnet-4.5 → openai`), the row refreshing to the override, the Model-icons
+  settings section listing the configured models, and no uncaught page errors.
+  Screenshots: `docs/preview-live-settings.png`, `docs/preview-live-picker.png`.
+- Visual check of every mark at 14/16/24/48/96 px, including the corrected MiniMax
+  waveform and Mistral pixel-block M: `docs/preview.png`; the vendor marks:
+  `docs/preview-vendors.png`; before/after of the two corrected marks:
+  `docs/preview-corrected-marks.png`. The design sheet also renders the plugin's
+  16 px settings-navigation glyph next to shipped nav icons on light and dark
+  surfaces.
+- The navigation glyph is validated twice: `test/nav-icon.test.ts` pins its 16 px
+  `currentColor` geometry, the percent-encoded mask URL and the row matcher
+  (including the element-name case a real browser reports for SVG children), and
+  `scripts/build.ts` refuses a glyph or a stylesheet rule that breaks those
+  invariants.
+- Live bundle check with `scripts/verify-live.ts` against the running Web GUI:
+  `/plugins/??dsh-model-logos/client.js&rev=cee18b707e67` returned the freshly built
+  artifact (170,170 bytes served, 38 artwork entries), proving the client HMR
+  transport published this exact build without an app restart.

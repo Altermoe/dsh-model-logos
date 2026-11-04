@@ -1,358 +1,149 @@
 # dsh-model-logos
 
-A DeepSeek Harness (DSH) Web GUI plugin that draws brand marks next to model and
-provider names, and lets you choose a model's icon yourself when the automatic
-choice is not what you want.
+Brand marks for the models you actually use — a small plugin for the DeepSeek
+Harness (DSH) Web GUI.
 
-![Brand marks at shipped sizes, on light and dark surfaces](docs/preview.png)
+![The icon picker: auto, no icon, a letter tile, or any included brand — searchable](docs/preview-live-picker.png)
 
-The plugin covers two families of icons, deliberately kept apart:
+## Why icons?
 
-| Kind                        | What it identifies                       | Where it appears                                                                                                    |
-| --------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| **Vendor logo** (厂商 Logo) | the provider/channel that serves a model | Settings → Models provider rows, the Settings → Models editor titles, and every option of the add-provider dropdown |
-| **Model logo** (模型 Logo)  | the brand of the model itself            | the composer model button, the model picker, and the model rows of the Settings → Models provider editor            |
+A model picker used to be a short list. Today it is a crowd: DeepSeek, GPT, Claude,
+Gemini, Qwen, GLM, Kimi, Doubao, Llama, Mistral… all rendered as the same grey
+text. Reading every name is how you find the one you want; recognising a mark is
+how you find it without reading. That is the whole case for icons: they move a
+choice from recall to recognition.
 
-Vendor logos only exist for the **official channel directory** (the shipped
-provider routes). Hand-declared custom providers — a relay, a self-hosted server,
-a local model URL — intentionally get no vendor logo, because there is no vendor
-brand behind them.
+The place it matters most is the model button in the composer — the control you
+look at right before sending a message. The interface answers "which model is
+this?" with a string of words. A mark answers it in one glance, the same reason a
+phone's home screen is not a list of app names. Model names that differ by a suffix
+are also easy to mix up, and the mark catches the mistake before you send.
 
-![Settings → Models decorated by the plugin](docs/preview-settings.png)
+Settings → Models makes the point even more plainly. Provider rows show a route id
+such as `anthropic` or a display name, the add-provider dropdown lists more of the
+same ids, and the model editor is a grid of text inputs. A logo gives every row a
+shape you can find without decoding the text, and lets you choose a channel by
+sight instead of by spelling.
 
-The icon picker, from the running GUI:
+There is a second, quieter idea in the plugin: **a model can have two brands.** The
+_vendor_ is the channel that serves it — OpenRouter, Volcengine, a local relay. The
+_model_ is the thing you are talking to — Claude, Qwen, DeepSeek. On an aggregator
+row those are two different answers, so they get two different marks, and the
+plugin is careful never to pass one off as the other.
 
-![Model icon picker in the running GUI](docs/preview-live-picker.png)
+## What it looks like
 
-## What it does
+Settings → Models, in the running GUI: the vendor mark sits on every official
+provider row and editor title, every model row begins with its mark or a one-click
+placeholder, and the plugin's own entry sits in the Settings nav.
 
-### Composer model label
+![Settings → Models in the running GUI](docs/preview-live-settings.png)
 
-A single contribution to the shipped `conversation.input.model.label` slot draws
-the model's mark before the catalog name in all three placements the selector
-uses it for:
+The provider rows and the add-provider dropdown up close, rendered from the same
+markup by the verification harness — channels are chosen by logo, not by route id:
 
-| Placement | Where it shows                                             |
-| --------- | ---------------------------------------------------------- |
-| `trigger` | the model name in the composer's bottom-right model button |
-| `menu`    | the current model in the picker's root menu row            |
-| `option`  | every model row inside the picker                          |
+![Provider rows and the add-provider dropdown](docs/preview-settings.png)
 
-It owns no interaction there: clicks, search, focus, check marks, reasoning-effort
-labels and accessibility text stay with the shipped selector.
+## What you get
 
-### Settings → Models
+- **The composer and the model picker** — the current model's mark in the composer
+  button, on the current model at the top of the picker, and on every option row.
+  Clicks, search, check marks and reasoning-effort labels stay with the built-in
+  selector. The label itself is redrawn rather than wrapped — the slot holds only one
+  label per place — so its component reproduces the model name and the release badge
+  the built-in label shows. That is the plugin's one replacement.
+- **Settings → Models** — a vendor logo on every official provider row and provider
+  editor title, a model icon at the start of every model row (a dashed placeholder
+  when there is no guess yet), and a logo-bearing combobox in place of the native
+  add-provider `<select>` (the native select stays underneath as the source of
+  truth).
+- **A Model icons page** — the plugin's own Settings entry lists the models from
+  your providers, with their current mark and a way to change it.
+- **A picker you can always reach** — clicking a model's icon in Settings → Models
+  opens it, and the Model icons page offers it per model, so fixing a wrong guess
+  costs one click and no configuration-file editing.
 
-The plugin decorates the shipped Models page in place (idempotent and reversible):
+Everything else is added around the existing interface, and disabling the plugin
+removes the decoration and puts the page back as it was.
 
-- a **vendor logo** to the left of every official provider row and provider
-  editor title, sized to the row's 14 px text (`1em`);
-- a **model icon** at the start of every model configuration row. When the
-  automatic choice finds no brand the row shows a dashed placeholder button
-  instead of nothing, so the icon is always one click away;
-- a custom **combobox** painted over the add-provider `<select>`: the native
-  select stays the source of truth (and keeps receiving a bubbling `change`
-  event), while the visible control shows each official channel with its vendor
-  logo. Obscure channels without dedicated artwork fall back to a deterministic
-  letter tile, so every official option still has a mark.
+## Choosing an icon
 
-### Icon picker and overrides
+Models are matched automatically first — a best-guess "initial" icon from the model
+id and name, then from the provider. That is a useful default, not a rule, and every
+model can be overridden:
 
-Every model icon is resolved as:
+- **Auto** — go back to the automatic choice;
+- **No icon** — show no brand mark for that model;
+- **Letter icon** — a deterministic colour tile made from the name, for local or
+  exotic models that should look intentional rather than pretend to be a brand;
+- **any included brand mark**, searchable.
 
-1. **your explicit choice**, if one is stored for `provider + model`;
-2. otherwise the **heuristic initial icon** (brand evidence from the model id and
-   name, then the provider id/name);
-3. otherwise no icon.
+Overrides are pinned to a `provider + model` pair, so two providers serving a
+same-named model can show different marks. They live in the DSH user settings
+document (the profile's `cordis.patch.yml`), next to your other preferences — not
+in localStorage, and with no network request involved.
 
-Clicking a model icon in Settings → Models, or a row on the new **Model icons**
-settings page, opens a picker with:
+## The honest cases
 
-- **Auto** — restore the heuristic initial icon;
-- **No icon** — hide the mark for that model;
-- **Letter icon** — a deterministic colour tile generated from the model name
-  (the escape hatch for exotic local models that should not masquerade as a
-  brand);
-- **every brand mark** the plugin ships, with the current choice highlighted.
-
-Overrides are pinned to the provider/model id pair, so two providers serving a
-same-named model can show different marks. They are stored in the DSH **user
-settings document** — the profile's `cordis.patch.yml`, under the plugin entry
-`dsh-model-logos`:
-
-```yaml
-- id: dsh-model-logos
-  name: dsh-model-logos
-  config:
-    modelIcons:
-      deepseek-account:
-        deepseek-flash: deepseek
-      volcengine:
-        doubao-seed-2-1-turbo-260628: letter
-      anthropic:
-        my-local-model: none
-```
-
-No network request, no localStorage, no state outside the DSH settings document.
-
-### Settings navigation entry
-
-The settings dialog lists this plugin's page as **Model icons** / **模型图标**. The
-shipped shell paints each nav row's glyph from a hard-coded switch over its own
-section ids (`account`, `models`, `plugins`, …) and falls back to the settings
-gear for every other id — and `settings.section` accepts only `id`, `order` and
-`label`, so a plugin cannot pass an icon in. The decorator therefore marks the
-rendered row (its label text is the only section signal the shell exposes) and
-the stylesheet swaps the gear for the plugin's own glyph, drawn in
-`currentColor` at 16 px so it tracks the light/dark theme and the active-row
-colour exactly like the shipped icons. Nothing is inserted into the button's
-React children, the label keeps naming the button, and disposal removes the
-marker again.
-
-## How matching works
-
-`src/match.ts` is a pure, ordered heuristic over the provider and model identity
-each surface exposes.
-
-**Model logos** (`matchModelLogo`) run model-level rules first, so an aggregator
-row such as `openrouter / anthropic/claude-sonnet-4.5` shows the Claude mark
-rather than the OpenRouter mark. Examples: `deepseek`, `claude|anthropic`,
-`gpt|o1…o9|chatgpt`, `gemini|gemma`, `qwen|qwq|tongyi`, `glm|chatglm|zhipu`,
-`kimi|moonshot`, `minimax`, `mistral|mixtral`, `llama`, `grok|xai`,
-`doubao|seed`, `ernie|wenxin`, `hunyuan`, `command-r`, `sonar|perplexity`,
-`phi-N`, `nemotron`, `nova|titan`, `step-N`, `yi`, `mimo`. Provider-level rules
-are the fallback for opaque model ids on a known provider.
-
-**Vendor logos** (`matchVendorLogo`) are an explicit route-id table
-(`VENDOR_CHANNELS`) covering the complete shipped channel directory — the pi-ai
-catalog routes plus `deepseek-official` / `deepseek-account`. A rule list keeps
-future region/plan variants (`xiaomi-token-plan-*`, `qwen-token-plan-*`, …)
-resolving. Unknown ids return `null`: no vendor mark.
-
-Matcher keys are a closed set (`LOGO_KEYS`); every key needs artwork.
-
-## Artwork
-
-Each brand is a hand-drawn, dependency-free 24×24 SVG tile (brand-coloured
-rounded square, flat white glyph) so it renders identically offline and stays
-legible at the shipped sizes (14 px in the composer trigger/menu, 16 px in
-options, `1em`/16 px in Settings).
-
-- `src/logos/cn.ts` — DeepSeek, Qwen, Zhipu/GLM, Kimi/Moonshot, MiniMax, Doubao,
-  Baidu/ERNIE, Tencent/Hunyuan, StepFun, 01.AI.
-- `src/logos/intl.ts` — OpenAI, Claude/Anthropic, Gemini, Meta/Llama, Mistral,
-  xAI/Grok, Microsoft, NVIDIA, AWS, Cohere, Perplexity, Hugging Face, Ollama,
-  Groq, OpenRouter.
-- `src/logos/vendors.ts` — the remaining official channel brands: Xiaomi,
-  OpenCode, Cerebras, Cloudflare, Together AI, Fireworks, GitHub,
-  Vercel, Baseten, Microsoft Azure, Ant Ling, Radius, TypeSafe.
-- `src/logos/index.ts` — the merged `LOGOS` set every renderer reads (the build
-  validates coverage, duplicates and SVG safety before a bundle may ship).
-- `src/artwork.ts` — runtime helpers: `letterTile(text)` (deterministic
-  colour tile used for unknown official channels and for the picker's letter
-  option) and the XML/HTML escapers.
-
-The plugin's own 16 px Settings-navigation glyph lives in `src/nav-icon.ts` (four
-rounded tiles with one solid — the four-tile `icon.svg` identity reduced to the
-nav rail); `assets/icon-180.png` is the same mark as the raster storefront tile the
-plugin-listing metadata points at.
-
-The DeepSeek whale is the official asset shipped with this app
-(`reference/deepseek-whale.svg`, taken from the Web front-end favicon); the rest
-are vector reconstructions of each brand's official mark, redrawn for offline
-use. Reconstructions differ from the official artwork by design: flat fills only,
-a uniform tile, and glyphs simplified to survive 14 px. Brand logos are
-trademarks of their owners and appear here only to identify the provider or model
-being used. Replace any mark with an official asset when one is available under a
-redistribution-friendly licence.
-
-Two marks were corrected against the brands' current identities (both used to be
-a plain letter "M" on the same orange tile, so they were easy to confuse):
-
-- **MiniMax** is not an "M": the official mark is the 2025 pink-to-orange signal
-  line (the nine-loop waveform). It is redrawn as a five-half-wave sine-wave
-  segment on a magenta `#E2167E` tile, so it reads as a waveform at 14 px instead
-  of a letterform.
-- **Mistral** is the official 2025 pixel-block "M" (seven columns by five rows of
-  squares, with stepped shoulders and split feet). The single-colour outline
-  comes from `@lobehub/icons-static-svg` (MIT) and is flattened to a white glyph
-  on the brand orange tile; the official yellow-to-red five-band gradient would
-  turn to coloured noise at 14 px.
-
-## Build
-
-`client.js` and `index.js` are generated — never edit them by hand, and they are
-not committed: they land in the package root only because the local DSH install
-loads the bundle from disk. A fresh `pnpm install` regenerates them (via the
-`prepare` script); after editing a source file run `pnpm run build` before
-reloading the plugin in DSH. The sources are TypeScript:
-
-- `src/client.ts` is bundled by esbuild into the browser module: one
-  `window.__ModuleLoader__` factory closure with `react` / `react-dom/client` left
-  external (the loader's `require` supplies them).
-- `src/host.ts` is bundled into `index.js`, an ES module with
-  `@deepseek-ai/schemastery` external.
-
-Before writing either artifact, `scripts/build.ts` validates the artwork
-(duplicates, non-empty titles, self-contained SVGs, coverage of every matcher
-key, the generated letter-tile fallback) and the bundle's loader contract.
-
-The whole toolchain — strict TypeScript, Vitest, oxlint, oxfmt, the module map
-and the contribution rules — is documented in
-[`docs/engineering.md`](docs/engineering.md).
-
-The toolchain requires Node.js **≥ 26.13.0** — the 26.x line before 26.12.1 ships
-a Brotli decoder vulnerable to CVE-2026-111497 — and pnpm, whose exact version is
-pinned by `packageManager` and fetched automatically on first use.
-
-```sh
-pnpm install            # install dependencies (the prepare script also builds both artifacts)
-pnpm run build          # generate client.js + index.js
-pnpm run check          # fail when an artifact is missing or stale
-pnpm test               # matcher + artwork + resolver + bundle tests (Vitest)
-pnpm run typecheck      # tsc --noEmit
-pnpm run lint           # oxlint
-pnpm run fmt            # oxfmt --write .
-pnpm run verify         # typecheck + lint + fmt:check + test + build + check
-pnpm run preview        # design sheet -> .preview/logos.png
-pnpm run preview -- --only claude      # one mark, large -> .preview/claude.png
-pnpm run preview -- --only-set vendors # the vendor marks sheet
-pnpm run verify:dom     # decorate the Settings fixture in headless Edge
-pnpm run verify:live    # the running GUI serves this exact build
-```
-
-`scripts/preview-logos.ts` renders the marks at shipped sizes on light and dark
-surfaces, next to a simulated composer trigger, model menu and Settings provider
-rows, and captures the result with headless Edge. It is a design aid only, not
-part of the bundle.
-
-`scripts/verify-dom.ts` loads the real generated `client.js` in headless Edge
-against `test/fixtures/settings-models.html` — a faithful static copy of the
-shipped Settings → Models markup — with stubbed React/plugin services, then
-asserts the vendor marks, the model-row buttons, the combobox replacement, the
-picker write path, and clean disposal. It also renders
-`docs/preview-settings.png`.
-
-`scripts/verify-live.ts` recomputes the artifact revision the Host serves
-(`SHA-1` over the bundle's mtime/ctime/size), fetches
-`/plugins/??dsh-model-logos/client.js&rev=<rev>` from the running GUI and checks
-the served bytes: a 200 proves the page's HMR transport has published exactly the
-build in this directory, without restarting the app.
+- **Vendor logos only exist for official channels.** A relay, a self-hosted server
+  or a local URL has no vendor brand behind it, so it gets no vendor logo — an
+  invented one would be a lie. Every official channel still has a mark, falling back
+  to a deterministic letter tile for the obscure ones.
+- **A model with no confident match is not left blank.** The Settings row shows a
+  dashed placeholder that is always one click away from the picker.
+- **Names never disappear.** Every button and menu row still carries its name, so the
+  interface stays usable even if you do not recognise a mark.
 
 ## Install
 
-The bundle installs into a DSH profile with the Plugin Manager:
+The bundle installs into a DSH profile through the Plugin Manager:
 
 ```
 plugin_manager action=install_bundle target=<absolute path to this directory>
 ```
 
 Then refresh the Web GUI page. The plugin appears in Plugins as **Model Logos** /
-**模型 Logo**; disabling it removes every contribution and restores the plain
-shipped interface.
+**模型 Logo**; disabling it removes the decoration and restores the plain interface.
 
-**Upgrading from 0.1:** the host half now declares a settings field, so the Host
-plugin entry must be reloaded once (toggle the plugin in the Plugin Manager, or
-restart the app) before icon overrides can be saved. The browser half hot-reloads
-through the usual client HMR transport. Until the Host half is reloaded, the
-composer and Settings keep working with heuristic icons; the picker reports that
-icon settings are unavailable.
+## About the artwork
 
-## Implementation notes
+Every mark is a self-contained 24×24 SVG tile — a brand-coloured rounded square with
+a glyph that stays legible at the sizes it is actually used (14–16 px beside UI
+text). Nothing is fetched at runtime, so the artwork needs no network and no external
+asset.
 
-- The label slot is `single`. A shipped label (`ui-deepseek-model-label-1017`)
-  already occupies the default priority 0, and the slot API rejects two
-  contributions at the same priority. This contribution registers at **priority
-  -1**, which is the lowest priority and therefore the one that renders.
-- Because it shadows that shipped label, it reproduces its visible behaviour: the
-  `1017` release badge on the official `DeepSeek-V4.1-Flash` entry
-  (`provider.id` `deepseek-account` / `deepseek-official`, `model.id`
-  `deepseek-flash`).
-- The settings namespace is declared by the Host half's volatile Config
-  (`modelIcons: z.dict(z.dict(z.string())).volatile()`), so the browser reads and
-  writes it through `ctx.configForms` / `remote.settings.mutate`; the value lands
-  in the profile's `cordis.patch.yml` like every other user preference.
-- The provider directory is read through the `remote.llm` projected service. The
-  client must inject the exact key `remote.llm` (not just `remote`): Cordis
-  refuses a namespace property read without it.
-- The Models page renders the DeepSeek account row with its own localized label
-  (`DeepSeek 账号` / `DeepSeek Account`), not the directory display name, so the
-  decorator keeps a small alias table for that row.
-- The Settings page is decorated through a scoped, idempotent MutationObserver:
-  inserted nodes carry `data-dshml-owner`, the native provider `<select>` is only
-  hidden (never replaced or removed), and disposal removes exactly the inserted
-  nodes and restores the select. Spans inside our own inserted UI are never
-  decorated again.
-- `globalThis.__dshModelLogos` exposes a read-only diagnostics object (icon
-  state, model catalog, re-run decoration); the live verification harness uses
-  it.
-- The stylesheet is injected once with a `data-plugin-css` tag and removed when
-  the plugin disposes.
-- `/model` command popup rows use the command popup's own rendering API, not this
-  slot, so they keep plain names.
+The DeepSeek whale is DeepSeek's official mark, taken from the app's own Web front
+end. Most of the model marks are simplified vector reconstructions; the vendor marks
+are official single-colour vectorisations (MIT / CC0 artwork) fitted into the same
+tile, and a few glyphs — Microsoft, AWS, Hugging Face, Together AI, Baseten — keep
+their brand colours. The two easiest to get wrong were corrected on purpose:
+MiniMax's 2025 mark is a waveform, not an "M", and Mistral's pixel-block M keeps its
+stepped shoulders. Brand logos are trademarks of their owners and appear here only to
+identify the provider or model in use.
 
-## Listing metadata
+![All the included marks at real sizes, on light and dark surfaces](docs/preview.png)
 
-Everything a plugin-listing submission (the `awesome-dsh-plugin` list) needs is in
-the repository: the `dsh.bundle` manifest and `cordis.patch.yml` that make the
-package installable, `assets/icon-180.png` as the storefront raster tile (declared
-as the manifest `icon` and exported as `./icon` for the Plugins page), and
-`screenshots.json` listing the three UI screenshots in `docs/`. The exact list
-entry, the requirement-by-requirement checklist, and the steps only a human can do
-(add the `dsh-plugin` topic, push the repository, open the one-file PR) are in
-[`docs/awesome-plugin.md`](docs/awesome-plugin.md).
+## Development
 
-## Verification log
+The toolchain requires Node.js ≥ 26.13.0 and pnpm (the exact version is pinned by
+`packageManager`). `client.js` and `index.js` are generated build output — never edit
+them by hand.
 
-- Build validation rejects malformed artwork (missing title, non-`<svg>` string,
-  `id` attributes, scripts, event handlers, external references), duplicate keys,
-  and artwork keys no rule can reach.
-- Matcher tests pin the configured providers, aggregator rows, provider
-  fallbacks, the no-match case, all 44 official channel ids, and the closed
-  `LOGO_KEYS`/artwork invariants.
-- Artwork tests pin the letter-tile generator (determinism, safe SVG, CJK text,
-  escaping) and the brand marks' inlining rules.
-- Resolver tests pin override precedence (`brand` / `none` / `letter` / stale
-  value), immutability, and per-provider keys.
-- Bundle tests load the generated `client.js` in a DOM/React stand-in and check
-  the label contribution (slot, priority −1, override rendering, letter and none
-  sentinels, the shipped release badge), the settings-section registration, and
-  that `apply()` disposers remove the stylesheet, listeners and observer.
-- `scripts/verify-dom.ts` drives the faithful Settings fixture in headless Edge
-  and screenshots the decorated page: **42 assertions pass** — vendor logos on
-  official rows/editor titles (including the localized DeepSeek account row),
-  none on the declared custom provider, model-row buttons and the 5-track grid,
-  the hidden native select, the custom combobox (option marks, write-back,
-  bubbling `change`, face re-sync), the picker write path into
-  `configForms.mutate`, the composer label override/`none` rendering, the plugin's
-  own settings-nav row (marked by label, shipped gear hidden, 16 px `currentColor`
-  mask glyph painted, no other row marked), full disposal reversibility (including
-  the nav marker) and observer disconnection.
-- Live verification against a real `dsh web` instance from this bundle (fresh
-  profile, seeded providers, headless Edge over CDP): **15/15 assertions pass** —
-  the settings dialog and both navigation entries, vendor logos before the
-  DeepSeek account (localized label), DeepSeek and a configured `anthropic` row at
-  14 px, model icons on the model rows (`claude-sonnet-4.5`, `my-local-qwen`), the
-  add-provider combobox hiding the native select and listing every official
-  channel with exactly one mark (write-back → `google`), the picker opening with
-  41 options (auto / none / letter + all 38 brands) and a search box, the picked
-  override persisted into the profile's `cordis.patch.yml`
-  (`modelIcons: anthropic → claude-sonnet-4.5 → openai`), the row refreshing to
-  the override, the Model-icons settings section listing the configured models,
-  and no uncaught page errors. Screenshots: `docs/preview-live-settings.png`,
-  `docs/preview-live-picker.png`.
-- Visual check of every mark at 14/16/24/48/96 px, including the corrected
-  MiniMax waveform and Mistral pixel-block M: `docs/preview.png`; the vendor
-  marks: `docs/preview-vendors.png`; before/after of the two corrected marks:
-  `docs/preview-corrected-marks.png`. The design sheet also renders the plugin's
-  16 px settings-navigation glyph next to shipped nav icons on light and dark
-  surfaces.
-- The navigation glyph is validated twice: `test/nav-icon.test.ts` pins its 16 px
-  `currentColor` geometry, the percent-encoded mask URL and the row matcher
-  (including the element-name case a real browser reports for SVG children), and
-  `scripts/build.ts` refuses a glyph or a stylesheet rule that breaks those
-  invariants.
-- Live bundle check with `scripts/verify-live.ts` against the running Web GUI:
-  `/plugins/??dsh-model-logos/client.js&rev=cee18b707e67` returned the freshly
-  built artifact (170,170 bytes served, 38 artwork entries), proving the client
-  HMR transport published this exact build without an app restart.
+```sh
+pnpm install          # dependencies; the prepare script also builds both artifacts
+pnpm run build        # regenerate client.js + index.js after editing src/**
+pnpm run verify       # full gate: types, lint, format, tests, build, artifact check
+pnpm run verify:dom   # drive the real bundle against the Settings fixture in headless Edge
+pnpm run preview      # render the artwork design sheet into .preview/
+```
+
+The module map, contribution rules and the verification log are in
+[`docs/engineering.md`](docs/engineering.md); the runtime contract and design
+decisions are in [`docs/architecture.md`](docs/architecture.md).
+
+## Related
+
+- [`docs/prior-art.md`](docs/prior-art.md) · [中文版](docs/prior-art.zh-CN.md) — how
+  this plugin relates to the other DSH icon plugins.
+- [`docs/awesome-plugin.md`](docs/awesome-plugin.md) — listing metadata and the
+  submission checklist.
