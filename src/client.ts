@@ -7,7 +7,9 @@
  *    composer uses it for.
  *  - `settings.section` adds the "Model icons" settings page.
  *  - A settings-page decorator adds vendor marks to the Models provider rows and
- *    the add-provider dropdown, and model-icon buttons to the model rows.
+ *    the add-provider dropdown, model-icon buttons to the model rows, and this
+ *    plugin's own glyph to its Settings navigation row (the shell only knows
+ *    glyphs for its built-in sections).
  *
  * `scripts/build.ts` bundles this entry into `client.js`, wrapping it in the
  * `window.__ModuleLoader__` factory that supplies `React`, `createRoot` and the
@@ -28,6 +30,7 @@ import {
   dshmlUseIconState,
 } from './overrides';
 import { dshmlDecorateNow, dshmlMountSettingsDecorator, dshmlRequestDecorate } from './decorate';
+import { DSHML_NAV_ICON_CSS } from './nav-icon';
 import { DshmlModelIconsSection } from './section';
 
 const LABEL_STYLE_ID = 'dsh-model-logos/label.css';
@@ -81,7 +84,7 @@ function mountLabelStyles(): () => void {
   const tag = document.createElement('style');
   tag.dataset.plugin = 'dsh-model-logos';
   tag.dataset.pluginCss = LABEL_STYLE_ID;
-  tag.textContent = LABEL_CSS + (typeof DSHML_UI_CSS === 'string' ? DSHML_UI_CSS : '');
+  tag.textContent = LABEL_CSS + DSHML_NAV_ICON_CSS + (typeof DSHML_UI_CSS === 'string' ? DSHML_UI_CSS : '');
   document.head.appendChild(tag);
   return function unmountLabelStyles() {
     tag.remove();

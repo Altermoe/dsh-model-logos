@@ -10,7 +10,10 @@
  *     configuration row, clickable → the icon picker;
  *   - a custom combobox painted over the add-provider native <select> so each
  *     option can show its vendor mark; the native select stays the React state
- *     source and receives a bubbling `change` event on pick.
+ *     source and receives a bubbling `change` event on pick;
+ *   - this plugin's own Settings navigation row: the shell renders the gear
+ *     fallback for section ids it does not know, so the row is marked here and
+ *     `src/nav-icon.ts` paints the plugin glyph through the stylesheet.
  *
  * Every inserted node carries `data-dshml-owner`, so disposal removes only our
  * nodes and restores the native select.
@@ -24,6 +27,7 @@ import {
   dshmlVendorMark,
 } from './overrides';
 import { dshmlOpenIconPicker } from './picker';
+import { dshmlClearNavIcon, dshmlDecorateNavIcon } from './nav-icon';
 import type { CatalogProvider, DshContext, ModelMark } from './types';
 
 /** Placeholder mark for a model row that has no icon yet (clickable picker seat). */
@@ -634,6 +638,7 @@ function dshmlDecorate(state: DecorState): void {
   dshmlDecorateProviderNames(root, providers);
   dshmlDecorateModelRows(root, providers, providerIds);
   dshmlDecorateProviderSelect(root, state, providers, providerIds);
+  dshmlDecorateNavIcon(root);
 }
 
 /** Debounced schedule. */
@@ -660,6 +665,7 @@ function dshmlClearDecorations(state: DecorState): void {
   for (const row of document.querySelectorAll<HTMLElement>('[data-dshml-model-row]')) {
     delete row.dataset.dshmlModelRow;
   }
+  dshmlClearNavIcon();
 }
 
 /** Currently mounted decorator state (diagnostics / manual re-run). */

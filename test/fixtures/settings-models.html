@@ -23,7 +23,9 @@
     field layout but omits its own model rows, so the model-row assertions have a
     fixed count of three.
   - Inline SVG approximations of the primitive icons (chevron / trash / plus / close).
-  - The shell nav lists a representative set of sections; the dialog is always open.
+  - The shell nav lists a representative set of sections plus this plugin's own
+    `model-logos` row (rendered with the shell's gear fallback, since the shell only
+    knows glyphs for its built-in section ids); the dialog is always open.
 
   The three saved provider rows are (account-first, as the shipped store sorts them):
     0. DeepSeek 账号 (provider `deepseek-account`; localized `deepSeekAccount` copy,
@@ -1333,6 +1335,15 @@ body {
           <button type="button" class="AnXs9G_navCell">
             <svg class="AnXs9G_navIcon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M8 2.5l5 2.5v3c0 3-2.1 5.2-5 5.9-2.9-.7-5-2.9-5-5.9v-3z" stroke="currentColor" stroke-width="1.4" fill="none"/></svg>
             <span class="AnXs9G_navLabel">网络搜索</span>
+          </button>
+          <!--
+            The plugin's own section (`id: model-logos`, order 35). The shell's
+            `navIcon(id)` switch has no branch for it, so it renders the gear
+            fallback — which is what the decorator replaces with the plugin glyph.
+          -->
+          <button type="button" class="AnXs9G_navCell">
+            <svg class="AnXs9G_navIcon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.4" fill="none"/><path d="M8 1.8v2.1M8 12.1v2.1M1.8 8h2.1M12.1 8h2.1M3.6 3.6l1.5 1.5M10.9 10.9l1.5 1.5M12.4 3.6l-1.5 1.5M5.1 10.9l-1.5 1.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/></svg>
+            <span class="AnXs9G_navLabel">模型图标</span>
           </button>
         </div>
       </nav>

@@ -19,7 +19,8 @@
  *   - the custom combobox painted over the native provider `<select>`
  *   - clicking a model-row logo opens the picker modal
  *   - picking a brand writes the nested override through `configForms.mutate`
- *   - dispose removes every inserted node and restores the native select
+ *   - the Settings navigation row of this plugin's section draws the plugin glyph
+ *   - dispose removes every inserted node, the nav marker and restores the native select
  *
  * Usage:
  *   pnpm exec tsx scripts/verify-dom.ts                          # assertions (exit 1 on failure)
@@ -968,6 +969,74 @@ async function browserDriver(config: DriverConfig): Promise<void> {
     await waitFor(() => vendorMarkers().length > 0, 6000);
     await sleep(150);
 
+    // Settings navigation: the shell picks a glyph from a hard-coded section-id
+    // switch and falls back to the gear for every id it does not know, so this
+    // plugin's row (`model-logos`) shows the gear until the decorator marks it.
+    // The row button carries no section id — the label text is the only signal.
+    const navRows = qa<HTMLButtonElement>('[data-shortcut-modal="settings"] > nav button');
+    const ourNavRow = navRows.find((row) => text(q('span', row)) === '模型图标') ?? null;
+    const ourNavRowSvg = ourNavRow ? q<SVGElement>(':scope > svg', ourNavRow) : null;
+    add(
+      'fixture: the plugin section has a nav row with the shell gear fallback',
+      true,
+      !!ourNavRow && !!ourNavRowSvg && text(ourNavRow.querySelector('span')) === '模型图标',
+      ourNavRow ? describeNode(ourNavRow) + ' rows=' + navRows.length : 'no 模型图标 row among ' + navRows.length,
+    );
+    const markedNavRow = await waitFor(
+      () => navRows.find((row) => row.getAttribute('data-dshml-nav') === 'model-logos') ?? null,
+      4000,
+    );
+    add(
+      'settings nav row is marked for the plugin glyph (label-matched, data-* survives re-render)',
+      true,
+      markedNavRow !== null && markedNavRow === ourNavRow,
+      markedNavRow
+        ? 'marker on ' + describeNode(markedNavRow) + ', marked rows=' + qa('[data-dshml-nav]').length
+        : 'no [data-dshml-nav="model-logos"]; markers=' + JSON.stringify(qa('[data-dshml-nav]').map(describeNode)),
+    );
+    add(
+      'no other settings nav row is marked',
+      true,
+      qa('[data-dshml-nav]').length === 1 &&
+        navRows.every((row) => row === ourNavRow || !row.hasAttribute('data-dshml-nav')),
+      'marked=' + qa('[data-dshml-nav]').length + ' of ' + navRows.length + ' rows',
+    );
+    if (ourNavRow !== null && ourNavRowSvg !== null) {
+      const before = getComputedStyle(ourNavRow, '::before');
+      const maskImage =
+        before.maskImage !== ''
+          ? before.maskImage
+          : ((before as unknown as Record<string, string>)['webkitMaskImage'] ?? '');
+      add(
+        'settings nav row draws the plugin glyph and hides the shipped one',
+        true,
+        getComputedStyle(ourNavRowSvg).display === 'none' &&
+          before.display !== 'none' &&
+          before.width === '16px' &&
+          before.height === '16px' &&
+          maskImage.indexOf('data:image/svg+xml') >= 0 &&
+          before.backgroundColor === getComputedStyle(ourNavRow).color,
+        'svg display=' +
+          getComputedStyle(ourNavRowSvg).display +
+          ', ::before ' +
+          before.width +
+          '×' +
+          before.height +
+          ' display=' +
+          before.display +
+          ', mask=' +
+          maskImage.slice(0, 24) +
+          '…, colour=' +
+          before.backgroundColor,
+      );
+      add(
+        'settings nav row keeps its label text and accessible name',
+        true,
+        text(ourNavRow) === '模型图标' && ourNavRowSvg.getAttribute('aria-hidden') === 'true',
+        'label="' + text(ourNavRow) + '"',
+      );
+    }
+
     // The DeepSeek account row: the page renders the localized `deepSeekAccount`
     // copy ("DeepSeek 账号"), not the directory display name ("DeepSeek Account"),
     // so only the display-name alias can resolve it. It has no Edit/Delete button
@@ -1470,6 +1539,20 @@ async function browserDriver(config: DriverConfig): Promise<void> {
         ownerCount +
         ' rowsRestored=' +
         rowsRestored,
+    );
+
+    add(
+      'dispose clears the settings nav marker and restores the shipped glyph',
+      true,
+      qa('[data-dshml-nav]').length === 0 &&
+        ourNavRow !== null &&
+        !ourNavRow.hasAttribute('data-dshml-nav') &&
+        ourNavRowSvg !== null &&
+        getComputedStyle(ourNavRowSvg).display !== 'none',
+      'markers=' +
+        qa('[data-dshml-nav]').length +
+        ', svg display=' +
+        (ourNavRowSvg ? getComputedStyle(ourNavRowSvg).display : 'missing'),
     );
 
     const selectAfter = q<HTMLSelectElement>('.jrmgQW_addPanel select', root || document);

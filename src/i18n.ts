@@ -101,6 +101,24 @@ const DSHML_COPY: Readonly<Record<DshmlLang, Readonly<Record<string, string>>>> 
   },
 };
 
+/**
+ * Every translation of one key, in dictionary order (de-duplicated).
+ *
+ * Used where a string the shell rendered has to be recognised in whichever
+ * language it ended up in — for example the Settings nav row this plugin's own
+ * section title appears on, which the shell renders from a locale-following thunk.
+ * @param key - dictionary key (`section.title`, …).
+ */
+export function dshmlTAll(key: string): string[] {
+  const values: string[] = [];
+  for (const lang of Object.keys(DSHML_COPY) as DshmlLang[]) {
+    const table = DSHML_COPY[lang];
+    const value = table !== undefined ? table[key] : undefined;
+    if (typeof value === 'string' && value.trim() !== '' && !values.includes(value)) values.push(value);
+  }
+  return values;
+}
+
 /** Language forced by the DSH locale service; null means auto-detect. */
 let dshmlForcedLang: DshmlLang | null = null;
 

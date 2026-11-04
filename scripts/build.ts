@@ -27,6 +27,7 @@ import { LOGOS as INTL_LOGOS } from '../src/logos/intl';
 import { LOGOS as VENDOR_LOGOS } from '../src/logos/vendors';
 import { LOGO_KEYS, VENDOR_CHANNELS, VENDOR_RULES } from '../src/match';
 import { letterTile } from '../src/artwork';
+import { DSHML_NAV_ICON_CSS, DSHML_NAV_ICON_SVG, DSHML_NAV_MARKER } from '../src/nav-icon';
 import type { Logo, LogoSet } from '../src/types';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -131,6 +132,29 @@ function validateLetterTile(): void {
   if (first.svg !== second.svg) problems.push('src/artwork.ts: letterTile must be deterministic');
 }
 
+/** Validate the Settings-navigation glyph and the one stylesheet rule that paints it. */
+function validateNavIcon(): void {
+  const svg = DSHML_NAV_ICON_SVG;
+  if (!svg.trim().startsWith('<svg')) problems.push('src/nav-icon.ts: nav glyph must start with <svg');
+  if (!svg.includes('viewBox="0 0 16 16"')) problems.push('src/nav-icon.ts: nav glyph must be a 16x16 viewBox');
+  if (!svg.includes('currentColor')) problems.push('src/nav-icon.ts: nav glyph must be drawn in currentColor');
+  if (/\sid\s*=/.test(svg)) problems.push('src/nav-icon.ts: nav glyph must not use id attributes');
+  if (/<script|\son[a-z]+\s*=|https?:/i.test(svg.replace(/\sxmlns[^=]*="[^"]*"/gi, ''))) {
+    problems.push('src/nav-icon.ts: nav glyph must stay self-contained');
+  }
+  // A mask URL that is not fully percent-encoded can terminate the declaration.
+  const rowSelector = '[data-dshml-nav="' + DSHML_NAV_MARKER + '"]';
+  if (!DSHML_NAV_ICON_CSS.includes(rowSelector + ' > svg')) {
+    problems.push('src/nav-icon.ts: nav stylesheet must hide the shipped glyph on the marked row');
+  }
+  if (!DSHML_NAV_ICON_CSS.includes(rowSelector + '::before')) {
+    problems.push('src/nav-icon.ts: nav stylesheet must paint the glyph on the marked row');
+  }
+  if (!DSHML_NAV_ICON_CSS.includes('-webkit-mask:') || !DSHML_NAV_ICON_CSS.includes('mask:')) {
+    problems.push('src/nav-icon.ts: nav stylesheet must paint the glyph as a CSS mask');
+  }
+}
+
 /** esbuild banner/footer that adapt the ESM entry to the module-loader contract. */
 function clientWrapper(): { banner: string; footer: string } {
   return {
@@ -203,6 +227,7 @@ function validateClientBundle(text: string): void {
     ['conversation.input.model.label', 'label slot registration'],
     ['priority: -1', 'shadowing priority'],
     ['dshml-root', 'label stylesheet class'],
+    ['data-dshml-nav', 'settings nav glyph marker'],
   ];
   if (text.length < 1000) problems.push('client bundle is suspiciously small');
   for (const [marker, label] of markers) {
@@ -222,6 +247,7 @@ async function main(): Promise<void> {
   collectLogos(merged);
   validateCoverage(merged);
   validateLetterTile();
+  validateNavIcon();
 
   let client = '';
   let host = '';

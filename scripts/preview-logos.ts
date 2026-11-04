@@ -24,6 +24,7 @@ import { LOGOS as CN } from '../src/logos/cn';
 import { LOGOS as INTL } from '../src/logos/intl';
 import { LOGOS as VENDORS } from '../src/logos/vendors';
 import { LOGO_KEYS } from '../src/match';
+import { DSHML_NAV_ICON_SVG } from '../src/nav-icon';
 import type { LogoSet } from '../src/types';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -171,6 +172,33 @@ const providerMock = (theme: 'light' | 'dark'): string => `
   </div>
 </section>`;
 
+/** Shipped-style 16 px nav glyphs, so the plugin glyph can be judged beside them. */
+const SHIPPED_NAV_GLYPHS: ReadonlyArray<readonly [string, string]> = [
+  ['General', '<path d="M3 4h10M3 8h10M3 12h7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>'],
+  [
+    'Models',
+    '<rect x="2.5" y="2.5" width="11" height="11" rx="3" stroke="currentColor" stroke-width="1.3"/><path d="M5.5 8h5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>',
+  ],
+];
+
+const navMock = (theme: 'light' | 'dark'): string => `
+<section class="mock mock-${theme}">
+  <h3>${theme === 'light' ? 'Light surface' : 'Dark surface'} — Settings navigation rows (16px glyph, currentColor)</h3>
+  <div class="nav-list">
+    ${SHIPPED_NAV_GLYPHS.map(
+      ([label, paths]) => `
+    <div class="nav-cell">
+      <svg class="nav-icon" viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true">${paths}</svg>
+      <span class="nav-label">${escape(label)}</span>
+    </div>`,
+    ).join('')}
+    <div class="nav-cell nav-cell-active">
+      ${DSHML_NAV_ICON_SVG.replace('<svg ', '<svg class="nav-icon" ')}
+      <span class="nav-label">Model icons</span>
+    </div>
+  </div>
+</section>`;
+
 const letterMock = (): string => {
   const rows = LETTER_SAMPLES.map((name) => {
     const entry = letterTile(name);
@@ -210,10 +238,10 @@ const sheetTitle =
 
 const body = only
   ? `
-${onlySet === 'vendors' ? providerMock('light') + providerMock('dark') + letterMock() : composerMock('light') + composerMock('dark')}
+${onlySet === 'vendors' ? providerMock('light') + providerMock('dark') + letterMock() : composerMock('light') + composerMock('dark') + navMock('light') + navMock('dark')}
 <section class="sheet"><h2>${escape(only)}</h2>${artworkCard(only)}</section>`
   : `
-${onlySet === 'vendors' ? providerMock('light') + providerMock('dark') + letterMock() : composerMock('light') + composerMock('dark')}
+${onlySet === 'vendors' ? providerMock('light') + providerMock('dark') + letterMock() : composerMock('light') + composerMock('dark') + navMock('light') + navMock('dark')}
 <section class="sheet"><h2>${sheetTitle}</h2><div class="grid">${keys.map(artworkCard).join('')}</div></section>`;
 
 const html = `<!doctype html>
@@ -246,7 +274,15 @@ const html = `<!doctype html>
   .provider-row { display: flex; align-items: center; gap: 8px; min-height: 30px; }
   .provider-name { font-size: 14px; line-height: 22px; }
   .letters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 24px; }
-  .letter-row { display: flex; align-items: center; gap: 8px; }
+  .nav-list { display: flex; flex-direction: column; gap: 4px; width: 210px; }
+  .nav-cell { display: flex; align-items: center; gap: 8px; height: 40px; padding: 9px 16px 9px 12px;
+    border-radius: 8px; font-size: 14px; line-height: 22px; }
+  .mock-light .nav-cell { color: #1b1f27; }
+  .mock-dark .nav-cell { color: #e8ebf2; }
+  .mock-light .nav-cell-active { background: #eef0f4; }
+  .mock-dark .nav-cell-active { background: #2a2f3a; }
+  .nav-icon { flex: none; width: 16px; height: 16px; display: block; }
+  .nav-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }  .letter-row { display: flex; align-items: center; gap: 8px; }
   .letter-label { font-size: 12px; color: #5b6270; }
   .mark { display: inline-block; line-height: 0; flex: none; }
   .mark > svg { display: block; width: 100%; height: 100%; }
