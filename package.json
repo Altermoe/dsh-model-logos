@@ -25,7 +25,8 @@
     "test",
     "reference",
     "docs",
-    "README.md"
+    "README.md",
+    "README.zh.md"
   ],
   "type": "module",
   "exports": {

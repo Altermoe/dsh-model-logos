@@ -1,5 +1,7 @@
 # dsh-model-logos
 
+> 中文版：[README.zh.md](README.zh.md)
+
 Brand marks for the models you actually use — a small plugin for the DeepSeek
 Harness (DSH) Web GUI.
 
