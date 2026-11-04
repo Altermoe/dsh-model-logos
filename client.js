@@ -31,7 +31,7 @@ window.__ModuleLoader__.load({
       },
       "mistral": {
         "title": "Mistral",
-        "svg": "<svg viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><rect width=\"24\" height=\"24\" rx=\"6\" fill=\"#FA520F\"/><path d=\"M4.6 18.3V5.7H7.3L12 12.6L16.7 5.7H19.4V18.3H16.8V11.4L12 18.3L7.2 11.4V18.3Z\" fill=\"#FFFFFF\"/></svg>"
+        "svg": "<svg viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><rect width=\"24\" height=\"24\" rx=\"6\" fill=\"#FA520F\"/><g transform=\"translate(1.8 1.824) scale(0.85)\" fill=\"#FFFFFF\"><path d=\"M3.428 3.4h3.429v3.428h3.429v3.429h-.002 3.431V6.828h3.427V3.4h3.43v13.714H24v3.429H13.714v-3.428h-3.428v-3.429h-3.43v3.428h3.43v3.429H0v-3.429h3.428V3.4zm10.286 13.715h3.428v-3.429h-3.427v3.429z\"/></g></svg>"
       },
       "xai": {
         "title": "xAI",
@@ -91,7 +91,7 @@ window.__ModuleLoader__.load({
       },
       "minimax": {
         "title": "MiniMax",
-        "svg": "<svg viewBox=\"0 0 24 24\"><rect width=\"24\" height=\"24\" rx=\"6\" fill=\"#FF4D2E\"/><path fill=\"#FFFFFF\" d=\"M4.7 18.9V6.2l7.3 6.7 7.3-6.7v12.7h-3.5v-7.3L12 15.1l-3.8-3.5v7.3z\"/></svg>"
+        "svg": "<svg viewBox=\"0 0 24 24\"><rect width=\"24\" height=\"24\" rx=\"6\" fill=\"#E2167E\"/><path d=\"M4.6 12.4A1.48 3.6 0 0 1 7.56 12.4A1.48 5 0 0 0 10.52 12.4A1.48 6 0 0 1 13.48 12.4A1.48 5.2 0 0 0 16.44 12.4A1.48 3.4 0 0 1 19.4 12.4\" fill=\"none\" stroke=\"#FFFFFF\" stroke-width=\"2.3\" stroke-linecap=\"round\"/></svg>"
       },
       "doubao": {
         "title": "Doubao",

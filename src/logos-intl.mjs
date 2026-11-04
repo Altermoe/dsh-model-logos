@@ -14,6 +14,10 @@
  * The marks below are hand-drawn vector reconstructions of each brand's official
  * logo, redrawn for an offline, dependency-free bundle. Replace any entry with an
  * official asset when one is available under a redistribution-friendly licence.
+ * Exception: Mistral's pixel-block "M" is the official single-colour outline
+ * from `@lobehub/icons-static-svg` 1.101.0 (MIT), fitted into the shared tile.
+ * Mistral's official mark is a yellow-to-red five-band gradient; the glyph here
+ * is the flat white single-colour variant so it survives 14 px rendering.
  *
  * Keys owned here: openai, claude, gemini, meta, mistral, xai, microsoft, nvidia,
  * aws, cohere, perplexity, huggingface, ollama, groq, openrouter.
@@ -82,12 +86,18 @@ export const LOGOS = {
     ),
   },
 
-  // Mistral's blocky "M" with the notched middle.
+  // Mistral: the official pixel-block "M" — a 7×5 grid of 3.43-unit squares with
+  // the notched shoulders and split feet. The official mark colours the blocks
+  // with its warm yellow-to-red bands; flattened to the white-glyph tile
+  // convention here, like the other multicolour marks, so the stepped silhouette
+  // still reads at 14 px instead of dissolving into coloured noise.
   mistral: {
     title: 'Mistral',
     svg: mark(
       '#FA520F',
-      '<path d="M4.6 18.3V5.7H7.3L12 12.6L16.7 5.7H19.4V18.3H16.8V11.4L12 18.3L7.2 11.4V18.3Z" fill="#FFFFFF"/>',
+      '<g transform="translate(1.8 1.824) scale(0.85)" fill="#FFFFFF">' +
+        '<path d="M3.428 3.4h3.429v3.428h3.429v3.429h-.002 3.431V6.828h3.427V3.4h3.43v13.714H24v3.429H13.714v-3.428h-3.428v-3.429h-3.43v3.428h3.43v3.429H0v-3.429h3.428V3.4zm10.286 13.715h3.428v-3.429h-3.427v3.429z"/>' +
+        '</g>',
     ),
   },
 

@@ -145,6 +145,19 @@ trademarks of their owners and appear here only to identify the provider or mode
 being used. Replace any mark with an official asset when one is available under a
 redistribution-friendly licence.
 
+Two marks were corrected against the brands' current identities (both used to be
+a plain letter "M" on the same orange tile, so they were easy to confuse):
+
+- **MiniMax** is not an "M": the official mark is the 2025 pink-to-orange signal
+  line (the nine-loop waveform). It is redrawn as a five-half-wave sine-wave
+  segment on a magenta `#E2167E` tile, so it reads as a waveform at 14 px instead
+  of a letterform.
+- **Mistral** is the official 2025 pixel-block "M" (seven columns by five rows of
+  squares, with stepped shoulders and split feet). The single-colour outline
+  comes from `@lobehub/icons-static-svg` (MIT) and is flattened to a white glyph
+  on the brand orange tile; the official yellow-to-red five-band gradient would
+  turn to coloured noise at 14 px.
+
 ## Build
 
 `client.js` is generated — never edit it by hand. It inlines the pure modules
@@ -271,9 +284,11 @@ icon settings are unavailable.
   the override, the Model-icons settings section listing the configured models,
   and no uncaught page errors. Screenshots: `docs/preview-live-settings.png`,
   `docs/preview-live-picker.png`.
-- Visual check of every mark at 14/16/24/48/96 px: `docs/preview.png`; the new
-  vendor marks: `docs/preview-vendors.png`.
+- Visual check of every mark at 14/16/24/48/96 px, including the corrected
+  MiniMax waveform and Mistral pixel-block M: `docs/preview.png`; the vendor
+  marks: `docs/preview-vendors.png`; before/after of the two corrected marks:
+  `docs/preview-corrected-marks.png`.
 - Live bundle check with `scripts/verify-live.mjs` against the running Web GUI:
-  `/plugins/??dsh-model-logos/client.js&rev=f96647f308c9` returned the freshly
-  built artifact (169,849 bytes served, 38 artwork entries), proving the client
+  `/plugins/??dsh-model-logos/client.js&rev=cee18b707e67` returned the freshly
+  built artifact (170,170 bytes served, 38 artwork entries), proving the client
   HMR transport published this exact build without an app restart.

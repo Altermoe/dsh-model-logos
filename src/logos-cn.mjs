@@ -66,13 +66,16 @@ export const LOGOS = {
       '<circle cx="17.5" cy="10.6" r="1.45" fill="#FFFFFF"/></svg>',
   },
 
-  // MiniMax: angular "M" from two heavy diagonals on two square legs with a
-  // solid central vertex.
+  // MiniMax: the mark is not a letter "M" but a single pink-to-orange line that
+  // swings like a synthesised sine wave (official: a tight nine-loop waveform,
+  // gradient #E2167E → #FE603C). Redrawn as a five-half-wave signal with a mild
+  // envelope — round caps and no flat edges — so it reads as a waveform instead
+  // of a letterform at every shipped size.
   minimax: {
     title: 'MiniMax',
     svg:
-      '<svg viewBox="0 0 24 24"><rect width="24" height="24" rx="6" fill="#FF4D2E"/>' +
-      '<path fill="#FFFFFF" d="M4.7 18.9V6.2l7.3 6.7 7.3-6.7v12.7h-3.5v-7.3L12 15.1l-3.8-3.5v7.3z"/></svg>',
+      '<svg viewBox="0 0 24 24"><rect width="24" height="24" rx="6" fill="#E2167E"/>' +
+      '<path d="M4.6 12.4A1.48 3.6 0 0 1 7.56 12.4A1.48 5 0 0 0 10.52 12.4A1.48 6 0 0 1 13.48 12.4A1.48 5.2 0 0 0 16.44 12.4A1.48 3.4 0 0 1 19.4 12.4" fill="none" stroke="#FFFFFF" stroke-width="2.3" stroke-linecap="round"/></svg>',
   },
 
   // Doubao: rounded chat/speech bubble with a tail at the lower left.
