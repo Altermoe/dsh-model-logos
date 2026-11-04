@@ -5,30 +5,30 @@ submission. The contract is its
 [`contributing.md`](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/blob/main/contributing.md),
 fetched 2026-11-04 (local copy: `.preview/contributing.md`).
 
-Audited tree: working tree after the 0.4.0 changes (settings-navigation glyph,
-`assets/icon-180.png`, `screenshots.json`, version 0.4.0), 2026-11-04. The Lead is committing that
-batch, so no commit hashes are cited here. Nothing below invents an owner: this repository has no
-git remote yet, so `<owner>` and `<repo>` are placeholders.
+Submission target: **`Altermoe/dsh-model-logos`**, public since 2026-11-04 (GitHub
+`created_at` 2026-11-04T07:51:14Z) and carrying the `dsh-plugin` topic. Audited tree: the
+0.4.0 changes (settings-navigation glyph, `assets/icon-180.png`, `screenshots.json`, version
+0.4.0) plus the listing metadata, `LICENSE` and README install section recorded in §3.
 
 ## 1. The entry
 
-One file, `data/plugins/<owner>__<repo>.yml`. One PR, no other files, and no hand edits to the
-generated `README.md` / `README.zh.md`.
+One file, `data/plugins/Altermoe__dsh-model-logos.yml`. One PR, no other files, and no hand
+edits to the generated `README.md` / `README.zh.md`.
 
 ```yaml
-url: https://github.com/<owner>/<repo>
-name: <owner>/<repo>
+url: https://github.com/Altermoe/dsh-model-logos
+name: Altermoe/dsh-model-logos
 category: ui
 description:
-  en: Model brand marks in the composer model selector; vendor and model marks across Settings → Models (provider rows, model rows, the add-provider dropdown); and a per provider/model icon picker that stores overrides in the DSH user settings document.
-  zh: 在输入框的模型选择器中显示模型品牌图标，在「设置 → 模型」页的提供商行、模型行和添加提供商下拉框中显示厂商与模型图标，并提供按提供商/模型覆盖图标的图标选择器，覆盖项保存在 DSH 用户设置文档中。
-icon: https://raw.githubusercontent.com/<owner>/<repo>/main/assets/icon-180.png
-# tarball: https://github.com/<owner>/<repo>/releases/latest/download/dsh-model-logos.tgz
+  en: 'Model brand marks in the composer model selector; vendor and model marks across Settings → Models (provider rows, model rows, the add-provider dropdown); and a per provider/model icon picker that stores overrides in the DSH user settings document.'
+  zh: '在输入框的模型选择器中显示模型品牌图标，在「设置 → 模型」页的提供商行、模型行和添加提供商下拉框中显示厂商与模型图标，并提供按提供商/模型覆盖图标的图标选择器，覆盖项保存在 DSH 用户设置文档中。'
+icon: https://raw.githubusercontent.com/Altermoe/dsh-model-logos/main/assets/icon-180.png
+# tarball: https://github.com/Altermoe/dsh-model-logos/releases/latest/download/dsh-model-logos.tgz
 ```
 
 Field notes:
 
-- `url` must match the public repository exactly, including owner casing; CI fetches
+- `url` matches the public repository exactly, including owner casing; CI fetches
   `package.json` from it.
 - `category: ui` — the section that already holds the closest neighbours
   (`zhangyongshuai56-hub/dsh-model-picker-brand`, `ttmouse/dsh-model-picker`,
@@ -39,6 +39,8 @@ Field notes:
   artwork set and the package version both move, and the review counts any number against the code.
 - `description.zh` is optional; it is included. The settings-navigation glyph ships with the
   plugin, but the entry does not enumerate it: the descriptions cover the marks and the picker.
+- The descriptions are single-quoted, as in `Altermoe__dsh-onedev.yml`; needs no escaping either
+  way, but the list's entries are consistently quoted.
 - `icon` must be a GitHub-hosted **raster** image; the repo's `icon.svg` is refused. It points at
   `assets/icon-180.png` (180×180 PNG, committed; the same mark as `icon.svg`), which is also the
   DSH manifest `"icon"` used by the Plugins page. Do not point it at `docs/preview*.png` — those
@@ -49,24 +51,24 @@ Field notes:
 
 ## 2. Requirements — status per requirement
 
-| Requirement (contributing.md)                                       | Status                | Evidence / action                                                                                                                                                                                                                                                                |
-| ------------------------------------------------------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dsh.bundle` manifest in `package.json`                             | satisfied             | `package.json` → `dsh.bundle.patch: "./cordis.patch.yml"`. Not a `dsh.client`-only submission, which is the usual rejection reason.                                                                                                                                              |
-| `cordis.patch.yml` next to `package.json`                           | satisfied             | Root file inserts host entry `id: dsh-model-logos`, `name: dsh-model-logos`.                                                                                                                                                                                                     |
-| Real, working code, not a placeholder                               | satisfied             | `src/**` (TypeScript sources), `test/**`, `scripts/**`; `client.js` / `index.js` are generated, git-ignored build output.                                                                                                                                                        |
-| Repo at least 1 day old                                             | **not checkable yet** | Local history starts 2026-10-27, but CI reads the **GitHub repository creation date**. No remote exists. Create the repo, then wait ≥ 1 day before opening the PR; the gate re-runs by itself.                                                                                   |
-| Actively maintained                                                 | satisfied for now     | Latest commit 2026-11-04; keep it true after submission.                                                                                                                                                                                                                         |
-| Add the `dsh-plugin` GitHub topic                                   | **missing**           | Manual, after the GitHub repo exists.                                                                                                                                                                                                                                            |
-| Description states what the plugin does, no superlatives            | satisfied by draft    | Claims checked against `src/`: composer label (`src/client.ts`), Settings decoration (`src/decorate.ts`), picker and settings page (`src/picker.ts`, `src/section.ts`), persistence (`src/overrides.ts`, `src/host.ts`), navigation glyph (`src/nav-icon.ts`).                   |
-| Description must be accurate (checked against code)                 | satisfied by draft    | Same evidence; the draft omits counts and version on purpose, and the navigation glyph (`src/nav-icon.ts`) is chrome that the descriptions do not enumerate. Re-check if the entry or the feature set changes before submission.                                                 |
-| Category matches what the plugin does                               | chosen                | `ui`; rationale in §1.                                                                                                                                                                                                                                                           |
-| Not a meta-package                                                  | satisfied             | Ships its own behaviour: label slot, Settings decorator, combobox, picker, settings page, host `Config`. It is not a dependency list.                                                                                                                                            |
-| Dependencies resolve to upstream                                    | satisfied             | Only runtime dependency is official `@deepseek-ai/schemastery`; nothing re-uploaded.                                                                                                                                                                                             |
-| Icon is a GitHub-hosted raster image                                | satisfied             | `assets/icon-180.png` (180×180 PNG) is committed; `package.json` declares `"icon": "assets/icon-180.png"` and the entry points at its GitHub raw URL.                                                                                                                            |
-| Screenshots, 1–8 images (optional, recommended)                     | satisfied             | `screenshots.json` at the repo root declares `docs/preview-live-settings.png`, `docs/preview-live-picker.png` and `docs/preview-settings.png` (3 of the 8 allowed).                                                                                                              |
-| npm package (optional)                                              | not published         | Listing does not require it. If published, `repository` must point back at the listed repo (§4).                                                                                                                                                                                 |
-| One PR, at most 3 entries, one yml file, only its own entry touched | manual                | This submission adds one entry and nothing else.                                                                                                                                                                                                                                 |
-| Repo is public and installs with `dsh plugin add`                   | **manual**            | No remote today. Source install runs the `prepare` script (`simple-git-hooks && pnpm run build`), which needs Node ≥ 26.13 and pnpm and goes through the build-approval step; verify the install on a clean profile before submitting, or publish npm / a prebuilt tarball (§4). |
+| Requirement (contributing.md)                                       | Status             | Evidence / action                                                                                                                                                                                                                                                |
+| ------------------------------------------------------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dsh.bundle` manifest in `package.json`                             | satisfied          | `package.json` → `dsh.bundle.patch: "./cordis.patch.yml"`. Not a `dsh.client`-only submission, which is the usual rejection reason.                                                                                                                              |
+| `cordis.patch.yml` next to `package.json`                           | satisfied          | Root file inserts host entry `id: dsh-model-logos`, `name: dsh-model-logos`.                                                                                                                                                                                     |
+| Real, working code, not a placeholder                               | satisfied          | `src/**` (TypeScript sources), `test/**`, `scripts/**`; `client.js` / `index.js` are generated, git-ignored build output.                                                                                                                                        |
+| Repo at least 1 day old                                             | **waiting**        | GitHub reports `created_at` 2026-11-04T07:51:14Z, so the bar is met at 2026-11-05T07:51Z. The local history starts 2026-10-27, but CI reads the GitHub creation date. The re-check workflow re-runs open PRs automatically once they age in — no push is needed. |
+| Actively maintained                                                 | satisfied for now  | Latest commit 2026-11-04; keep it true after submission.                                                                                                                                                                                                         |
+| Add the `dsh-plugin` GitHub topic                                   | satisfied          | Added 2026-11-04 (`gh repo edit --add-topic dsh-plugin`).                                                                                                                                                                                                        |
+| Description states what the plugin does, no superlatives            | satisfied by draft | Claims checked against `src/`: composer label (`src/client.ts`), Settings decoration (`src/decorate.ts`), picker and settings page (`src/picker.ts`, `src/section.ts`), persistence (`src/overrides.ts`, `src/host.ts`), navigation glyph (`src/nav-icon.ts`).   |
+| Description must be accurate (checked against code)                 | satisfied by draft | Same evidence; the draft omits counts and version on purpose, and the navigation glyph (`src/nav-icon.ts`) is chrome that the descriptions do not enumerate. Re-check if the entry or the feature set changes before submission.                                 |
+| Category matches what the plugin does                               | chosen             | `ui`; rationale in §1.                                                                                                                                                                                                                                           |
+| Not a meta-package                                                  | satisfied          | Ships its own behaviour: label slot, Settings decorator, combobox, picker, settings page, host `Config`. It is not a dependency list.                                                                                                                            |
+| Dependencies resolve to upstream                                    | satisfied          | Only runtime dependency is official `@deepseek-ai/schemastery`; nothing re-uploaded.                                                                                                                                                                             |
+| Icon is a GitHub-hosted raster image                                | satisfied          | `assets/icon-180.png` (180×180 PNG) is committed; `package.json` declares `"icon": "assets/icon-180.png"` and the entry points at its GitHub raw URL.                                                                                                            |
+| Screenshots, 1–8 images (optional, recommended)                     | satisfied          | `screenshots.json` at the repo root declares `docs/preview-live-settings.png`, `docs/preview-live-picker.png` and `docs/preview-settings.png` (3 of the 8 allowed).                                                                                              |
+| npm package (optional)                                              | not published      | Listing does not require it. `package.json` now declares `repository`, so a later publish is linked rather than unattached (§4).                                                                                                                                 |
+| One PR, at most 3 entries, one yml file, only its own entry touched | manual             | This submission adds one entry and nothing else.                                                                                                                                                                                                                 |
+| Repo is public and installs with `dsh plugin add`                   | **partially**      | The repo is public and `main` carries the manifest and `prepare` build. A clean-profile install (`dsh plugin --profile web add github:Altermoe/dsh-model-logos`) still has to be verified by hand before or during review (§5).                                  |
 
 ## 3. Repo-side changes still open
 
@@ -74,13 +76,13 @@ These are repository changes, not PR-to-the-list work; none are required for the
 only file this audit adds is this document (`docs/awesome-plugin.md`); it is not part of the
 submission PR.
 
-1. **`LICENSE`** — `package.json` declares `"license": "MIT"` but the tree has no license file.
-   The copyright holder string needs a real name (open question §6).
-2. **README install section** — once the repo is public, the install command users will run is
-   `dsh plugin --profile web add github:<owner>/<repo>`. The README currently documents only the
-   local absolute-path `plugin_manager ... install_bundle` flow.
-3. **Publish path** — npm package or prebuilt release tarball; see §4. Until one exists, the only
-   install path is build-from-source.
+1. **`LICENSE`** — done in this tree: MIT, `Copyright (c) 2026 Altermoe`, matching
+   `package.json`'s `"license": "MIT"`.
+2. **README install section** — done in this tree: both READMEs now document
+   `dsh plugin --profile web add github:Altermoe/dsh-model-logos` before the local
+   `plugin_manager ... install_bundle` path, including the source-install build requirement.
+3. **Publish path** — still open: npm package or prebuilt release tarball, see §4. Until one
+   exists, the only install path is build-from-source.
 
 ## 4. npm, `repository`, and the metadata proposal
 
@@ -88,28 +90,24 @@ Listing is unaffected by npm; publishing only adds a download count. If the pack
 published, its `repository` field must point back at the repository listed in the entry, or the
 two are not linked.
 
-Current state: `keywords` and the DSH manifest `icon` (`assets/icon-180.png`, the Plugins-page
-artwork rather than npm metadata) are declared; `repository`, `homepage`, `bugs` and `author` are
-not; `private: true`; `license: MIT` but no `LICENSE` file. `private: true` makes `npm publish`
-refuse; it does not affect `dsh plugin add` from GitHub.
+Current state: `repository`, `homepage`, `bugs` and `author` are now declared alongside
+`keywords` and the DSH manifest `icon` (`assets/icon-180.png`, the Plugins-page artwork rather
+than npm metadata); `private: true`; `license: MIT` with a matching `LICENSE` file.
+`private: true` makes `npm publish` refuse; it does not affect `dsh plugin add` from GitHub.
 
-Proposed `package.json` additions (exact snippet; substitute owner/repo and author — these are
-npm metadata only and do not change behaviour):
+The declarations, for the record:
 
 ```jsonc
-  "repository": { "type": "git", "url": "git+https://github.com/<owner>/<repo>.git" },
-  "homepage": "https://github.com/<owner>/<repo>#readme",
-  "bugs": { "url": "https://github.com/<owner>/<repo>/issues" },
-  "author": "<name> <email>",
+  "author": "Altermoe <kuroneko7520@outlook.com>",
+  "repository": { "type": "git", "url": "git+https://github.com/Altermoe/dsh-model-logos.git" },
+  "homepage": "https://github.com/Altermoe/dsh-model-logos#readme",
+  "bugs": { "url": "https://github.com/Altermoe/dsh-model-logos/issues" },
 ```
 
-The `keywords` array and the manifest `icon` field shipped in 0.4.0; the four fields above are what
-remains open.
-
-Only if publishing: remove `"private": true` (or set it to `false`), add a LICENSE file, and
-optionally `"publishConfig": { "access": "public" }` (the name is unscoped, so that is optional).
-Keep `pnpm-lock.yaml` untouched for these metadata-only fields: none of them change the
-dependency graph, so `pnpm install --frozen-lockfile` stays valid.
+Only if publishing: remove `"private": true` (or set it to `false`) and optionally add
+`"publishConfig": { "access": "public" }` (the name is unscoped, so that is optional). The
+LICENSE file now exists. Keep `pnpm-lock.yaml` untouched for these metadata-only fields: none
+of them change the dependency graph, so `pnpm install --frozen-lockfile` stays valid.
 
 **`@deepseek-ai/schemastery` and peerDependencies.** The contributing doc _recommends_ declaring
 official `@deepseek-ai/*` packages as `peerDependencies`, not `dependencies`, and warns that a
@@ -148,28 +146,31 @@ path, publish to npm (preferred) or attach a prebuilt tarball:
 ## 5. Manual steps (human only)
 
 1. Create the public GitHub repository and push `main`; keep `main` as the default branch (the
-   `icon` URL assumes it).
-2. Add the `dsh-plugin` topic to the repository.
+   `icon` URL assumes it). — **done 2026-11-04**: `main` is the default branch and `origin/main`
+   tracks the local `main`.
+2. Add the `dsh-plugin` topic to the repository. — **done 2026-11-04**.
 3. Land the remaining repo-side items in §3 (LICENSE and the README install command) through the
-   normal gate workflow.
+   normal gate workflow. — **done in this tree**.
 4. Wait until GitHub reports the repository as at least 1 day old. CI measures creation, not
-   commits; the gate refreshes itself on open PRs, so an early submission is not fatal.
-5. Verify installation on a clean profile: `dsh plugin --profile web add github:<owner>/<repo>`.
-   If that fails on the build step, publish npm or attach the tarball first and test that path.
+   commits; the gate refreshes itself on open PRs, so an early submission is not fatal. — the bar
+   is 2026-11-05T07:51Z; nothing to do but leave the PR open.
+5. Verify installation on a clean profile: `dsh plugin --profile web add
+   github:Altermoe/dsh-model-logos`. If that fails on the build step, publish npm or attach the
+   tarball first and test that path. — **still open**.
 6. Optional: publish to npm (only after §4 metadata and `private` are handled) or cut the
    tarball release and uncomment `tarball:`.
-7. Fork `awesome-dsh-plugin`, add exactly `data/plugins/<owner>__<repo>.yml` with the values in
-   §1, commit that one file, open the PR. Do not edit `README.md` / `README.zh.md` and do not
-   regenerate them for the PR. Committing a locally regenerated README is accepted only if it
-   matches the data source.
+7. Fork `awesome-dsh-plugin`, add exactly `data/plugins/Altermoe__dsh-model-logos.yml` with the
+   values in §1, commit that one file, open the PR. Do not edit `README.md` / `README.zh.md` and
+   do not regenerate them for the PR. Committing a locally regenerated README is accepted only
+   if it matches the data source. — the entry file is prepared on a branch of the existing fork
+   `Altermoe/awesome-dsh-plugin`.
 8. If a maintainer applies `held: author`, push the fixes to the same branch and leave one
    comment describing them; do not open a new PR.
 
 ## 6. Open questions for the Lead
 
-- `<owner>/<repo>` — no git remote. The package name `dsh-model-logos` was free on GitHub and npm
-  on 2026-10-27 (`docs/prior-art.md`), but which account hosts it is a human decision.
-- Author name/email and the MIT copyright holder for `LICENSE` and `author`.
+- Clean-profile install: does `dsh plugin --profile web add github:Altermoe/dsh-model-logos`
+  succeed end to end (build approval, Node/pnpm availability)? Not yet tested.
 - npm publish vs release tarball vs source-install only — the decision changes `private`, the
   `files` list and whether the `tarball:` line is used.
 - Category `ui` vs `model`: `ui` is chosen because the two nearest entries live there; the
