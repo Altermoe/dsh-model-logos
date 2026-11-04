@@ -11,7 +11,16 @@
     "model-logos",
     "vendor-logos"
   ],
+  "homepage": "https://github.com/Altermoe/dsh-model-logos#readme",
+  "bugs": {
+    "url": "https://github.com/Altermoe/dsh-model-logos/issues"
+  },
   "license": "MIT",
+  "author": "Altermoe <kuroneko7520@outlook.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Altermoe/dsh-model-logos.git"
+  },
   "files": [
     "index.js",
     "client.js",
