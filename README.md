@@ -98,7 +98,16 @@ in localStorage, and with no network request involved.
 
 ## Install
 
-The bundle installs into a DSH profile through the Plugin Manager:
+Add the public repository to a DSH profile:
+
+```sh
+dsh plugin --profile web add github:Altermoe/dsh-model-logos
+```
+
+A source install builds the plugin on your machine — the tracked `prepare` script
+runs `pnpm run build` — so it needs Node.js ≥ 26.13.0 and pnpm, and the storefront
+asks you to approve the build step once. A prebuilt release tarball is planned;
+until then, a local checkout also installs through the Plugin Manager:
 
 ```
 plugin_manager action=install_bundle target=<absolute path to this directory>
