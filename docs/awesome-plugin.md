@@ -10,6 +10,11 @@ Submission target: **`Altermoe/dsh-model-logos`**, public since 2026-11-04 (GitH
 0.4.0 changes (settings-navigation glyph, `assets/icon-180.png`, `screenshots.json`, version
 0.4.0) plus the listing metadata, `LICENSE` and README install section recorded in §3.
 
+Submission pull request: **#11938**, opened 2026-11-04 on
+[`awesome-dsh-plugin/awesome-dsh-plugin`](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/11938).
+The repository is under the 1-day age bar until 2026-11-05T07:51Z, so the Submission gate is
+expected to report that one failure until the re-check workflow re-runs the open PR.
+
 ## 1. The entry
 
 One file, `data/plugins/Altermoe__dsh-model-logos.yml`. One PR, no other files, and no hand
@@ -162,8 +167,10 @@ path, publish to npm (preferred) or attach a prebuilt tarball:
 7. Fork `awesome-dsh-plugin`, add exactly `data/plugins/Altermoe__dsh-model-logos.yml` with the
    values in §1, commit that one file, open the PR. Do not edit `README.md` / `README.zh.md` and
    do not regenerate them for the PR. Committing a locally regenerated README is accepted only
-   if it matches the data source. — the entry file is prepared on a branch of the existing fork
-   `Altermoe/awesome-dsh-plugin`.
+   if it matches the data source. — **done 2026-11-04**: PR
+   [#11938](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/11938) adds exactly
+   `data/plugins/Altermoe__dsh-model-logos.yml` on branch `add-dsh-model-logos` of the existing
+   fork `Altermoe/awesome-dsh-plugin`, created from a fork main synced to upstream.
 8. If a maintainer applies `held: author`, push the fixes to the same branch and leave one
    comment describing them; do not open a new PR.
 
