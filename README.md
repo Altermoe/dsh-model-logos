@@ -95,6 +95,20 @@ settings document** — the profile's `cordis.patch.yml`, under the plugin entry
 
 No network request, no localStorage, no state outside the DSH settings document.
 
+### Settings navigation entry
+
+The settings dialog lists this plugin's page as **Model icons** / **模型图标**. The
+shipped shell paints each nav row's glyph from a hard-coded switch over its own
+section ids (`account`, `models`, `plugins`, …) and falls back to the settings
+gear for every other id — and `settings.section` accepts only `id`, `order` and
+`label`, so a plugin cannot pass an icon in. The decorator therefore marks the
+rendered row (its label text is the only section signal the shell exposes) and
+the stylesheet swaps the gear for the plugin's own glyph, drawn in
+`currentColor` at 16 px so it tracks the light/dark theme and the active-row
+colour exactly like the shipped icons. Nothing is inserted into the button's
+React children, the label keeps naming the button, and disposal removes the
+marker again.
+
 ## How matching works
 
 `src/match.ts` is a pure, ordered heuristic over the provider and model identity
@@ -137,6 +151,11 @@ options, `1em`/16 px in Settings).
 - `src/artwork.ts` — runtime helpers: `letterTile(text)` (deterministic
   colour tile used for unknown official channels and for the picker's letter
   option) and the XML/HTML escapers.
+
+The plugin's own 16 px Settings-navigation glyph lives in `src/nav-icon.ts` (four
+rounded tiles with one solid — the four-tile `icon.svg` identity reduced to the
+nav rail); `assets/icon-180.png` is the same mark as the raster storefront tile the
+plugin-listing metadata points at.
 
 The DeepSeek whale is the official asset shipped with this app
 (`reference/deepseek-whale.svg`, taken from the Web front-end favicon); the rest
@@ -272,6 +291,17 @@ icon settings are unavailable.
 - `/model` command popup rows use the command popup's own rendering API, not this
   slot, so they keep plain names.
 
+## Listing metadata
+
+Everything a plugin-listing submission (the `awesome-dsh-plugin` list) needs is in
+the repository: the `dsh.bundle` manifest and `cordis.patch.yml` that make the
+package installable, `assets/icon-180.png` as the storefront raster tile (declared
+as the manifest `icon` and exported as `./icon` for the Plugins page), and
+`screenshots.json` listing the three UI screenshots in `docs/`. The exact list
+entry, the requirement-by-requirement checklist, and the steps only a human can do
+(add the `dsh-plugin` topic, push the repository, open the one-file PR) are in
+[`docs/awesome-plugin.md`](docs/awesome-plugin.md).
+
 ## Verification log
 
 - Build validation rejects malformed artwork (missing title, non-`<svg>` string,
@@ -289,13 +319,15 @@ icon settings are unavailable.
   sentinels, the shipped release badge), the settings-section registration, and
   that `apply()` disposers remove the stylesheet, listeners and observer.
 - `scripts/verify-dom.ts` drives the faithful Settings fixture in headless Edge
-  and screenshots the decorated page: **36 assertions pass** — vendor logos on
+  and screenshots the decorated page: **42 assertions pass** — vendor logos on
   official rows/editor titles (including the localized DeepSeek account row),
   none on the declared custom provider, model-row buttons and the 5-track grid,
   the hidden native select, the custom combobox (option marks, write-back,
   bubbling `change`, face re-sync), the picker write path into
-  `configForms.mutate`, the composer label override/`none` rendering, full
-  disposal reversibility and observer disconnection.
+  `configForms.mutate`, the composer label override/`none` rendering, the plugin's
+  own settings-nav row (marked by label, shipped gear hidden, 16 px `currentColor`
+  mask glyph painted, no other row marked), full disposal reversibility (including
+  the nav marker) and observer disconnection.
 - Live verification against a real `dsh web` instance from this bundle (fresh
   profile, seeded providers, headless Edge over CDP): **15/15 assertions pass** —
   the settings dialog and both navigation entries, vendor logos before the
@@ -312,7 +344,14 @@ icon settings are unavailable.
 - Visual check of every mark at 14/16/24/48/96 px, including the corrected
   MiniMax waveform and Mistral pixel-block M: `docs/preview.png`; the vendor
   marks: `docs/preview-vendors.png`; before/after of the two corrected marks:
-  `docs/preview-corrected-marks.png`.
+  `docs/preview-corrected-marks.png`. The design sheet also renders the plugin's
+  16 px settings-navigation glyph next to shipped nav icons on light and dark
+  surfaces.
+- The navigation glyph is validated twice: `test/nav-icon.test.ts` pins its 16 px
+  `currentColor` geometry, the percent-encoded mask URL and the row matcher
+  (including the element-name case a real browser reports for SVG children), and
+  `scripts/build.ts` refuses a glyph or a stylesheet rule that breaks those
+  invariants.
 - Live bundle check with `scripts/verify-live.ts` against the running Web GUI:
   `/plugins/??dsh-model-logos/client.js&rev=cee18b707e67` returned the freshly
   built artifact (170,170 bytes served, 38 artwork entries), proving the client

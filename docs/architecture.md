@@ -208,6 +208,19 @@ private primitives internals.
 - `settings.section` — `list`; register with
   `ctx.slots.register({ name: 'settings.section', id: 'model-logos', order, label: () => text }, Component)`.
   Our section appears in the Settings navigation next to Models.
+  The slot's register options are only `id` / `order` / `label`: the slot core
+  drops any other key, and the shell picks each row's glyph from a hard-coded
+  switch over its own section ids (`account`, `models`, `plugins`, …), falling
+  back to the settings gear for everyone else — including `model-logos`. The nav
+  row therefore carries no section id in the DOM (React's `key` is not
+  serialized) and the only signal is the localized row label, which the shell
+  re-projects whenever the section ledger or the locale revision changes. The
+  row's icon is consequently a decoration, not a registration: `src/nav-icon.ts`
+  sets `data-dshml-nav` on the row matched by label and the plugin stylesheet
+  hides the gear and paints the plugin glyph as a `currentColor` mask, so React
+  re-renders (which rewrite `class`) and theme changes keep working. Replacing
+  the whole `sidebar.settings` slot would be the only registration-shaped
+  alternative and would mean reimplementing the Settings shell.
 
 ## 4. Decisions inside the plugin
 

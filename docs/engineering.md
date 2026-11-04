@@ -110,6 +110,11 @@ src/picker.ts       dshmlOpenIconPicker + the shared picker helpers the settings
                     dshmlUiResolve, dshmlUiUseIconState)
 src/decorate.ts     dshmlMountSettingsDecorator, dshmlDecorateNow,
                     dshmlRequestDecorate
+src/nav-icon.ts     DSHML_NAV_MARKER, DSHML_NAV_ICON_SVG, DSHML_NAV_ICON_URL,
+                    DSHML_NAV_ICON_CSS, dshmlNavIconLabels, dshmlDecorateNavIcon,
+                    dshmlClearNavIcon — this plugin's Settings navigation glyph
+                    (the shell has no per-section icon seat, so the rendered row is
+                    marked and the glyph painted by the stylesheet)
 src/section.ts      DshmlModelIconsSection
 src/client.ts       `inject` + `apply` — the bundle entry; owns the composer
                     label and the stylesheet
@@ -118,7 +123,8 @@ src/host.ts         host half: volatile Config for the `dsh-model-logos` namespa
 
 Dependency direction (no cycles): `types` ← `runtime` ← everything;
 `match` ← `resolve` ← `overrides` ← `picker` ← `section` / `decorate` ← `client`;
-`logos` ← `overrides`/`picker`/`section`; `i18n` ← `overrides`/`picker`/`decorate`/`client`.
+`logos` ← `overrides`/`picker`/`section`; `i18n` ← `overrides`/`picker`/`decorate`/`nav-icon`/`client`;
+`nav-icon` ← `decorate`/`client`.
 
 ## 5. Source conventions
 
