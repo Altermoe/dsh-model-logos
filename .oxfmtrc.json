@@ -1,0 +1,25 @@
+{
+  "printWidth": 120,
+  "tabWidth": 2,
+  "useTabs": false,
+  "semi": true,
+  "singleQuote": true,
+  "trailingComma": "all",
+  "arrowParens": "always",
+  "endOfLine": "lf",
+  "embeddedLanguageFormatting": "off",
+  "proseWrap": "preserve",
+  "ignorePatterns": [
+    "client.js",
+    "index.js",
+    "node_modules/**",
+    ".preview/**",
+    "test/fixtures/**",
+    "docs/**/*.png",
+    "docs/prior-art.md",
+    "docs/prior-art.zh-CN.md",
+    "reference/**",
+    "locale/**",
+    "cordis.patch.yml"
+  ]
+}

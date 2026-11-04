@@ -1,59 +1,108 @@
 /**
  * Settings → Model icons section for the model-logos plugin.
  *
- * Fragment (no imports/require): concatenated by `scripts/build-client.mjs`
- * after `src/i18n.js`, `src/overrides.js` and `src/picker.js`, inside the same
- * browser closure. It registers through `label.js` as the `settings.section`
- * contribution and reuses the helpers/constants declared in `picker.js`
+ * Registers as the `settings.section` contribution (through `src/client.ts`) and
+ * reuses the render helpers/constants shared with the icon picker
  * (`dshmlUiCopy`, `dshmlUiOverrideValue`, `dshmlUiResolve`,
  * `dshmlUiLetterTile`, `dshmlUiLogo`, `DSHML_LETTER_ICON`,
- * `DSHML_PICKER_NONE_SVG`, `dshmlOpenIconPicker`) — function declarations hoist,
- * so the build order is not load-bearing.
+ * `DSHML_PICKER_NONE_SVG`, `dshmlOpenIconPicker`) by importing them from
+ * `./picker`.
  *
  * Resilience rules: every piece of catalog/override data is validated before
  * use; missing services or loading states render a notice/short state instead
  * of throwing; the component never writes outside its own React subtree.
  */
+import type { ChangeEvent, FormEvent, MouseEvent, ReactElement } from 'react';
+import { h, React } from './runtime';
+import type { CatalogState } from './types';
+import {
+  DSHML_LETTER_ICON,
+  DSHML_PICKER_NONE_SVG,
+  dshmlOpenIconPicker,
+  dshmlUiCopy,
+  dshmlUiCurrentError,
+  dshmlUiLetterTile,
+  dshmlUiLogo,
+  dshmlUiOverrideValue,
+  dshmlUiOverrides,
+  dshmlUiResolve,
+  dshmlUiUseIconState,
+} from './picker';
+import { dshmlClearModelIcon, dshmlUseModelCatalog } from './overrides';
 
-/** Localized copy with an English fallback (see `dshmlUiCopy` in picker.js). */
-function dshmlSectionCopy(key, fallback) {
+/** One model row inside a normalized catalog group. */
+interface DshmlSectionModel {
+  modelId: string;
+  name: string;
+}
+
+/** One catalog provider group, normalized for rendering. */
+interface DshmlSectionGroup {
+  providerId: string;
+  displayName: string;
+  official: boolean;
+  declared: boolean;
+  models: DshmlSectionModel[];
+}
+
+/** A catalog group after search filtering. */
+interface DshmlSectionFilteredGroup {
+  providerId: string;
+  displayName: string;
+  models: DshmlSectionModel[];
+}
+
+/** One persisted override that is not part of the catalog. */
+interface DshmlSectionManualRow {
+  providerId: string;
+  modelId: string;
+  value: string;
+}
+
+/** Localized copy with an English fallback (see `dshmlUiCopy` in picker.ts). */
+function dshmlSectionCopy(key: string, fallback: string): string {
   return dshmlUiCopy(key, fallback);
 }
 
+/** A plain-object guard for host-shaped data (arrays pass, like the old checks). */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object';
+}
+
+/** An array guard that keeps the elements `unknown` instead of `any`. */
+function isUnknownArray(value: unknown): value is unknown[] {
+  return Array.isArray(value);
+}
+
 /** Safe wrapper: a missing/broken catalog hook renders the loading state. */
-function dshmlSectionUseCatalog() {
+function dshmlSectionUseCatalog(): CatalogState {
   try {
-    if (typeof dshmlUseModelCatalog === 'function') {
-      const catalog = dshmlUseModelCatalog();
-      if (catalog !== null && typeof catalog === 'object') return catalog;
-    }
-  } catch (error) {
+    const catalog: unknown = dshmlUseModelCatalog();
+    if (catalog !== null && typeof catalog === 'object') return catalog as CatalogState;
+  } catch {
     /* fall through */
   }
-  return { status: 'loading', providers: [] };
+  return { status: 'loading', providers: [], error: null };
 }
 
 /**
- * Validate and normalize the catalog into `[{ providerId, displayName,
- * official, declared, models: [{ modelId, name }] }]`.
- * @param {any} catalog
+ * Validate and normalize the catalog into `[{ providerId, displayName, official,
+ * declared, models: [{ modelId, name }] }]`.
+ * @param catalog - catalog snapshot (host-shaped, so unbounded).
  */
-function dshmlSectionCatalogGroups(catalog) {
-  const groups = [];
-  const seen = Object.create(null);
+function dshmlSectionCatalogGroups(catalog: unknown): DshmlSectionGroup[] {
+  const groups: DshmlSectionGroup[] = [];
+  const seen: Record<string, boolean> = Object.create(null);
   try {
-    const providers =
-      catalog !== null && typeof catalog === 'object' && Array.isArray(catalog.providers)
-        ? catalog.providers
-        : [];
+    const providers = isRecord(catalog) && isUnknownArray(catalog.providers) ? catalog.providers : [];
     for (const provider of providers) {
-      if (provider === null || typeof provider !== 'object') continue;
+      if (!isRecord(provider)) continue;
       const providerId = typeof provider.providerId === 'string' ? provider.providerId : '';
       if (providerId === '') continue;
-      const models = [];
-      const rawModels = Array.isArray(provider.models) ? provider.models : [];
+      const models: DshmlSectionModel[] = [];
+      const rawModels = isUnknownArray(provider.models) ? provider.models : [];
       for (const model of rawModels) {
-        if (model === null || typeof model !== 'object') continue;
+        if (!isRecord(model)) continue;
         const modelId = typeof model.modelId === 'string' ? model.modelId : '';
         if (modelId === '') continue;
         const pairKey = providerId + '\u0000' + modelId;
@@ -67,15 +116,13 @@ function dshmlSectionCatalogGroups(catalog) {
       groups.push({
         providerId: providerId,
         displayName:
-          typeof provider.displayName === 'string' && provider.displayName !== ''
-            ? provider.displayName
-            : providerId,
+          typeof provider.displayName === 'string' && provider.displayName !== '' ? provider.displayName : providerId,
         official: provider.official === true,
         declared: provider.declared === true,
         models: models,
       });
     }
-  } catch (error) {
+  } catch {
     /* keep the groups collected so far */
   }
   return groups;
@@ -83,17 +130,17 @@ function dshmlSectionCatalogGroups(catalog) {
 
 /**
  * Override entries that are not part of the catalog, sorted for stable output.
- * @param {Record<string, any> | null} overrides
- * @param {Record<string, boolean>} catalogPairs
- * @returns {Array<{ providerId: string, modelId: string, value: string }>}
+ * @param overrides - validated override map (host-shaped, so unbounded).
+ * @param catalogPairs - `providerId\\u0000modelId` → known-catalog flag.
+ * @returns the manual override rows as `{ providerId, modelId, value }`.
  */
-function dshmlSectionManualRows(overrides, catalogPairs) {
-  const rows = [];
-  if (overrides === null || typeof overrides !== 'object') return rows;
+function dshmlSectionManualRows(overrides: unknown, catalogPairs: Record<string, boolean>): DshmlSectionManualRow[] {
+  const rows: DshmlSectionManualRow[] = [];
+  if (!isRecord(overrides)) return rows;
   try {
     for (const providerId of Object.keys(overrides)) {
       const bucket = overrides[providerId];
-      if (bucket === null || typeof bucket !== 'object') continue;
+      if (!isRecord(bucket)) continue;
       for (const modelId of Object.keys(bucket)) {
         const value = bucket[modelId];
         if (typeof value !== 'string' || value === '') continue;
@@ -101,7 +148,7 @@ function dshmlSectionManualRows(overrides, catalogPairs) {
         rows.push({ providerId: providerId, modelId: modelId, value: value });
       }
     }
-  } catch (error) {
+  } catch {
     /* keep the rows collected so far */
   }
   rows.sort(function byPair(a, b) {
@@ -112,45 +159,52 @@ function dshmlSectionManualRows(overrides, catalogPairs) {
 
 /**
  * Count every persisted override, catalogued or manual.
- * @param {Record<string, any> | null} overrides
- * @returns {number}
+ * @param overrides - validated override map (host-shaped, so unbounded).
  */
-function dshmlSectionCountOverrides(overrides) {
+function dshmlSectionCountOverrides(overrides: unknown): number {
   let count = 0;
-  if (overrides === null || typeof overrides !== 'object') return count;
+  if (!isRecord(overrides)) return count;
   try {
     for (const providerId of Object.keys(overrides)) {
       const bucket = overrides[providerId];
-      if (bucket === null || typeof bucket !== 'object') continue;
+      if (!isRecord(bucket)) continue;
       for (const modelId of Object.keys(bucket)) {
         if (typeof bucket[modelId] === 'string' && bucket[modelId] !== '') count += 1;
       }
     }
-  } catch (error) {
+  } catch {
     /* keep the partial count */
   }
   return count;
 }
 
 /** `{n}` interpolation for the override summary line. */
-function dshmlSectionOverrideSummary(count) {
+function dshmlSectionOverrideSummary(count: number): string {
   const template = dshmlSectionCopy('section.overrides', '{n} manual overrides');
   return template.split('{n}').join(String(count));
 }
 
-/**
- * One catalog / manual row: preview, names, current state chip and actions.
- * @param {any} props
- */
-function DshmlSectionRow(props) {
-  const providerId = typeof props.providerId === 'string' ? props.providerId : '';
-  const modelId = typeof props.modelId === 'string' ? props.modelId : '';
+/** The props one catalog/manual row accepts. */
+interface DshmlSectionRowProps {
+  providerId: string;
+  providerName: string;
+  modelId: string;
+  modelName: string;
+  override: string | null;
+  busy: boolean;
+  onChoose: (providerId: string, modelId: string, modelName: string, anchor: Element | null) => void;
+  onReset: (providerId: string, modelId: string) => void;
+}
+
+/** One catalog / manual row: preview, names, current state chip and actions. */
+function DshmlSectionRow(props: DshmlSectionRowProps): ReactElement | null {
+  const providerId = props.providerId;
+  const modelId = props.modelId;
   if (providerId === '' || modelId === '') return null;
 
-  const modelName = typeof props.modelName === 'string' ? props.modelName : '';
-  const providerName =
-    typeof props.providerName === 'string' && props.providerName !== '' ? props.providerName : providerId;
-  const raw = typeof props.override === 'string' && props.override !== '' ? props.override : null;
+  const modelName = props.modelName;
+  const providerName = props.providerName !== '' ? props.providerName : providerId;
+  const raw = props.override !== null && props.override !== '' ? props.override : null;
   const resolved = dshmlUiResolve(providerId, modelId, modelName);
   const letter = raw === DSHML_LETTER_ICON || resolved.letter === true;
 
@@ -170,7 +224,7 @@ function DshmlSectionRow(props) {
     emptyMark = true;
   }
 
-  let chipLabel;
+  let chipLabel: string;
   let chipClass = 'dshml-section-chip';
   if (raw === 'none') {
     chipLabel = dshmlSectionCopy('section.none', 'None');
@@ -186,19 +240,24 @@ function DshmlSectionRow(props) {
   }
 
   const chooseLabel =
-    raw !== null ? dshmlSectionCopy('section.change', 'Change icon') : dshmlSectionCopy('section.choose', 'Choose icon');
+    raw !== null
+      ? dshmlSectionCopy('section.change', 'Change icon')
+      : dshmlSectionCopy('section.choose', 'Choose icon');
   const displayName = modelName !== '' ? modelName : modelId;
   const busy = props.busy === true;
 
-  const markProps = {
-    key: 'mark',
-    className: emptyMark === true ? 'dshml-section-mark dshml-section-mark-empty' : 'dshml-section-mark',
-    'aria-hidden': 'true',
-  };
-  if (svg !== '') markProps.dangerouslySetInnerHTML = { __html: svg };
-  const mark = svg !== '' ? h('span', markProps) : h('span', markProps, '\u2013');
+  const markClass = emptyMark === true ? 'dshml-section-mark dshml-section-mark-empty' : 'dshml-section-mark';
+  const mark =
+    svg !== ''
+      ? h('span', {
+          key: 'mark',
+          className: markClass,
+          'aria-hidden': 'true',
+          dangerouslySetInnerHTML: { __html: svg },
+        })
+      : h('span', { key: 'mark', className: markClass, 'aria-hidden': 'true' }, '\u2013');
 
-  const textChildren = [
+  const textChildren: ReactElement[] = [
     h(
       'span',
       { key: 'name', className: 'dshml-section-row-name', title: providerName + ' / ' + displayName },
@@ -210,7 +269,7 @@ function DshmlSectionRow(props) {
     textChildren.push(h('span', { key: 'id', className: 'dshml-section-row-id' }, secondary));
   }
 
-  const actionChildren = [
+  const actionChildren: ReactElement[] = [
     h(
       'button',
       {
@@ -219,10 +278,8 @@ function DshmlSectionRow(props) {
         className: 'dshml-section-btn',
         disabled: busy,
         'aria-label': providerName + ' / ' + displayName + ' \u2014 ' + chooseLabel,
-        onClick: function onChoose(event) {
-          if (typeof props.onChoose === 'function') {
-            props.onChoose(providerId, modelId, modelName, event.currentTarget);
-          }
+        onClick: function onChoose(event: MouseEvent<HTMLButtonElement>) {
+          props.onChoose(providerId, modelId, modelName, event.currentTarget);
         },
       },
       chooseLabel,
@@ -240,7 +297,7 @@ function DshmlSectionRow(props) {
           'aria-label':
             providerName + ' / ' + displayName + ' \u2014 ' + dshmlSectionCopy('section.reset', 'Reset to auto'),
           onClick: function onReset() {
-            if (typeof props.onReset === 'function') props.onReset(providerId, modelId);
+            props.onReset(providerId, modelId);
           },
         },
         dshmlSectionCopy('section.reset', 'Reset to auto'),
@@ -259,9 +316,9 @@ function DshmlSectionRow(props) {
 /**
  * The `settings.section` page: searchable list of catalog models with their
  * current icon, plus manual (providerId, modelId) overrides and a pair form.
- * @param {any} _props slot props (unused)
+ * @param _props - slot props (unused).
  */
-function DshmlModelIconsSection(_props) {
+export function DshmlModelIconsSection(_props: unknown): ReactElement {
   const iconState = dshmlUiUseIconState();
   const catalog = dshmlSectionUseCatalog();
   const [query, setQuery] = React.useState('');
@@ -273,7 +330,7 @@ function DshmlModelIconsSection(_props) {
 
   const overrides = dshmlUiOverrides(iconState);
   const groups = dshmlSectionCatalogGroups(catalog);
-  const catalogPairs = Object.create(null);
+  const catalogPairs: Record<string, boolean> = Object.create(null);
   for (const group of groups) {
     for (const model of group.models) {
       catalogPairs[group.providerId + '\u0000' + model.modelId] = true;
@@ -283,12 +340,12 @@ function DshmlModelIconsSection(_props) {
   const overrideCount = dshmlSectionCountOverrides(overrides);
 
   const normalizedQuery = query.trim().toLowerCase();
-  function matchesQuery(text) {
+  function matchesQuery(text: string): boolean {
     if (normalizedQuery === '') return true;
-    return String(text).toLowerCase().indexOf(normalizedQuery) !== -1;
+    return text.toLowerCase().indexOf(normalizedQuery) !== -1;
   }
 
-  const filteredGroups = [];
+  const filteredGroups: DshmlSectionFilteredGroup[] = [];
   for (const group of groups) {
     const providerMatches = matchesQuery(group.displayName) || matchesQuery(group.providerId);
     const models =
@@ -317,19 +374,18 @@ function DshmlModelIconsSection(_props) {
   const storeError = typeof iconState.error === 'string' ? iconState.error : '';
   const displayError = error !== '' ? error : storeError;
 
-  function explainWriteFailure() {
+  function explainWriteFailure(): string {
     const message = dshmlUiCurrentError();
     return message !== '' ? message : dshmlSectionCopy('picker.saveFailed', 'Could not save \u2014 try again');
   }
 
-  function resetIcon(providerId, modelId) {
+  function resetIcon(providerId: string, modelId: string): void {
     if (pending !== '') return;
     const rowKey = providerId + '\u0000' + modelId;
     setError('');
     setPending(rowKey);
-    let write;
+    let write: Promise<boolean>;
     try {
-      if (typeof dshmlClearModelIcon !== 'function') throw new Error('dshmlClearModelIcon is unavailable');
       write = dshmlClearModelIcon(providerId, modelId);
     } catch (writeError) {
       write = Promise.reject(writeError);
@@ -346,11 +402,7 @@ function DshmlModelIconsSection(_props) {
     );
   }
 
-  function openPicker(providerId, modelId, displayName, anchor) {
-    if (typeof dshmlOpenIconPicker !== 'function') {
-      setError(explainWriteFailure());
-      return;
-    }
+  function openPicker(providerId: string, modelId: string, displayName: string, anchor: Element | null): void {
     try {
       dshmlOpenIconPicker({
         providerId: providerId,
@@ -361,12 +413,12 @@ function DshmlModelIconsSection(_props) {
           setError('');
         },
       });
-    } catch (openError) {
+    } catch {
       setError(explainWriteFailure());
     }
   }
 
-  function submitManual(event) {
+  function submitManual(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     const providerId = manualProvider.trim();
     const modelId = manualModel.trim();
@@ -378,28 +430,21 @@ function DshmlModelIconsSection(_props) {
     openPicker(providerId, modelId, modelId, null);
   }
 
-  const headChildren = [
+  const headChildren: ReactElement[] = [
     h('h2', { key: 'title', className: 'dshml-section-title' }, dshmlSectionCopy('section.title', 'Model icons')),
     h(
       'p',
       { key: 'intro', className: 'dshml-section-intro' },
-      dshmlSectionCopy(
-        'section.intro',
-        'Pick an icon for a provider + model pair. Unset pairs use auto-detection.',
-      ),
+      dshmlSectionCopy('section.intro', 'Pick an icon for a provider + model pair. Unset pairs use auto-detection.'),
     ),
   ];
   if (overrideCount > 0) {
     headChildren.push(
-      h(
-        'p',
-        { key: 'summary', className: 'dshml-section-summary' },
-        dshmlSectionOverrideSummary(overrideCount),
-      ),
+      h('p', { key: 'summary', className: 'dshml-section-summary' }, dshmlSectionOverrideSummary(overrideCount)),
     );
   }
 
-  const notices = [];
+  const notices: ReactElement[] = [];
   if (displayError !== '') {
     notices.push(
       h(
@@ -435,13 +480,13 @@ function DshmlModelIconsSection(_props) {
       placeholder: dshmlSectionCopy('section.search', 'Search providers or models'),
       'aria-label': dshmlSectionCopy('section.search', 'Search providers or models'),
       value: query,
-      onChange: function onSearch(event) {
+      onChange: function onSearch(event: ChangeEvent<HTMLInputElement>) {
         setQuery(event.target.value);
       },
     }),
   ]);
 
-  const groupElements = filteredGroups.map(function toGroup(group) {
+  const groupElements: ReactElement[] = filteredGroups.map(function toGroup(group) {
     const rows = group.models.map(function toRow(model) {
       return h(DshmlSectionRow, {
         key: 'row-' + group.providerId + '-' + model.modelId,
@@ -457,7 +502,11 @@ function DshmlModelIconsSection(_props) {
     });
     return h('div', { key: 'group-' + group.providerId, className: 'dshml-section-group' }, [
       h('div', { key: 'head', className: 'dshml-section-group-head' }, [
-        h('span', { key: 'title', className: 'dshml-section-group-title', title: group.displayName }, group.displayName),
+        h(
+          'span',
+          { key: 'title', className: 'dshml-section-group-title', title: group.displayName },
+          group.displayName,
+        ),
         group.displayName === group.providerId
           ? null
           : h('span', { key: 'sub', className: 'dshml-section-group-sub', title: group.providerId }, group.providerId),
@@ -525,7 +574,7 @@ function DshmlModelIconsSection(_props) {
           value: manualProvider,
           placeholder: 'deepseek-account',
           spellCheck: false,
-          onChange: function onProvider(event) {
+          onChange: function onProvider(event: ChangeEvent<HTMLInputElement>) {
             setManualProvider(event.target.value);
           },
         }),
@@ -543,7 +592,7 @@ function DshmlModelIconsSection(_props) {
           value: manualModel,
           placeholder: 'my-local-model',
           spellCheck: false,
-          onChange: function onModel(event) {
+          onChange: function onModel(event: ChangeEvent<HTMLInputElement>) {
             setManualModel(event.target.value);
           },
         }),
@@ -559,14 +608,10 @@ function DshmlModelIconsSection(_props) {
         dshmlSectionCopy('section.openPicker', 'Open picker'),
       ),
     ]),
-    manualError !== ''
-      ? h('p', { key: 'error', className: 'dshml-section-error', role: 'alert' }, manualError)
-      : null,
+    manualError !== '' ? h('p', { key: 'error', className: 'dshml-section-error', role: 'alert' }, manualError) : null,
   ]);
 
-  const children = [
-    h('div', { key: 'head', className: 'dshml-section-head' }, headChildren),
-  ];
+  const children: ReactElement[] = [h('div', { key: 'head', className: 'dshml-section-head' }, headChildren)];
   for (const notice of notices) children.push(notice);
   if (hasContent === true) children.push(toolbar);
   if (hasContent === true) {

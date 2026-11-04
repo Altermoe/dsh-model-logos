@@ -16,7 +16,8 @@
  *
  * Pure: no DOM, no network. The client bundle inlines this module.
  */
-import { LOGO_KEYS, matchModelLogo } from './match.mjs';
+import { LOGO_KEYS, matchModelLogo } from './match';
+import type { IconResolution, Identity, OverrideDocument } from './types';
 
 /** Values that mean "no icon" when persisted. */
 const DISABLED = 'none';
@@ -25,7 +26,7 @@ const DISABLED = 'none';
 const LETTER = 'letter';
 
 /** Text a letter tile is generated from: display name, then id. */
-export function letterTextFor(provider, model) {
+export function letterTextFor(provider: Identity | null | undefined, model: Identity | null | undefined): string {
   const candidates = [model?.name, model?.id, provider?.name, provider?.id];
   for (const candidate of candidates) {
     if (typeof candidate === 'string' && candidate.trim() !== '') return candidate.trim();
@@ -34,29 +35,29 @@ export function letterTextFor(provider, model) {
 }
 
 /** Read a property as an own data property, so `__proto__`/`constructor` are inert. */
-function own(object, key) {
+function own(object: unknown, key: string): unknown {
   if (object === null || typeof object !== 'object') return undefined;
-  return Object.prototype.hasOwnProperty.call(object, key) ? object[key] : undefined;
+  return Object.prototype.hasOwnProperty.call(object, key) ? (object as Record<string, unknown>)[key] : undefined;
 }
 
 /** Trim an identity part; non-strings become an empty string. */
-function idOf(value) {
+function idOf(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
 /** Whether a value is one of the artwork keys. */
-export function isKnownLogoKey(value) {
+export function isKnownLogoKey(value: unknown): value is string {
   return typeof value === 'string' && LOGO_KEYS.includes(value);
 }
 
 /**
  * The explicit override for one provider+model pair.
- * @param {unknown} overrides - persisted override document.
- * @param {string} providerId - provider route id.
- * @param {string} modelId - model id.
- * @returns {string | null} A brand key, `'none'`, `'letter'`, or null when unset.
+ * @param overrides - persisted override document.
+ * @param providerId - provider route id.
+ * @param modelId - model id.
+ * @returns A brand key, `'none'`, `'letter'`, or null when unset.
  */
-export function overrideIcon(overrides, providerId, modelId) {
+export function overrideIcon(overrides: unknown, providerId: unknown, modelId: unknown): string | null {
   const provider = idOf(providerId);
   const model = idOf(modelId);
   if (provider === '' || model === '') return null;
@@ -68,13 +69,18 @@ export function overrideIcon(overrides, providerId, modelId) {
 /**
  * Return a new override document with one pair set. Passing null/undefined (or
  * the empty string) removes the pair instead.
- * @param {unknown} overrides - current document.
- * @param {string} providerId - provider route id.
- * @param {string} modelId - model id.
- * @param {string | null | undefined} icon - brand key, `'none'`, or a removal value.
- * @returns {Record<string, Record<string, string>>} a new document.
+ * @param overrides - current document.
+ * @param providerId - provider route id.
+ * @param modelId - model id.
+ * @param icon - brand key, `'none'`, or a removal value.
+ * @returns a new document.
  */
-export function withOverride(overrides, providerId, modelId, icon) {
+export function withOverride(
+  overrides: unknown,
+  providerId: unknown,
+  modelId: unknown,
+  icon: string | null | undefined,
+): OverrideDocument {
   const provider = idOf(providerId);
   const model = idOf(modelId);
   const value = typeof icon === 'string' ? icon.trim() : '';
@@ -100,12 +106,12 @@ export function withOverride(overrides, providerId, modelId, icon) {
 
 /**
  * Return a new override document with one pair removed.
- * @param {unknown} overrides - current document.
- * @param {string} providerId - provider route id.
- * @param {string} modelId - model id.
- * @returns {Record<string, Record<string, string>>} a new document.
+ * @param overrides - current document.
+ * @param providerId - provider route id.
+ * @param modelId - model id.
+ * @returns a new document.
  */
-export function withoutOverride(overrides, providerId, modelId) {
+export function withoutOverride(overrides: unknown, providerId: unknown, modelId: unknown): OverrideDocument {
   const provider = idOf(providerId);
   const model = idOf(modelId);
   if (provider === '' || model === '') return copyDocument(overrides);
@@ -128,12 +134,11 @@ export function withoutOverride(overrides, providerId, modelId) {
 
 /**
  * Flatten a document into stable, sorted rows.
- * @param {unknown} overrides - persisted document.
- * @returns {Array<{ providerId: string, modelId: string, icon: string }>}
+ * @param overrides - persisted document.
  */
-export function flattenOverrides(overrides) {
+export function flattenOverrides(overrides: unknown): Array<{ providerId: string; modelId: string; icon: string }> {
   if (overrides === null || typeof overrides !== 'object' || Array.isArray(overrides)) return [];
-  const rows = [];
+  const rows: Array<{ providerId: string; modelId: string; icon: string }> = [];
   for (const providerId of Object.keys(overrides).sort()) {
     const bucket = own(overrides, providerId);
     if (bucket === null || typeof bucket !== 'object' || Array.isArray(bucket)) continue;
@@ -151,12 +156,15 @@ export function flattenOverrides(overrides) {
  * Order: explicit override (a known brand key, `letter`, or `none`) → heuristic
  * initial icon → no icon. An unknown/stale override value is ignored, exactly
  * like a deleted artwork key would be.
- * @param {unknown} overrides - persisted override document.
- * @param {{ id?: string, name?: string } | null | undefined} provider - provider identity.
- * @param {{ id?: string, name?: string } | null | undefined} model - model identity.
- * @returns {{ key: string | null, source: 'override' | 'heuristic' | 'none', disabled: boolean, letter: boolean }}
+ * @param overrides - persisted override document.
+ * @param provider - provider identity.
+ * @param model - model identity.
  */
-export function resolveModelIcon(overrides, provider, model) {
+export function resolveModelIcon(
+  overrides: unknown,
+  provider: Identity | null | undefined,
+  model: Identity | null | undefined,
+): IconResolution {
   const explicit = overrideIcon(overrides, provider?.id, model?.id);
   if (explicit === DISABLED) return { key: null, source: 'override', disabled: true, letter: false };
   if (explicit === LETTER) return { key: null, source: 'override', disabled: false, letter: true };
@@ -169,8 +177,8 @@ export function resolveModelIcon(overrides, provider, model) {
 }
 
 /** Deep-copy a document into a null-prototype-free plain object of own fields. */
-function copyDocument(overrides) {
-  const out = {};
+function copyDocument(overrides: unknown): OverrideDocument {
+  const out: OverrideDocument = {};
   if (overrides === null || typeof overrides !== 'object' || Array.isArray(overrides)) return out;
   for (const providerId of Object.keys(overrides)) {
     const bucket = own(overrides, providerId);
@@ -186,8 +194,8 @@ function copyDocument(overrides) {
 }
 
 /** Copy one provider bucket, keeping only non-empty string icons. */
-function copyBucket(bucket) {
-  const out = {};
+function copyBucket(bucket: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
   if (bucket === null || typeof bucket !== 'object' || Array.isArray(bucket)) return out;
   for (const modelId of Object.keys(bucket)) {
     const icon = own(bucket, modelId);

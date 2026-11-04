@@ -1,0 +1,47 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc", "import", "promise", "vitest"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn",
+    "perf": "warn"
+  },
+  "env": {
+    "browser": true,
+    "node": true,
+    "es2024": true
+  },
+  "ignorePatterns": ["client.js", "index.js", "node_modules/**", ".preview/**", "test/fixtures/**", "docs/**"],
+  "rules": {
+    "no-console": "off",
+    "no-alert": "error",
+    "no-debugger": "error",
+    "no-var": "error",
+    "prefer-const": "error",
+    "eqeqeq": ["error", "always", { "null": "ignore" }],
+    "no-eval": "error",
+    "no-implied-eval": "error",
+    "no-new-func": "off",
+    "no-underscore-dangle": "off",
+    "unicorn/prefer-module": "off",
+    "unicorn/prefer-node-protocol": "error",
+    "unicorn/no-array-callback-reference": "off",
+    "unicorn/prefer-string-replace-all": "off",
+    "import/no-cycle": "off",
+    "vitest/require-mock-type-parameters": "off",
+    "vitest/valid-expect": ["error", { "maxArgs": 2 }]
+  },
+  "overrides": [
+    {
+      "files": ["test/**/*.ts"],
+      "env": {
+        "vitest": true
+      },
+      "rules": {
+        "unicorn/consistent-function-scoping": "off",
+        "unicorn/no-useless-fallback-in-spread": "off",
+        "unicorn/no-useless-spread": "off"
+      }
+    }
+  ]
+}

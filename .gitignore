@@ -1,4 +1,30 @@
-.preview/
-*.log
+# Dependencies
 node_modules/
-package-lock.json
+
+# Generated plugin artifacts. They are built into the package root because the
+# local DSH install loads them from disk, but they are not source: never commit
+# them. `npm ci` / `npm run build` regenerates both.
+client.js
+index.js
+
+# Build and verification scratch space (screenshots, headless-Edge profiles, reports)
+.preview/
+
+# Test and coverage output
+coverage/
+junit.xml
+
+# Logs
+*.log
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Editors
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# package-lock.json is committed: reproducible installs are a project invariant.

@@ -18,12 +18,12 @@
  * provider-only rule still covers catalog entries whose model ids are opaque.
  *
  * The matcher is pure: no network, no catalog import, no DOM. The client bundle
- * inlines this module, so it must stay free of imports and of `export` forms
- * other than the ones the build strips (`export const`, `export function`).
+ * inlines this module, so it stays free of runtime imports.
  */
+import type { ModelLabelInput } from './types';
 
-/** Logo keys the matcher can return; each one needs a mark in `src/logos-*.mjs`. */
-export const LOGO_KEYS = Object.freeze([
+/** Logo keys the matcher can return; each one needs a mark in `src/logos/*.ts`. */
+export const LOGO_KEYS: readonly string[] = Object.freeze([
   'deepseek',
   'openai',
   'claude',
@@ -72,9 +72,8 @@ const E = '(?:$|[\\s/._:·-])';
 
 /**
  * Model-identity rules, in priority order: the first hit wins.
- * @type {ReadonlyArray<readonly [string, RegExp]>}
  */
-export const MODEL_RULES = Object.freeze([
+export const MODEL_RULES: ReadonlyArray<readonly [string, RegExp]> = Object.freeze([
   ['deepseek', /deepseek|deep[-\s]?seek/],
   ['claude', /claude|anthropic/],
   ['openai', new RegExp(`${B}(?:gpt|chatgpt|codex|sora|whisper|davinci|o[1-9])(?:${E}|[-.\\d])`)],
@@ -106,9 +105,8 @@ export const MODEL_RULES = Object.freeze([
 
 /**
  * Provider-identity rules, used only when no model rule matched.
- * @type {ReadonlyArray<readonly [string, RegExp]>}
  */
-export const PROVIDER_RULES = Object.freeze([
+export const PROVIDER_RULES: ReadonlyArray<readonly [string, RegExp]> = Object.freeze([
   ['deepseek', /deepseek/],
   ['claude', /anthropic|claude/],
   ['openai', /openai/],
@@ -157,52 +155,51 @@ export const PROVIDER_RULES = Object.freeze([
  * adapters). A route id outside this table is either a hand-declared custom
  * provider (no vendor mark) or a newer channel the UI falls back to a letter
  * tile for.
- * @type {Readonly<Record<string, string>>}
  */
-export const VENDOR_CHANNELS = Object.freeze({
+export const VENDOR_CHANNELS: Readonly<Record<string, string>> = Object.freeze({
   'amazon-bedrock': 'aws',
   'ant-ling': 'antling',
-  'anthropic': 'claude',
-  'azure': 'azure',
-  'baseten': 'baseten',
-  'cerebras': 'cerebras',
+  anthropic: 'claude',
+  azure: 'azure',
+  baseten: 'baseten',
+  cerebras: 'cerebras',
   'cloudflare-ai-gateway': 'cloudflare',
   'cloudflare-workers-ai': 'cloudflare',
-  'deepseek': 'deepseek',
+  deepseek: 'deepseek',
   'deepseek-account': 'deepseek',
   'deepseek-official': 'deepseek',
-  'fireworks': 'fireworks',
+  fireworks: 'fireworks',
   'github-copilot': 'github',
-  'google': 'gemini',
+  google: 'gemini',
   'google-vertex': 'gemini',
-  'groq': 'groq',
-  'huggingface': 'huggingface',
+  groq: 'groq',
+  huggingface: 'huggingface',
   'kimi-coding': 'kimi',
-  'meta': 'meta',
-  'minimax': 'minimax',
+  meta: 'meta',
+  minimax: 'minimax',
   'minimax-cn': 'minimax',
-  'mistral': 'mistral',
-  'moonshotai': 'kimi',
+  mistral: 'mistral',
+  moonshotai: 'kimi',
   'moonshotai-cn': 'kimi',
-  'nvidia': 'nvidia',
-  'openai': 'openai',
+  nvidia: 'nvidia',
+  openai: 'openai',
   'openai-codex': 'openai',
-  'opencode': 'opencode',
+  opencode: 'opencode',
   'opencode-go': 'opencode',
-  'openrouter': 'openrouter',
+  openrouter: 'openrouter',
   'qwen-token-plan': 'qwen',
   'qwen-token-plan-cn': 'qwen',
   'qwen-token-plan-individual': 'qwen',
-  'radius': 'radius',
-  'together': 'together',
-  'typesafe': 'typesafe',
+  radius: 'radius',
+  together: 'together',
+  typesafe: 'typesafe',
   'vercel-ai-gateway': 'vercel',
-  'xai': 'xai',
-  'xiaomi': 'xiaomi',
+  xai: 'xai',
+  xiaomi: 'xiaomi',
   'xiaomi-token-plan-ams': 'xiaomi',
   'xiaomi-token-plan-cn': 'xiaomi',
   'xiaomi-token-plan-sgp': 'xiaomi',
-  'zai': 'zhipu',
+  zai: 'zhipu',
   'zai-coding-cn': 'zhipu',
 });
 
@@ -210,9 +207,8 @@ export const VENDOR_CHANNELS = Object.freeze({
  * Ordered vendor rules (route id patterns, first hit wins). Kept as a rule list
  * so a future variant of an official channel (for example a new
  * `xiaomi-token-plan-*` region) still resolves without a table edit.
- * @type {ReadonlyArray<readonly [string, RegExp]>}
  */
-export const VENDOR_RULES = Object.freeze([
+export const VENDOR_RULES: ReadonlyArray<readonly [string, RegExp]> = Object.freeze([
   ['deepseek', /^(?:deepseek(?:-account|-official)?|llm-deepseek)$/],
   ['openai', /^openai(?:-codex)?$/],
   ['claude', /^anthropic$/],
@@ -242,7 +238,7 @@ export const VENDOR_RULES = Object.freeze([
 ]);
 
 /** Lowercase and normalize separators so both id and display name are searchable. */
-export function normalizeModelText(value) {
+export function normalizeModelText(value: unknown): string {
   return String(value ?? '')
     .toLowerCase()
     .replace(/[_\s]+/g, ' ')
@@ -251,10 +247,8 @@ export function normalizeModelText(value) {
 
 /**
  * Describe one label occurrence as the two searchable strings.
- * @param {{ provider?: { id?: string, name?: string }, model?: { id?: string, name?: string } }} input
- * @returns {{ model: string, provider: string }}
  */
-export function labelTexts(input) {
+export function labelTexts(input: ModelLabelInput | null | undefined): { model: string; provider: string } {
   const provider = input?.provider ?? {};
   const model = input?.model ?? {};
   return {
@@ -265,10 +259,9 @@ export function labelTexts(input) {
 
 /**
  * Match one provider/model pair to a logo key.
- * @param {{ provider?: { id?: string, name?: string }, model?: { id?: string, name?: string } }} input
- * @returns {string | null} A key from {@link LOGO_KEYS}, or null when nothing matches.
+ * @returns A key from {@link LOGO_KEYS}, or null when nothing matches.
  */
-export function matchModelLogo(input) {
+export function matchModelLogo(input: ModelLabelInput | null | undefined): string | null {
   const { model, provider } = labelTexts(input);
   if (model !== '') {
     for (const [key, pattern] of MODEL_RULES) {
@@ -289,10 +282,10 @@ export function matchModelLogo(input) {
  * Exact directory ids win first; the pattern list is the forward-compatible
  * fallback for channel variants. Hand-declared custom providers are not
  * official channels and must be filtered out by the caller before asking.
- * @param {string} providerId - provider route id (`anthropic`, `xiaomi-token-plan-cn`, …).
- * @returns {string | null} A key from {@link LOGO_KEYS}, or null when the id is not a known channel.
+ * @param providerId - provider route id (`anthropic`, `xiaomi-token-plan-cn`, …).
+ * @returns A key from {@link LOGO_KEYS}, or null when the id is not a known channel.
  */
-export function matchVendorLogo(providerId) {
+export function matchVendorLogo(providerId: unknown): string | null {
   const id = normalizeModelText(providerId);
   if (id === '') return null;
   const exact = VENDOR_CHANNELS[id];
@@ -305,9 +298,8 @@ export function matchVendorLogo(providerId) {
 
 /**
  * Whether a route id is one of the shipped official channels.
- * @param {string} providerId - provider route id.
- * @returns {boolean}
+ * @param providerId - provider route id.
  */
-export function isOfficialVendorChannel(providerId) {
+export function isOfficialVendorChannel(providerId: unknown): boolean {
   return matchVendorLogo(providerId) !== null;
 }

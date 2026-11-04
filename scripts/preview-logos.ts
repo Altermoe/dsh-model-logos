@@ -8,62 +8,69 @@
  * of the Settings → Models provider rows, where vendor marks actually appear).
  *
  * Usage:
- *   node scripts/preview-logos.mjs                          # full sheet -> .preview/logos.png
- *   node scripts/preview-logos.mjs --out docs/preview.png   # also copy the png to docs/
- *   node scripts/preview-logos.mjs --only openai            # one logo, large -> .preview/openai.png
- *   node scripts/preview-logos.mjs --only-set vendors       # vendor marks -> .preview/logos-vendors.png
- *   node scripts/preview-logos.mjs --no-shot                # only write the html
+ *   npx tsx scripts/preview-logos.ts                          # full sheet -> .preview/logos.png
+ *   npx tsx scripts/preview-logos.ts --out docs/preview.png   # also copy the png to docs/
+ *   npx tsx scripts/preview-logos.ts --only openai            # one logo, large -> .preview/openai.png
+ *   npx tsx scripts/preview-logos.ts --only-set vendors       # vendor marks -> .preview/logos-vendors.png
+ *   npx tsx scripts/preview-logos.ts --no-shot                # only write the html
  */
 import { execFileSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, writeFileSync, statSync, rmSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { letterTile } from '../src/artwork';
+import { LOGOS as CN } from '../src/logos/cn';
+import { LOGOS as INTL } from '../src/logos/intl';
+import { LOGOS as VENDORS } from '../src/logos/vendors';
+import { LOGO_KEYS } from '../src/match';
+import type { LogoSet } from '../src/types';
+
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const PREVIEW = join(ROOT, '.preview');
 mkdirSync(PREVIEW, { recursive: true });
 
 const args = process.argv.slice(2);
-const onlyIndex = args.indexOf('--only');
-const only = onlyIndex >= 0 ? args[onlyIndex + 1] : null;
-const setIndex = args.indexOf('--only-set');
-const onlySet = setIndex >= 0 ? args[setIndex + 1] : null;
-const outIndex = args.indexOf('--out');
-const outFile = outIndex >= 0 ? args[outIndex + 1] : null;
+const valueAfter = (flag: string): string | null => {
+  const at = args.indexOf(flag);
+  if (at < 0) return null;
+  const value = args[at + 1];
+  return value === undefined ? null : value;
+};
+const only = valueAfter('--only');
+const rawOnlySet = valueAfter('--only-set');
+const outFile = valueAfter('--out');
 const noShot = args.includes('--no-shot');
-const numeric = (flag, fallback) => {
+const numeric = (flag: string): number | null => {
   const at = args.indexOf(flag);
   const value = at >= 0 ? Number(args[at + 1]) : NaN;
-  return Number.isFinite(value) && value > 0 ? value : fallback;
+  return Number.isFinite(value) && value > 0 ? value : null;
 };
-const scale = numeric('--scale', only ? 2 : 1);
-const forcedWidth = numeric('--width', null);
-const forcedHeight = numeric('--height', null);
+const scale = numeric('--scale') ?? (only ? 2 : 1);
+const forcedWidth = numeric('--width');
+const forcedHeight = numeric('--height');
 
-const [{ LOGOS: INTL }, { LOGOS: CN }, { LOGOS: VENDORS }, match, artwork] = await Promise.all([
-  import('../src/logos-intl.mjs'),
-  import('../src/logos-cn.mjs'),
-  import('../src/logos-vendors.mjs'),
-  import('../src/match.mjs'),
-  import('../src/artwork.mjs'),
-]);
 const SETS = { intl: INTL, cn: CN, vendors: VENDORS };
-if (onlySet !== null && !(onlySet in SETS)) {
-  console.error(`error: unknown --only-set "${onlySet}" (expected: ${Object.keys(SETS).join(', ')})`);
+type SetName = keyof typeof SETS;
+const isSetName = (value: string): value is SetName => Object.prototype.hasOwnProperty.call(SETS, value);
+if (rawOnlySet !== null && !isSetName(rawOnlySet)) {
+  console.error(`error: unknown --only-set "${rawOnlySet}" (expected: ${Object.keys(SETS).join(', ')})`);
   process.exit(1);
 }
-const LOGOS = { ...INTL, ...CN, ...VENDORS };
+const onlySet: SetName | null = rawOnlySet !== null && isSetName(rawOnlySet) ? rawOnlySet : null;
+
+const LOGOS: LogoSet = { ...INTL, ...CN, ...VENDORS };
 const allKeys = Object.keys(LOGOS).sort();
-const keys = onlySet ? Object.keys(SETS[onlySet]).sort() : allKeys;
-// Vendor marks are expected even before src/match.mjs lists their keys yet.
-const expected = new Set([...match.LOGO_KEYS, ...Object.keys(VENDORS)]);
-const missing = match.LOGO_KEYS.filter((key) => !(key in LOGOS));
+const keys = onlySet !== null ? Object.keys(SETS[onlySet]).sort() : allKeys;
+// Vendor marks are expected even before src/match.ts lists their keys yet.
+const expected = new Set([...LOGO_KEYS, ...Object.keys(VENDORS)]);
+const missing = LOGO_KEYS.filter((key) => !(key in LOGOS));
 const unused = allKeys.filter((key) => !expected.has(key));
 
 if (missing.length > 0) console.warn('warning: matcher keys without artwork: ' + missing.join(', '));
 if (unused.length > 0) console.warn('warning: artwork keys the matcher never returns: ' + unused.join(', '));
 
-const SAMPLES = [
+const SAMPLES: ReadonlyArray<readonly [string, string]> = [
   ['deepseek', 'DeepSeek-V4.1-Flash'],
   ['deepseek', 'deepseek-chat'],
   ['openai', 'GPT-5.2'],
@@ -93,7 +100,7 @@ const SAMPLES = [
 ];
 
 /** Official channel rows, as they are titled in the provider directory. */
-const PROVIDERS = [
+const PROVIDERS: ReadonlyArray<readonly [string, string]> = [
   ['xiaomi', 'Xiaomi MiMo'],
   ['opencode', 'OpenCode Zen'],
   ['cerebras', 'Cerebras'],
@@ -112,16 +119,16 @@ const PROVIDERS = [
 /** Names that exercise the deterministic letter-tile fallback (Latin + CJK). */
 const LETTER_SAMPLES = ['Qwen3-Max', '通义千问', 'Claude Sonnet 4.5', 'llama-3.1-70b', 'kiro', 'OpenCode Zen', ''];
 
-const escape = (value) =>
+const escape = (value: unknown): string =>
   String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-const mark = (key, size) => {
+const mark = (key: string, size: number): string => {
   const entry = LOGOS[key];
   if (!entry) return `<span class="missing">?</span>`;
   return `<span class="mark" style="width:${size}px;height:${size}px">${entry.svg}</span>`;
 };
 
-const composerMock = (theme) => `
+const composerMock = (theme: 'light' | 'dark'): string => `
 <section class="mock mock-${theme}">
   <h3>${theme === 'light' ? 'Light surface' : 'Dark surface'} — composer trigger (13px text, 14px mark)</h3>
   <div class="trigger-row">
@@ -150,7 +157,7 @@ const composerMock = (theme) => `
   </div>
 </section>`;
 
-const providerMock = (theme) => `
+const providerMock = (theme: 'light' | 'dark'): string => `
 <section class="mock mock-${theme}">
   <h3>${theme === 'light' ? 'Light surface' : 'Dark surface'} — Settings → Models provider rows (14px text, 16px vendor mark)</h3>
   <div class="providers">
@@ -164,9 +171,9 @@ const providerMock = (theme) => `
   </div>
 </section>`;
 
-const letterMock = () => {
+const letterMock = (): string => {
   const rows = LETTER_SAMPLES.map((name) => {
-    const entry = artwork.letterTile(name);
+    const entry = letterTile(name);
     const svg = entry.svg;
     return `
     <div class="letter-row">
@@ -177,12 +184,12 @@ const letterMock = () => {
   }).join('');
   return `
 <section class="mock mock-light">
-  <h3>Deterministic letter-tile fallback (src/artwork.mjs) — 24px + 16px</h3>
+  <h3>Deterministic letter-tile fallback (src/artwork.ts) — 24px + 16px</h3>
   <div class="letters">${rows}</div>
 </section>`;
 };
 
-const artworkCard = (key) => {
+const artworkCard = (key: string): string => {
   const entry = LOGOS[key];
   return `
   <figure class="card">
@@ -198,7 +205,8 @@ const artworkCard = (key) => {
   </figure>`;
 };
 
-const sheetTitle = onlySet ? `${onlySet} artwork — ${keys.length} marks` : `Artwork sheet — ${keys.length} marks`;
+const sheetTitle =
+  onlySet !== null ? `${onlySet} artwork — ${keys.length} marks` : `Artwork sheet — ${keys.length} marks`;
 
 const body = only
   ? `
@@ -260,10 +268,10 @@ const html = `<!doctype html>
   .missing { color: #d64545; font-weight: 700; }
 </style></head>
 <body>${body}
-<p style="font-size:11px;color:#8b93a1;margin-top:24px">Static preview of src/logos-*.mjs — shipped sizes are 14px (trigger/menu/settings text) and 16px (options).</p>
+<p style="font-size:11px;color:#8b93a1;margin-top:24px">Static preview of src/logos/*.ts — shipped sizes are 14px (trigger/menu/settings text) and 16px (options).</p>
 </body></html>`;
 
-const suffix = only ? only : onlySet ? `logos-${onlySet}` : 'logos';
+const suffix = only ? only : onlySet !== null ? `logos-${onlySet}` : 'logos';
 const htmlPath = join(PREVIEW, `${suffix}.html`);
 writeFileSync(htmlPath, html);
 console.log('wrote ' + htmlPath);
@@ -273,7 +281,7 @@ if (!noShot) {
     process.env.EDGE,
     'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
     'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
-  ].filter(Boolean);
+  ].filter((candidate): candidate is string => typeof candidate === 'string' && candidate !== '');
   const edge = edgeCandidates.find((candidate) => existsSync(candidate));
   if (!edge) {
     console.error('error: Edge not found; set EDGE=<msedge.exe path>');
@@ -310,14 +318,16 @@ if (!noShot) {
       { stdio: 'ignore', timeout: 120000 },
     );
   } catch (error) {
-    console.error('error: headless Edge failed: ' + error.message);
+    console.error('error: headless Edge failed: ' + (error instanceof Error ? error.message : String(error)));
     process.exit(1);
   }
   // Edge may hand the URL to an already-running browser process and return
   // before the screenshot lands, so wait for the artifact instead of trusting exit.
   const deadline = Date.now() + 20000;
   while (!existsSync(pngPath) && Date.now() < deadline) {
-    await new Promise((resolveWait) => setTimeout(resolveWait, 200));
+    await new Promise<void>((resolveWait) => {
+      setTimeout(resolveWait, 200);
+    });
   }
   if (!existsSync(pngPath)) {
     console.error('error: no screenshot produced');

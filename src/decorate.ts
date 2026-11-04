@@ -2,7 +2,7 @@
  * Settings → Models decoration.
  *
  * The shipped Models page offers no extension seat for the names it renders, so
- * this fragment decorates its live DOM (idempotent, reversible, never wrapping
+ * this module decorates its live DOM (idempotent, reversible, never wrapping
  * or rewriting React-owned nodes):
  *
  *   - vendor mark before each official provider-row name / editor title;
@@ -15,6 +15,16 @@
  * Every inserted node carries `data-dshml-owner`, so disposal removes only our
  * nodes and restores the native select.
  */
+import { dshmlT } from './i18n';
+import {
+  dshmlCatalogState,
+  dshmlModelMark,
+  dshmlSubscribeCatalog,
+  dshmlSubscribeIconState,
+  dshmlVendorMark,
+} from './overrides';
+import { dshmlOpenIconPicker } from './picker';
+import type { CatalogProvider, DshContext, ModelMark } from './types';
 
 /** Placeholder mark for a model row that has no icon yet (clickable picker seat). */
 const DSHML_PLACEHOLDER_SVG =
@@ -32,8 +42,50 @@ const DSHML_ACTION_LABEL = /^(?:Edit|Delete|编辑|删除)\s/i;
 const DSHML_MODEL_ID_LABEL = /^(?:Model ID|模型\s*ID|模型ID)\s+\d+$/i;
 const DSHML_MODEL_NAME_LABEL = /^(?:Display name|显示名称)\s+\d+$/i;
 
+/** One provider or model identity as resolved for a settings-page row. */
+interface RowIdentity {
+  id: string;
+  name: string;
+}
+
+/** Fully resolved identity of one model configuration row. */
+interface ModelRowIdentity {
+  provider: RowIdentity;
+  model: RowIdentity;
+  row: HTMLElement;
+}
+
+/** Provider owning one element (route id plus its catalog entry, when known). */
+interface OwnerProvider {
+  providerId: string;
+  entry: CatalogProvider | null;
+}
+
+/** The custom provider combobox painted over one native <select>. */
+interface ProviderCombo {
+  select: HTMLSelectElement;
+  wrapper: HTMLDivElement;
+  button: HTMLButtonElement;
+  menu: HTMLDivElement;
+  mark: HTMLSpanElement;
+  label: HTMLSpanElement;
+  open: boolean;
+  activeIndex: number;
+  items: HTMLDivElement[];
+  onSelect: (value: string) => void;
+  sync: () => void;
+}
+
+/** Mutable state of the mounted settings-page decorator. */
+interface DecorState {
+  disposed: boolean;
+  timer: ReturnType<typeof setTimeout> | null;
+  combo: ProviderCombo | null;
+  lastRoot: Element | null;
+}
+
 /** Build one mark element from inline SVG. */
-function dshmlMarkNode(kind, svg, label) {
+function dshmlMarkNode(kind: string, svg: string, label: string | null): HTMLSpanElement {
   const node = document.createElement('span');
   node.className = 'dshml-insert dshml-' + kind;
   node.dataset.dshmlOwner = '1';
@@ -45,7 +97,12 @@ function dshmlMarkNode(kind, svg, label) {
 }
 
 /** Build the model-row icon button (brand mark, letter tile, placeholder, or none). */
-function dshmlModelButton(provider, model, mark, onClick) {
+function dshmlModelButton(
+  provider: RowIdentity,
+  model: RowIdentity,
+  mark: ModelMark,
+  onClick: (provider: RowIdentity, model: RowIdentity, anchor: HTMLButtonElement) => void,
+): HTMLButtonElement {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'dshml-model-icon-btn';
@@ -76,8 +133,8 @@ function dshmlModelButton(provider, model, mark, onClick) {
 }
 
 /** Replace a button's mark content in place (keeps the click handler). */
-function dshmlUpdateModelButton(button, mark) {
-  const existing = button.querySelector('.dshml-model-mark');
+function dshmlUpdateModelButton(button: HTMLButtonElement, mark: ModelMark): void {
+  const existing = button.querySelector<HTMLElement>('.dshml-model-mark');
   if (existing === null) return;
   existing.innerHTML = mark.svg !== null ? mark.svg : DSHML_PLACEHOLDER_SVG;
   existing.classList.toggle('dshml-model-placeholder', mark.svg === null);
@@ -86,19 +143,19 @@ function dshmlUpdateModelButton(button, mark) {
 }
 
 /** Localized display names the shipped Models page substitutes for some routes. */
-const DSHML_DISPLAY_ALIASES = Object.freeze({
+const DSHML_DISPLAY_ALIASES: Readonly<Record<string, readonly string[]>> = Object.freeze({
   // The Models page renders the account row with its own localized label
   // (`t("deepSeekAccount")`), not the directory's English display name.
   'deepseek-account': ['DeepSeek Account', 'DeepSeek 账号'],
 });
 
 /** Read the display name of a provider row / editor title element. */
-function dshmlTextOf(element) {
-  return element !== null && element !== undefined ? String(element.textContent ?? '').trim() : '';
+function dshmlTextOf(element: Element | null): string {
+  return element !== null ? String(element.textContent ?? '').trim() : '';
 }
 
 /** Find the provider identity whose display name an element shows. */
-function dshmlProviderForText(providers, text) {
+function dshmlProviderForText(providers: readonly CatalogProvider[], text: string): CatalogProvider | null {
   for (const entry of providers) {
     if (entry.displayName === text) return entry;
   }
@@ -111,17 +168,17 @@ function dshmlProviderForText(providers, text) {
 }
 
 /** Whether a provider entry is an official channel (vendor mark eligible). */
-function dshmlIsOfficial(entry) {
-  return entry !== null && entry !== undefined && entry.official === true && entry.declared !== true;
+function dshmlIsOfficial(entry: CatalogProvider | null): boolean {
+  return entry !== null && entry.official === true && entry.declared !== true;
 }
 
 /** Insert (or refresh) a vendor mark before `target`. */
-function dshmlDecorateVendorMark(target, entry) {
+function dshmlDecorateVendorMark(target: Element, entry: CatalogProvider): void {
   const mark = dshmlVendorMark(entry.providerId, entry.displayName, true);
   if (mark.svg === null) return;
   const parent = target.parentElement;
   if (parent === null) return;
-  const existing = parent.querySelector(':scope > [data-dshml-vendor]');
+  const existing = parent.querySelector<HTMLElement>(':scope > [data-dshml-vendor]');
   if (existing !== null) {
     if (existing.dataset.dshmlVendor === entry.providerId) {
       existing.innerHTML = mark.svg;
@@ -135,11 +192,11 @@ function dshmlDecorateVendorMark(target, entry) {
 }
 
 /** Whether a text element is a provider row name (has row action buttons beside it). */
-function dshmlIsRowName(element) {
+function dshmlIsRowName(element: Element): boolean {
   const identity = element.parentElement;
   const head = identity === null ? null : identity.parentElement;
   if (head === null) return false;
-  const buttons = head.querySelectorAll('button[aria-label]');
+  const buttons = head.querySelectorAll<HTMLButtonElement>('button[aria-label]');
   for (const button of buttons) {
     if (DSHML_ACTION_LABEL.test(button.getAttribute('aria-label') ?? '')) return true;
   }
@@ -147,7 +204,7 @@ function dshmlIsRowName(element) {
 }
 
 /** Whether a text element is an editor title (inside a header block, no action buttons). */
-function dshmlIsEditorTitle(element) {
+function dshmlIsEditorTitle(element: Element): boolean {
   const header = element.parentElement;
   if (header === null) return false;
   if (header.querySelector('button[aria-label]') !== null) return false;
@@ -155,9 +212,9 @@ function dshmlIsEditorTitle(element) {
 }
 
 /** Locate a provider <select> anywhere inside `node` (used while climbing a model row). */
-function dshmlFindProviderSelectIn(node, providerIds) {
-  if (node === null || typeof node.querySelectorAll !== 'function') return null;
-  for (const select of node.querySelectorAll('select')) {
+function dshmlFindProviderSelectIn(node: Element | null, providerIds: ReadonlySet<string>): HTMLSelectElement | null {
+  if (node === null) return null;
+  for (const select of node.querySelectorAll<HTMLSelectElement>('select')) {
     const options = [...select.options];
     if (options.length > 0 && options.every((option) => providerIds.has(option.value))) return select;
   }
@@ -165,9 +222,9 @@ function dshmlFindProviderSelectIn(node, providerIds) {
 }
 
 /** Locate the hand-declared provider id input ("Provider ID" / "提供方 ID"). */
-function dshmlFindProviderIdInput(node) {
-  if (node === null || typeof node.querySelectorAll !== 'function') return null;
-  for (const input of node.querySelectorAll('input[aria-label]')) {
+function dshmlFindProviderIdInput(node: Element | null): HTMLInputElement | null {
+  if (node === null) return null;
+  for (const input of node.querySelectorAll<HTMLInputElement>('input[aria-label]')) {
     const label = input.getAttribute('aria-label') ?? '';
     if (/^(?:Provider ID|提供方\s*ID|提供方ID)$/i.test(label.trim())) return input;
   }
@@ -175,8 +232,12 @@ function dshmlFindProviderIdInput(node) {
 }
 
 /** Locate the provider identity that owns one element (model row / editor card). */
-function dshmlOwnerProvider(element, providers, providerIds) {
-  let node = element;
+function dshmlOwnerProvider(
+  element: Element,
+  providers: readonly CatalogProvider[],
+  providerIds: ReadonlySet<string>,
+): OwnerProvider | null {
+  let node: Element | null = element;
   for (let depth = 0; node !== null && depth < 12; depth += 1) {
     const select = dshmlFindProviderSelectIn(node, providerIds);
     if (select !== null && providerIds.has(select.value)) {
@@ -184,12 +245,12 @@ function dshmlOwnerProvider(element, providers, providerIds) {
     }
     // Hand-declared (custom API) cards name the route in a free-text field.
     const idInput = dshmlFindProviderIdInput(node);
-    if (idInput !== null && String(idInput.value ?? '').trim() !== '') {
-      const providerId = String(idInput.value).trim();
+    if (idInput !== null && idInput.value.trim() !== '') {
+      const providerId = idInput.value.trim();
       return { providerId, entry: providers.find((entry) => entry.providerId === providerId) ?? null };
     }
     if (node.tagName === 'LI') {
-      for (const span of node.querySelectorAll('span')) {
+      for (const span of node.querySelectorAll<HTMLSpanElement>('span')) {
         if (span.childElementCount !== 0) continue;
         const text = dshmlTextOf(span);
         if (text === '') continue;
@@ -204,24 +265,26 @@ function dshmlOwnerProvider(element, providers, providerIds) {
 }
 
 /** Build model identity data for one row. */
-function dshmlModelIdentity(row, providers, providerIds) {
-  const inputs = [...row.querySelectorAll('input')];
-  let idInput = null;
-  let nameInput = null;
+function dshmlModelIdentity(
+  row: HTMLElement,
+  providers: readonly CatalogProvider[],
+  providerIds: ReadonlySet<string>,
+): ModelRowIdentity | null {
+  const inputs = [...row.querySelectorAll<HTMLInputElement>('input')];
+  let idInput: HTMLInputElement | null = null;
+  let nameInput: HTMLInputElement | null = null;
   for (const input of inputs) {
     const label = input.getAttribute('aria-label') ?? '';
     if (idInput === null && DSHML_MODEL_ID_LABEL.test(label)) idInput = input;
     else if (nameInput === null && DSHML_MODEL_NAME_LABEL.test(label)) nameInput = input;
   }
   if (idInput === null) return null;
-  const modelId = String(idInput.value ?? '').trim();
+  const modelId = idInput.value.trim();
   if (modelId === '') return null;
   const owner = dshmlOwnerProvider(row, providers, providerIds);
   if (owner === null) return null;
   const displayName = owner.entry !== null ? owner.entry.displayName : owner.providerId;
-  const modelName = nameInput !== null && String(nameInput.value ?? '').trim() !== ''
-    ? String(nameInput.value).trim()
-    : modelId;
+  const modelName = nameInput !== null && nameInput.value.trim() !== '' ? nameInput.value.trim() : modelId;
   return {
     provider: { id: owner.providerId, name: displayName },
     model: { id: modelId, name: modelName },
@@ -230,9 +293,13 @@ function dshmlModelIdentity(row, providers, providerIds) {
 }
 
 /** Update all model rows in the dialog. */
-function dshmlDecorateModelRows(root, providers, providerIds) {
-  const rows = new Set();
-  for (const input of root.querySelectorAll('input[aria-label]')) {
+function dshmlDecorateModelRows(
+  root: Element,
+  providers: readonly CatalogProvider[],
+  providerIds: ReadonlySet<string>,
+): void {
+  const rows = new Set<HTMLElement>();
+  for (const input of root.querySelectorAll<HTMLInputElement>('input[aria-label]')) {
     const label = input.getAttribute('aria-label') ?? '';
     if (!DSHML_MODEL_ID_LABEL.test(label)) continue;
     if (input.parentElement !== null) rows.add(input.parentElement);
@@ -242,7 +309,7 @@ function dshmlDecorateModelRows(root, providers, providerIds) {
       row.dataset.dshmlModelRow = '1';
     }
     const identity = dshmlModelIdentity(row, providers, providerIds);
-    let button = row.querySelector(':scope > [data-dshml-kind="model"]');
+    let button = row.querySelector<HTMLButtonElement>(':scope > [data-dshml-kind="model"]');
     if (identity === null) {
       if (button !== null) button.remove();
       continue;
@@ -257,20 +324,16 @@ function dshmlDecorateModelRows(root, providers, providerIds) {
       dshmlUpdateModelButton(button, mark);
       if (row.firstElementChild !== button) row.insertBefore(button, row.firstChild);
     }
-    const nextSibling = button.nextElementSibling;
-    if (nextSibling !== null && nextSibling.dataset?.dshmlOwner !== undefined) {
-      // Only one mark per row.
-    }
   }
 }
 
 /** Update provider-row and editor-title vendor marks. */
-function dshmlDecorateProviderNames(root, providers) {
+function dshmlDecorateProviderNames(root: Element, providers: readonly CatalogProvider[]): void {
   // Dedupe by parent element: a row's name span and an editor title span can
   // carry the same text (catalog display names equal route ids in practice), and
   // they live under different parents — text-keyed dedupe would skip the second.
-  const seenParents = new WeakSet();
-  for (const span of root.querySelectorAll('span')) {
+  const seenParents = new WeakSet<HTMLElement>();
+  for (const span of root.querySelectorAll<HTMLSpanElement>('span')) {
     if (span.childElementCount !== 0) continue;
     // Never decorate our own inserted UI (the combobox menu reuses plain spans).
     if (span.closest('[data-dshml-owner="1"]') !== null) continue;
@@ -287,7 +350,11 @@ function dshmlDecorateProviderNames(root, providers) {
 }
 
 /** Build the custom provider combobox for one native <select>. */
-function dshmlBuildCombo(select, providers, onSelect) {
+function dshmlBuildCombo(
+  select: HTMLSelectElement,
+  providers: readonly CatalogProvider[],
+  onSelect: (value: string) => void,
+): ProviderCombo {
   const wrapper = document.createElement('div');
   wrapper.className = 'dshml-combo';
   wrapper.dataset.dshmlOwner = '1';
@@ -320,7 +387,27 @@ function dshmlBuildCombo(select, providers, onSelect) {
 
   wrapper.append(button, menu);
 
-  const combo = {
+  const sync = (): void => {
+    const options = [...select.options];
+    const selected = options.find((option) => option.selected) ?? options[0];
+    const value = selected !== undefined ? selected.value : '';
+    const entry = providers.find((candidate) => candidate.providerId === value) ?? null;
+    const vendor =
+      entry !== null && dshmlIsOfficial(entry)
+        ? dshmlVendorMark(value, entry.displayName, true)
+        : dshmlVendorMark(value, selected !== undefined ? selected.textContent : value, true);
+    label.textContent = selected !== undefined ? String(selected.textContent ?? '') : '';
+    if (vendor.svg !== null) {
+      mark.innerHTML = vendor.svg;
+      mark.hidden = false;
+    } else {
+      mark.innerHTML = '';
+      mark.hidden = true;
+    }
+    button.setAttribute('aria-label', dshmlT('section.provider') + ': ' + (label.textContent ?? ''));
+  };
+
+  const combo: ProviderCombo = {
     select,
     wrapper,
     button,
@@ -331,28 +418,10 @@ function dshmlBuildCombo(select, providers, onSelect) {
     activeIndex: -1,
     items: [],
     onSelect,
+    sync,
   };
 
-  const sync = () => {
-    const options = [...select.options];
-    const selected = options.find((option) => option.selected) ?? options[0];
-    const value = selected !== undefined ? selected.value : '';
-    const entry = providers.find((candidate) => candidate.providerId === value) ?? null;
-    const vendor = entry !== null && dshmlIsOfficial(entry)
-      ? dshmlVendorMark(value, entry.displayName, true)
-      : dshmlVendorMark(value, selected !== undefined ? selected.textContent : value, true);
-    label.textContent = selected !== undefined ? String(selected.textContent ?? '') : '';
-    if (vendor.svg !== null) {
-      mark.innerHTML = vendor.svg;
-      mark.hidden = false;
-    } else {
-      mark.innerHTML = '';
-      mark.hidden = true;
-    }
-    button.setAttribute('aria-label', dshmlT('section.provider') + ': ' + label.textContent);
-  };
-
-  const close = (restoreFocus) => {
+  const close = (restoreFocus: boolean): void => {
     if (!combo.open) return;
     combo.open = false;
     menu.hidden = true;
@@ -361,7 +430,7 @@ function dshmlBuildCombo(select, providers, onSelect) {
     if (restoreFocus === true) button.focus();
   };
 
-  const setActive = (index) => {
+  const setActive = (index: number): void => {
     if (combo.items.length === 0) return;
     combo.activeIndex = (index + combo.items.length) % combo.items.length;
     combo.items.forEach((item, at) => {
@@ -372,7 +441,7 @@ function dshmlBuildCombo(select, providers, onSelect) {
     if (active !== undefined) active.focus({ preventScroll: true });
   };
 
-  const choose = (value) => {
+  const choose = (value: string): void => {
     if (select.value !== value) {
       select.value = value;
       select.dispatchEvent(new Event('change', { bubbles: true }));
@@ -382,14 +451,13 @@ function dshmlBuildCombo(select, providers, onSelect) {
     if (typeof onSelect === 'function') onSelect(value);
   };
 
-  const buildMenu = () => {
+  const buildMenu = (): void => {
     menu.replaceChildren();
     combo.items = [];
     const options = [...select.options];
-    options.forEach((option, index) => {
+    options.forEach((option) => {
       const value = option.value;
-      const entry = providers.find((candidate) => candidate.providerId === value) ?? null;
-      const vendor = dshmlVendorMark(value, option.textContent, entry !== null ? dshmlIsOfficial(entry) || true : true);
+      const vendor = dshmlVendorMark(value, option.textContent, true);
       const item = document.createElement('div');
       item.className = 'dshml-combo-item';
       item.setAttribute('role', 'option');
@@ -419,7 +487,7 @@ function dshmlBuildCombo(select, providers, onSelect) {
     });
   };
 
-  const open = () => {
+  const open = (): void => {
     if (combo.open) return;
     buildMenu();
     sync();
@@ -468,24 +536,24 @@ function dshmlBuildCombo(select, providers, onSelect) {
   });
 
   sync();
-  combo.sync = sync;
   return combo;
 }
 
 /** Hide the native select while keeping it as the React state source. */
-function dshmlHideSelect(select) {
+function dshmlHideSelect(select: HTMLSelectElement): void {
   if (select.dataset.dshmlHidden === '1') return;
   select.dataset.dshmlHidden = '1';
   select.dataset.dshmlPrevStyle = select.getAttribute('style') ?? '';
   select.dataset.dshmlPrevTabindex = select.getAttribute('tabindex') ?? '';
   select.dataset.dshmlPrevAria = select.getAttribute('aria-hidden') ?? '';
-  select.style.cssText = 'position:absolute;opacity:0;pointer-events:none;width:0;height:0;margin:0;padding:0;border:0;';
+  select.style.cssText =
+    'position:absolute;opacity:0;pointer-events:none;width:0;height:0;margin:0;padding:0;border:0;';
   select.setAttribute('tabindex', '-1');
   select.setAttribute('aria-hidden', 'true');
 }
 
 /** Restore one hidden native select. */
-function dshmlRestoreSelect(select) {
+function dshmlRestoreSelect(select: HTMLSelectElement): void {
   if (select.dataset.dshmlHidden !== '1') return;
   delete select.dataset.dshmlHidden;
   const style = select.dataset.dshmlPrevStyle ?? '';
@@ -503,8 +571,8 @@ function dshmlRestoreSelect(select) {
 }
 
 /** Find the provider <select> in the add card, if any. */
-function dshmlFindProviderSelect(root, providerIds) {
-  const selects = [...root.querySelectorAll('select')];
+function dshmlFindProviderSelect(root: Element, providerIds: ReadonlySet<string>): HTMLSelectElement | null {
+  const selects = [...root.querySelectorAll<HTMLSelectElement>('select')];
   for (const select of selects) {
     const options = [...select.options];
     if (options.length === 0) continue;
@@ -514,16 +582,21 @@ function dshmlFindProviderSelect(root, providerIds) {
 }
 
 /** Decorate (or refresh) the provider select of the add card. */
-function dshmlDecorateProviderSelect(root, state, providers, providerIds) {
+function dshmlDecorateProviderSelect(
+  root: Element,
+  state: DecorState,
+  providers: readonly CatalogProvider[],
+  providerIds: ReadonlySet<string>,
+): void {
   const select = dshmlFindProviderSelect(root, providerIds);
-  const existing = root.querySelector('[data-dshml-owner="1"][data-dshml-combo="1"]');
+  const existing = root.querySelector<HTMLElement>('[data-dshml-owner="1"][data-dshml-combo="1"]');
   if (select === null) {
     if (existing !== null) existing.remove();
     state.combo = null;
     return;
   }
   if (state.combo !== null && state.combo.select === select && select.isConnected) {
-    state.combo.sync?.();
+    state.combo.sync();
     return;
   }
   if (state.combo !== null) {
@@ -534,22 +607,21 @@ function dshmlDecorateProviderSelect(root, state, providers, providerIds) {
   dshmlHideSelect(select);
   const combo = dshmlBuildCombo(select, providers, () => dshmlScheduleDecorate(state));
   combo.wrapper.dataset.dshmlCombo = '1';
-  combo.sync = combo.sync ?? null;
   select.insertAdjacentElement('afterend', combo.wrapper);
   state.combo = combo;
   // Keep several combos impossible: any older wrapper is removed.
-  for (const stale of root.querySelectorAll('[data-dshml-owner="1"][data-dshml-combo="1"]')) {
+  for (const stale of root.querySelectorAll<HTMLElement>('[data-dshml-owner="1"][data-dshml-combo="1"]')) {
     if (stale !== combo.wrapper) stale.remove();
   }
 }
 
 /** One decoration pass. */
-function dshmlDecorate(state) {
+function dshmlDecorate(state: DecorState): void {
   if (state.disposed) return;
   const root = document.querySelector(DSHML_SETTINGS_ROOT);
   state.lastRoot = root;
   const catalog = dshmlCatalogState();
-  const providers = Array.isArray(catalog.providers) ? catalog.providers : [];
+  const providers: readonly CatalogProvider[] = Array.isArray(catalog.providers) ? catalog.providers : [];
   const providerIds = new Set(providers.map((entry) => entry.providerId));
   if (root === null) {
     if (state.combo !== null) {
@@ -565,7 +637,7 @@ function dshmlDecorate(state) {
 }
 
 /** Debounced schedule. */
-function dshmlScheduleDecorate(state) {
+function dshmlScheduleDecorate(state: DecorState): void {
   if (state.disposed || state.timer !== null) return;
   state.timer = setTimeout(() => {
     state.timer = null;
@@ -574,7 +646,7 @@ function dshmlScheduleDecorate(state) {
 }
 
 /** Remove everything this decorator inserted and restore the native select. */
-function dshmlClearDecorations(state) {
+function dshmlClearDecorations(state: DecorState): void {
   if (state.combo !== null) {
     try {
       dshmlRestoreSelect(state.combo.select);
@@ -585,42 +657,44 @@ function dshmlClearDecorations(state) {
     state.combo = null;
   }
   for (const node of document.querySelectorAll('[data-dshml-owner="1"]')) node.remove();
-  for (const row of document.querySelectorAll('[data-dshml-model-row]')) delete row.dataset.dshmlModelRow;
+  for (const row of document.querySelectorAll<HTMLElement>('[data-dshml-model-row]')) {
+    delete row.dataset.dshmlModelRow;
+  }
 }
 
 /** Currently mounted decorator state (diagnostics / manual re-run). */
-let dshmlActiveDecorState = null;
+let dshmlActiveDecorState: DecorState | null = null;
 
 /** Re-run the decorator now (diagnostics only). */
-function dshmlDecorateNow() {
+export function dshmlDecorateNow(): void {
   if (dshmlActiveDecorState !== null) dshmlDecorate(dshmlActiveDecorState);
 }
 
 /** Request a debounced decorator re-run (diagnostics only). */
-function dshmlRequestDecorate() {
+export function dshmlRequestDecorate(): void {
   if (dshmlActiveDecorState !== null) dshmlScheduleDecorate(dshmlActiveDecorState);
 }
 
 /**
  * Mount the settings-page decorator.
- * @param {object} ctx - the plugin context (unused beyond logging).
- * @returns {() => void} disposer.
+ * @param _ctx - the plugin context (unused beyond logging).
+ * @returns disposer.
  */
-function dshmlMountSettingsDecorator(ctx) {
+export function dshmlMountSettingsDecorator(_ctx: DshContext): () => void {
   if (typeof document === 'undefined') return function noop() {};
-  const state = {
+  const state: DecorState = {
     disposed: false,
     timer: null,
     combo: null,
     lastRoot: null,
   };
   dshmlActiveDecorState = state;
-  const schedule = () => dshmlScheduleDecorate(state);
+  const schedule = (): void => dshmlScheduleDecorate(state);
   const observer = new MutationObserver(() => schedule());
   observer.observe(document.body, { childList: true, subtree: true });
-  const onInput = () => schedule();
-  const onChange = () => schedule();
-  const onPointerDown = (event) => {
+  const onInput = (): void => schedule();
+  const onChange = (): void => schedule();
+  const onPointerDown = (event: PointerEvent): void => {
     if (state.combo !== null && state.combo.open) {
       const target = event.target;
       if (!(target instanceof Node) || !state.combo.wrapper.contains(target)) {

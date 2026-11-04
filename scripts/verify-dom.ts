@@ -22,13 +22,13 @@
  *   - dispose removes every inserted node and restores the native select
  *
  * Usage:
- *   node scripts/verify-dom.mjs                          # assertions (exit 1 on failure)
- *   node scripts/verify-dom.mjs --json .preview/dom.json # also save the raw result
- *   node scripts/verify-dom.mjs --screenshot docs/preview-settings.png
- *                                                        # decorated page screenshot
- *   node scripts/verify-dom.mjs --screenshot docs/preview-settings.png --open picker
- *                                                        # ... with the picker modal open
- *   node scripts/verify-dom.mjs --harness <path>         # keep the generated page
+ *   npx tsx scripts/verify-dom.ts                          # assertions (exit 1 on failure)
+ *   npx tsx scripts/verify-dom.ts --json .preview/dom.json # also save the raw result
+ *   npx tsx scripts/verify-dom.ts --screenshot docs/preview-settings.png
+ *                                                          # decorated page screenshot
+ *   npx tsx scripts/verify-dom.ts --screenshot docs/preview-settings.png --open picker
+ *                                                          # ... with the picker modal open
+ *   npx tsx scripts/verify-dom.ts --harness <path>         # keep the generated page
  *
  * Requires Edge (`EDGE` env var may point at msedge.exe).
  */
@@ -45,20 +45,52 @@ const REACT_UMD = join(ROOT, 'node_modules', 'react', 'umd', 'react.development.
 const REACT_DOM_UMD = join(ROOT, 'node_modules', 'react-dom', 'umd', 'react-dom.development.js');
 
 const args = process.argv.slice(2);
-const valueAfter = (flag) => {
+const valueAfter = (flag: string): string | null => {
   const at = args.indexOf(flag);
   if (at < 0) return null;
   const value = args[at + 1];
   if (value === undefined || value.startsWith('--')) return null;
   return value;
 };
-const hasFlag = (flag) => args.includes(flag);
+const hasFlag = (flag: string): boolean => args.includes(flag);
 const screenshotPath = valueAfter('--screenshot');
 const openMode = valueAfter('--open') ?? 'combobox';
 const jsonPath = valueAfter('--json');
 const keptHarnessPath = valueAfter('--harness');
 const requireBuild = hasFlag('--require-build');
 const scale = Number(valueAfter('--scale') ?? 2) || 2;
+
+/* -------------------------------------------------------------------------- */
+/* Harness data                                                               */
+/* -------------------------------------------------------------------------- */
+
+/** One row of the fake provider directory. */
+interface DirectoryEntry {
+  provider: string;
+  displayName: string;
+  declared?: boolean;
+  settingsNs: string;
+  settingsPath: string[];
+}
+
+/** One option of the add-provider catalog `<select>`. */
+interface SelectOption {
+  value: string;
+  label: string;
+}
+
+/** The serialized configuration handed to the in-page driver. */
+interface DriverConfig {
+  lang: string;
+  providerRows: number;
+  modelRows: number;
+  directory: DirectoryEntry[];
+  options: SelectOption[];
+  officialProvider: { id: string; displayName: string };
+  accountProvider: { id: string; displayName: string };
+  customProvider: { id: string; displayName: string };
+  firstModel: { providerId: string; modelId: string; displayName: string };
+}
 
 /**
  * Directory returned by `remote.llm.listConfigurableProviders()`; mirrors the fixture.
@@ -69,14 +101,19 @@ const scale = Number(valueAfter('--scale') ?? 2) || 2;
  * how the hand-declared 火山 Coding Plan row is named. The one localized outlier
  * is `deepseek-account`, whose row text is the page's `deepSeekAccount` copy.
  */
-const DIRECTORY = [
+const DIRECTORY: DirectoryEntry[] = [
   {
     provider: 'deepseek-account',
     displayName: 'DeepSeek Account',
     settingsNs: 'llm-deepseek-account',
     settingsPath: [],
   },
-  { provider: 'anthropic', displayName: 'anthropic', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'anthropic'] },
+  {
+    provider: 'anthropic',
+    displayName: 'anthropic',
+    settingsNs: 'llm-pi-ai',
+    settingsPath: ['providers', 'anthropic'],
+  },
   {
     provider: 'volcengine',
     displayName: '火山 Coding Plan',
@@ -86,13 +123,23 @@ const DIRECTORY = [
   },
   { provider: 'openai', displayName: 'openai', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'openai'] },
   { provider: 'google', displayName: 'google', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'google'] },
-  { provider: 'moonshotai', displayName: 'moonshotai', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'moonshotai'] },
+  {
+    provider: 'moonshotai',
+    displayName: 'moonshotai',
+    settingsNs: 'llm-pi-ai',
+    settingsPath: ['providers', 'moonshotai'],
+  },
   { provider: 'xai', displayName: 'xai', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'xai'] },
-  { provider: 'openrouter', displayName: 'openrouter', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'openrouter'] },
+  {
+    provider: 'openrouter',
+    displayName: 'openrouter',
+    settingsNs: 'llm-pi-ai',
+    settingsPath: ['providers', 'openrouter'],
+  },
 ];
 
 /** The add-provider catalog `<select>` options, in fixture order (text = display name). */
-const SELECT_OPTIONS = [
+const SELECT_OPTIONS: SelectOption[] = [
   { value: 'openai', label: 'openai' },
   { value: 'google', label: 'google' },
   { value: 'moonshotai', label: 'moonshotai' },
@@ -100,7 +147,7 @@ const SELECT_OPTIONS = [
   { value: 'openrouter', label: 'openrouter' },
 ];
 
-const DRIVER_CONFIG = {
+const DRIVER_CONFIG: DriverConfig = {
   lang: 'zh',
   providerRows: 3,
   modelRows: 3,
@@ -113,6 +160,144 @@ const DRIVER_CONFIG = {
 };
 
 /* -------------------------------------------------------------------------- */
+/* In-page driver result types                                                */
+/* -------------------------------------------------------------------------- */
+
+/** One assertion recorded by the in-page driver. */
+interface Assertion {
+  name: string;
+  required: boolean;
+  ok: boolean;
+  detail: string;
+}
+
+/** Counts of the inserted decoration (screenshot mode diagnostics). */
+interface DecoratedCounts {
+  vendor: number;
+  modelRows: number;
+  combobox: boolean;
+  picker: boolean;
+}
+
+/** What the in-page driver reports for `--screenshot` runs. */
+interface ScreenshotResult {
+  mode: 'screenshot';
+  open: string;
+  decorated: DecoratedCounts;
+  pageErrors: string[];
+  consoleIssues: string[];
+}
+
+/** What the in-page driver reports for `--verify` runs. */
+interface VerifyResult {
+  ok: boolean;
+  mode: 'verify';
+  lang: string;
+  assertions: Assertion[];
+  pageErrors: string[];
+  consoleIssues: string[];
+  mutateCalls: unknown[];
+  setCalls: Array<[unknown, unknown]>;
+  slotRequests: string[];
+  injected: string[];
+  overrides: OverrideMap;
+  // Diagnostics: where every inserted vendor mark landed.
+  vendorMarkers: Array<{ provider: string | null; parent: string; inCombo: boolean }>;
+  modelRowMarkers: number;
+}
+
+type DriverResult = VerifyResult | ScreenshotResult;
+
+/** `modelIcons[providerId][modelId] = icon key` as the plugin persists it. */
+type OverrideMap = Record<string, Record<string, string>>;
+
+/** A cleanup returned by a plugin effect / slot registration. */
+type Cleanup = () => void;
+
+/** One slot registration recorded by the fake context. */
+interface RecordedRegistration {
+  options: Record<string, unknown> | undefined;
+  component: unknown;
+  slot: unknown;
+}
+
+/** What the bundle factory hands back: its `apply` mount point. */
+interface BundleExports {
+  apply(context: unknown): unknown;
+}
+
+/** The loader definition `client.js` hands to `window.__ModuleLoader__.load`. */
+interface BundleDefinition {
+  factory(requireModule: (id: string) => unknown): unknown;
+}
+
+/** The subset of the React UMD build the harness page uses. */
+interface ReactUmd {
+  createElement(type: unknown, props?: Record<string, unknown> | null): unknown;
+  Fragment: unknown;
+}
+
+/** A React root as this harness drives it. */
+interface ReactRootLike {
+  render(node: unknown): void;
+  unmount(): void;
+}
+
+/** The subset of the ReactDOM UMD build the harness page uses. */
+interface ReactDomUmd {
+  createRoot(container: Element): ReactRootLike;
+}
+
+/** One settings document value the fake config form stores. */
+interface SettingsValue {
+  modelIcons: OverrideMap;
+  [key: string]: unknown;
+}
+
+/** Snapshot the fake settings form serves. */
+interface FormSnapshot {
+  status: string;
+  value: SettingsValue;
+  base: Record<string, never>;
+  user: SettingsValue;
+  revision: number;
+  writable: boolean;
+}
+
+/** One menu item of the custom provider combobox. */
+interface MenuItem {
+  value: string | undefined;
+  label: string;
+  node: HTMLElement;
+}
+
+/** The mutable harness bookkeeping the driver asserts against. */
+interface HarnessState {
+  cleanups: Cleanup[];
+  registrations: RecordedRegistration[];
+  slotRequests: string[];
+  injected: string[];
+  mutateCalls: unknown[];
+  setCalls: Array<[unknown, unknown]>;
+  formListeners: Array<(snapshot: FormSnapshot) => void>;
+  // The persisted nested dict: modelIcons[providerId][modelId] = icon key.
+  overrides: OverrideMap;
+  revision: number;
+  errors: string[];
+}
+
+declare global {
+  interface Window {
+    /** Fixture harness global: the loader stub parks the bundle definition here. */
+    __dshmlModule: BundleDefinition | null;
+    /** React 18 UMD build injected by the fixture harness. */
+    React: ReactUmd;
+    /** ReactDOM 18 UMD build injected by the fixture harness. */
+    ReactDOM: ReactDomUmd;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
 /* In-page driver                                                             */
 /* -------------------------------------------------------------------------- */
 
@@ -120,31 +305,51 @@ const DRIVER_CONFIG = {
  * Runs inside headless Edge. Must stay a pure browser function: it is serialized
  * with `Function.prototype.toString` and injected into the harness page.
  */
-async function browserDriver(config) {
+async function browserDriver(config: DriverConfig): Promise<void> {
   'use strict';
+
+  /** JSON round-trip used to snapshot recorded operations. */
+  const cloneJson = (value: unknown): unknown => JSON.parse(JSON.stringify(value));
+
+  /** True for any non-null object (arrays included). */
+  const isRecord = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object';
+
+  /** The stack of anything thrown in the page. */
+  const errorText = (error: unknown): string => {
+    if (isRecord(error) && typeof error.stack === 'string') return error.stack;
+    return String(error);
+  };
+
+  /** True when a cleanup returned by the bundle is callable. */
+  const isCleanup = (value: unknown): value is Cleanup => typeof value === 'function';
+
+  /** True when the factory returned the bundle's `{ apply }` exports. */
+  const isBundleExports = (value: unknown): value is BundleExports =>
+    isRecord(value) && typeof value.apply === 'function';
 
   // Keep the dumped DOM small: React's development UMD builds are ~1MB each and
   // they are already executing safely by the time this last script runs.
-  const scriptTags = document.querySelectorAll('script');
-  for (let at = 0; at < scriptTags.length; at++) scriptTags[at].remove();
+  document.querySelectorAll('script').forEach((scriptTag) => scriptTag.remove());
 
   const params = new URLSearchParams(location.search);
   const MODE = params.get('mode') || 'verify';
   const OPEN = params.get('open') || '';
 
-  const pageErrors = [];
-  const consoleIssues = [];
+  const pageErrors: string[] = [];
+  const consoleIssues: string[] = [];
 
-  window.addEventListener('error', (event) => {
+  window.addEventListener('error', (event: ErrorEvent) => {
     pageErrors.push('window.error: ' + (event.message || String(event.error)));
   });
-  window.addEventListener('unhandledrejection', (event) => {
-    const reason = event.reason;
-    pageErrors.push('unhandledrejection: ' + (reason && reason.stack ? reason.stack : String(reason)));
+  window.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
+    const reason: unknown = event.reason;
+    pageErrors.push(
+      'unhandledrejection: ' + (isRecord(reason) && typeof reason.stack === 'string' ? reason.stack : String(reason)),
+    );
   });
-  for (const level of ['error', 'warn']) {
+  for (const level of ['error', 'warn'] as const) {
     const original = console[level].bind(console);
-    console[level] = (...parts) => {
+    console[level] = (...parts: unknown[]): void => {
       consoleIssues.push(
         level +
           ': ' +
@@ -164,28 +369,37 @@ async function browserDriver(config) {
 
   /* ------------------------------ tiny helpers ----------------------------- */
 
-  const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
-  const now = () => performance.now();
-  const waitFor = async (probe, timeoutMs) => {
+  const sleep = (ms: number): Promise<void> =>
+    new Promise<void>((done) => {
+      setTimeout(done, ms);
+    });
+  const now = (): number => performance.now();
+  const waitFor = async <T>(probe: () => T | null | undefined, timeoutMs?: number): Promise<NonNullable<T> | null> => {
     const startedAt = now();
     const limit = timeoutMs === undefined ? 4000 : timeoutMs;
     for (;;) {
-      let value = null;
+      let value: T | null | undefined = null;
       try {
         value = probe();
       } catch {
         value = null;
       }
-      if (value) return value;
+      if (value) return value as NonNullable<T>;
       if (now() - startedAt >= limit) return null;
       await sleep(30);
     }
   };
-  const q = (selector, root) => (root || document).querySelector(selector);
-  const qa = (selector, root) =>
-    Array.prototype.slice.call((root || document).querySelectorAll(selector));
-  const text = (node) => (node ? String(node.textContent || '').replace(/\s+/g, ' ').trim() : '');
-  const visible = (node) => {
+  const q = <T extends Element = HTMLElement>(selector: string, root?: ParentNode | null): T | null =>
+    (root ?? document).querySelector<T>(selector);
+  const qa = <T extends Element = HTMLElement>(selector: string, root?: ParentNode | null): T[] =>
+    Array.from((root ?? document).querySelectorAll<T>(selector));
+  const text = (node: Element | null | undefined): string =>
+    node
+      ? String(node.textContent || '')
+          .replace(/\s+/g, ' ')
+          .trim()
+      : '';
+  const visible = (node: Element | null | undefined): boolean => {
     if (!node || !node.isConnected) return false;
     const rect = node.getBoundingClientRect();
     const style = getComputedStyle(node);
@@ -197,22 +411,21 @@ async function browserDriver(config) {
       parseFloat(style.opacity) > 0.01
     );
   };
-  const describeNode = (node) => {
+  const describeNode = (node: Element | null | undefined): string => {
     if (!node) return 'null';
     const id = node.id ? '#' + node.id : '';
+    const rawClass: unknown = node.className;
     const className =
-      typeof node.className === 'string' && node.className.trim() !== ''
-        ? '.' + node.className.trim().replace(/\s+/g, '.')
-        : '';
+      typeof rawClass === 'string' && rawClass.trim() !== '' ? '.' + rawClass.trim().replace(/\s+/g, '.') : '';
     return node.tagName.toLowerCase() + id + className;
   };
-  const escapeHtml = (value) =>
-    String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  const isBefore = (first, second) =>
-    first && second && (first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+  const isBefore = (first: Element | null, second: Element | null): boolean =>
+    first !== null &&
+    second !== null &&
+    (first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
 
-  const assertions = [];
-  const add = (name, required, ok, detail) => {
+  const assertions: Assertion[] = [];
+  const add = (name: string, required: boolean, ok: boolean, detail?: unknown): boolean => {
     assertions.push({
       name,
       required: required !== false,
@@ -224,7 +437,7 @@ async function browserDriver(config) {
 
   /* --------------------------- fake plugin context -------------------------- */
 
-  const H = {
+  const H: HarnessState = {
     cleanups: [],
     registrations: [],
     slotRequests: [],
@@ -232,7 +445,6 @@ async function browserDriver(config) {
     mutateCalls: [],
     setCalls: [],
     formListeners: [],
-    // The persisted nested dict: modelIcons[providerId][modelId] = icon key.
     overrides: {},
     revision: 1,
     errors: [],
@@ -242,42 +454,44 @@ async function browserDriver(config) {
   // host plugin's `modelIcons` volatile field on top. Path ops arrive relative to
   // this root (`['modelIcons', providerId, modelId]`), so the harness applies
   // them here — `H.overrides` always stays the inner dict the plugin reads.
-  const settingsValue = { modelIcons: H.overrides };
+  const settingsValue: SettingsValue = { modelIcons: H.overrides };
 
-  const cloneJson = (value) => JSON.parse(JSON.stringify(value));
-
-  function setPath(root, path, value) {
-    let node = root;
+  function setPath(root: Record<string, unknown>, path: readonly unknown[], value: unknown): void {
+    let node: Record<string, unknown> = root;
     for (let index = 0; index < path.length - 1; index++) {
       const key = String(path[index]);
-      if (node[key] === null || typeof node[key] !== 'object') node[key] = {};
-      node = node[key];
+      const existing = node[key];
+      if (existing === null || typeof existing !== 'object') node[key] = {};
+      node = node[key] as Record<string, unknown>;
     }
     node[String(path[path.length - 1])] = value;
   }
 
-  function unsetPath(root, path) {
-    const parents = [];
-    let node = root;
+  function unsetPath(root: Record<string, unknown>, path: readonly unknown[]): void {
+    const parents: Array<[Record<string, unknown>, string]> = [];
+    let node: Record<string, unknown> = root;
     for (let index = 0; index < path.length - 1; index++) {
       const key = String(path[index]);
-      if (node[key] === null || typeof node[key] !== 'object') return;
+      const child = node[key];
+      if (child === null || typeof child !== 'object') return;
       parents.push([node, key]);
-      node = node[key];
+      node = child as Record<string, unknown>;
     }
     delete node[String(path[path.length - 1])];
     for (let index = parents.length - 1; index >= 0; index--) {
-      const parent = parents[index][0];
-      const key = parents[index][1];
-      if (parent[key] && typeof parent[key] === 'object' && Object.keys(parent[key]).length === 0) delete parent[key];
+      const parent = parents[index];
+      if (parent === undefined) continue;
+      const [target, key] = parent;
+      const value = target[key];
+      if (value && typeof value === 'object' && Object.keys(value).length === 0) delete target[key];
       else break;
     }
   }
 
-  const fieldPath = (field) => (Array.isArray(field) ? field : String(field).split('.'));
+  const fieldPath = (field: unknown): unknown[] => (Array.isArray(field) ? field : String(field).split('.'));
 
-  let cachedSnapshot = null;
-  const buildSnapshot = () => ({
+  let cachedSnapshot: FormSnapshot | null = null;
+  const buildSnapshot = (): FormSnapshot => ({
     status: 'ready',
     value: settingsValue,
     base: {},
@@ -285,54 +499,56 @@ async function browserDriver(config) {
     revision: H.revision,
     writable: true,
   });
-  const notifyForm = () => {
+  const notifyForm = (): void => {
     cachedSnapshot = buildSnapshot();
     const snapshot = cachedSnapshot;
     for (const listener of H.formListeners.slice()) {
       try {
         listener(snapshot);
       } catch (error) {
-        H.errors.push('form listener: ' + (error && error.stack ? error.stack : error));
+        H.errors.push('form listener: ' + errorText(error));
       }
     }
   };
 
   const form = {
     // The settings namespace the plugin owns; any other id is not a form.
-    getSnapshot() {
+    getSnapshot(): FormSnapshot {
       if (cachedSnapshot === null) cachedSnapshot = buildSnapshot();
       return cachedSnapshot;
     },
-    subscribe(listener) {
+    subscribe(listener: (snapshot: FormSnapshot) => void): () => void {
       H.formListeners.push(listener);
       return () => {
         const at = H.formListeners.indexOf(listener);
         if (at >= 0) H.formListeners.splice(at, 1);
       };
     },
-    mutate(operations) {
+    mutate(operations: unknown): boolean {
       H.mutateCalls.push(cloneJson(operations));
       try {
-        for (const operation of Array.isArray(operations) ? operations : []) {
-          if (!operation || !Array.isArray(operation.path) || operation.path.length === 0) continue;
-          if (operation.op === 'set') setPath(settingsValue, operation.path, operation.value);
-          else if (operation.op === 'unset') unsetPath(settingsValue, operation.path);
+        for (const candidate of Array.isArray(operations) ? operations : []) {
+          if (!isRecord(candidate)) continue;
+          const path = candidate.path;
+          if (!Array.isArray(path) || path.length === 0) continue;
+          if (candidate.op === 'set') setPath(settingsValue, path, candidate.value);
+          else if (candidate.op === 'unset') unsetPath(settingsValue, path);
         }
       } catch (error) {
-        H.errors.push('form.mutate: ' + (error && error.stack ? error.stack : error));
+        H.errors.push('form.mutate: ' + errorText(error));
       }
       H.revision += 1;
       notifyForm();
       return true;
     },
-    set(field, value) {
+    set(field: unknown, value: unknown): boolean {
       H.setCalls.push([cloneJson(field), cloneJson(value)]);
       setPath(settingsValue, fieldPath(field), value);
       H.revision += 1;
       notifyForm();
       return true;
     },
-    unset(field) {
+    unset(field: unknown): boolean {
       H.setCalls.push([cloneJson(field), '<unset>']);
       unsetPath(settingsValue, fieldPath(field));
       H.revision += 1;
@@ -342,21 +558,25 @@ async function browserDriver(config) {
   };
 
   const configForms = {
-    get(id) {
+    get(id: string): typeof form | null {
       return id === 'dsh-model-logos' ? form : null;
     },
     // The settings mirror: the plugin calls ensure()/getSnapshot()/subscribe()
     // and reads view.namespaces for the model catalog. This deployment has no
     // extra namespaces to contribute.
-    describe() {
+    describe(): {
+      ensure(): Promise<void>;
+      getSnapshot(): { view: { namespaces: unknown[] } };
+      subscribe(): () => void;
+    } {
       return {
-        ensure() {
+        ensure(): Promise<void> {
           return Promise.resolve();
         },
-        getSnapshot() {
+        getSnapshot(): { view: { namespaces: unknown[] } } {
           return { view: { namespaces: [] } };
         },
-        subscribe() {
+        subscribe(): () => void {
           return () => {};
         },
       };
@@ -364,24 +584,31 @@ async function browserDriver(config) {
   };
 
   const llm = {
-    listConfigurableProviders() {
+    listConfigurableProviders(): Promise<DirectoryEntry[]> {
       return Promise.resolve(config.directory.map((entry) => Object.assign({}, entry)));
     },
-    listProviders() {
+    listProviders(): Promise<Array<{ id: string; name: string }>> {
       return Promise.resolve([{ id: 'deepseek-account', name: 'DeepSeek Account' }]);
     },
-    discoverModels() {
+    discoverModels(): Promise<unknown[]> {
       return Promise.resolve([]);
     },
   };
-  const remote = { llm, settings: { get() { return Promise.resolve(undefined); } } };
+  const remote = {
+    llm,
+    settings: {
+      get(): Promise<undefined> {
+        return Promise.resolve(undefined);
+      },
+    },
+  };
 
-  const localeListeners = [];
+  const localeListeners: Array<() => void> = [];
   const locale = {
-    getSnapshot() {
+    getSnapshot(): { active: string; locales: string[] } {
       return { active: config.lang, locales: [config.lang] };
     },
-    subscribe(listener) {
+    subscribe(listener: () => void): () => void {
       localeListeners.push(listener);
       return () => {
         const at = localeListeners.indexOf(listener);
@@ -391,25 +618,26 @@ async function browserDriver(config) {
   };
 
   const slots = {
-    inject(name, callback) {
+    inject(name: string, callback: () => unknown): () => void {
       H.slotRequests.push(name);
       // Only slots the fixture declares would resolve in the real app.
       if (name === 'conversation.input.model.label' || name === 'settings.section') {
         try {
           callback();
         } catch (error) {
-          H.errors.push('slots.inject(' + name + '): ' + (error && error.stack ? error.stack : error));
+          H.errors.push('slots.inject(' + name + '): ' + errorText(error));
         }
       }
       return () => {};
     },
-    register(options, component) {
-      H.registrations.push({ options: options, component: component, slot: options && options.name });
-      return { dispose() {} };
+    register(options: unknown, component: unknown): { dispose(): void } {
+      const record = isRecord(options) ? options : undefined;
+      H.registrations.push({ options: record, component, slot: record === undefined ? undefined : record.name });
+      return { dispose(): void {} };
     },
   };
 
-  const services = {
+  const services: Record<string, unknown> = {
     slots,
     locale,
     configForms,
@@ -420,60 +648,71 @@ async function browserDriver(config) {
     'remote.llm': llm,
     llm,
     theme: {
-      getSnapshot() {
+      getSnapshot(): { mode: string; appearance: string } {
         return { mode: 'light', appearance: 'light' };
       },
-      subscribe() {
+      subscribe(): () => void {
         return () => {};
       },
     },
-    connection: { getSnapshot() { return { status: 'connected' }; }, subscribe() { return () => {}; } },
+    connection: {
+      getSnapshot(): { status: string } {
+        return { status: 'connected' };
+      },
+      subscribe(): () => void {
+        return () => {};
+      },
+    },
   };
 
-  function effect(callback, label) {
+  function effect(callback: () => unknown, label?: string): () => void {
     try {
       const dispose = callback();
-      if (typeof dispose === 'function') H.cleanups.push(dispose);
+      if (isCleanup(dispose)) H.cleanups.push(dispose);
       else if (Array.isArray(dispose)) {
-        for (const candidate of dispose) if (typeof candidate === 'function') H.cleanups.push(candidate);
+        for (const candidate of dispose) if (isCleanup(candidate)) H.cleanups.push(candidate);
       }
     } catch (error) {
-      H.errors.push('effect(' + (label || 'unlabelled') + '): ' + (error && error.stack ? error.stack : error));
+      H.errors.push('effect(' + (label || 'unlabelled') + '): ' + errorText(error));
     }
     return () => {};
   }
 
   /** Resolve a service by the exact key the bundle asks for (`remote.llm` included). */
-  function getService(name) {
+  function getService(name: unknown): unknown {
     if (typeof name !== 'string') return undefined;
     if (Object.prototype.hasOwnProperty.call(services, name)) return services[name];
     // Tolerate a dotted read that was requested as a property chain.
     if (name.includes('.')) {
-      let node = services;
+      let node: unknown = services;
       for (const part of name.split('.')) {
         if (node === null || typeof node !== 'object') return undefined;
-        node = node[part];
+        node = (node as Record<string, unknown>)[part];
       }
       return node;
     }
     return undefined;
   }
 
-  const on = () => () => {};
+  const on = (): (() => void) => () => {};
 
-  function inject(dependencies, callback) {
-    const requested = Array.isArray(dependencies) ? dependencies : dependencies === undefined ? [] : [dependencies];
+  function inject(dependencies: unknown, callback: (scope: unknown) => unknown): () => void {
+    const requested: unknown[] = Array.isArray(dependencies)
+      ? dependencies
+      : dependencies === undefined
+        ? []
+        : [dependencies];
     H.injected.push(...requested.map((name) => String(name)));
     try {
       const dispose = callback(makeContext());
-      if (typeof dispose === 'function') H.cleanups.push(dispose);
+      if (isCleanup(dispose)) H.cleanups.push(dispose);
     } catch (error) {
-      H.errors.push('inject(' + JSON.stringify(requested) + '): ' + (error && error.stack ? error.stack : error));
+      H.errors.push('inject(' + JSON.stringify(requested) + '): ' + errorText(error));
     }
     return () => {};
   }
 
-  function makeContext() {
+  function makeContext(): Record<string, unknown> {
     return {
       slots,
       locale,
@@ -493,15 +732,16 @@ async function browserDriver(config) {
 
   /* ----------------------------- bundle loading ---------------------------- */
 
-  function makeJsxRuntime() {
+  function makeJsxRuntime(): Record<string, unknown> {
     const React = window.React;
-    const create = (type, config, maybeKey) => {
-      const props = {};
+    const create = (type: unknown, config: unknown, maybeKey?: unknown): unknown => {
+      const props: Record<string, unknown> = {};
       let key = maybeKey;
       if (config !== null && config !== undefined) {
         for (const name in config) {
-          if (name === 'key') key = config[name];
-          else props[name] = config[name];
+          const value = (config as Record<string, unknown>)[name];
+          if (name === 'key') key = value;
+          else props[name] = value;
         }
       }
       if (key !== undefined) props.key = key;
@@ -510,68 +750,71 @@ async function browserDriver(config) {
     return { Fragment: React.Fragment, jsx: create, jsxs: create, jsxDEV: create };
   }
 
-  function makeRequire() {
-    return (id) => {
+  function makeRequire(): (id: string) => unknown {
+    return (id: string): unknown => {
       if (id === 'react') return window.React;
       if (id === 'react-dom') return window.ReactDOM;
       if (id === 'react-dom/client') {
-        return { createRoot: window.ReactDOM.createRoot, hydrateRoot: window.ReactDOM.hydrateRoot };
+        return { createRoot: window.ReactDOM.createRoot };
       }
       if (id === 'react/jsx-runtime' || id === 'react/jsx-dev-runtime') return makeJsxRuntime();
       throw new Error('harness has no module for require(' + JSON.stringify(id) + ')');
     };
   }
 
-  let exported = null;
+  let exported: BundleExports | null = null;
   try {
     const definition = window.__dshmlModule;
     if (!definition || typeof definition.factory !== 'function') {
       throw new Error('client.js did not call window.__ModuleLoader__.load({ factory })');
     }
-    exported = definition.factory(makeRequire());
-    if (!exported || typeof exported.apply !== 'function') throw new Error('the bundle factory did not return { apply }');
+    const factoryResult = definition.factory(makeRequire());
+    if (!isBundleExports(factoryResult)) throw new Error('the bundle factory did not return { apply }');
+    exported = factoryResult;
   } catch (error) {
-    H.errors.push('factory: ' + (error && error.stack ? error.stack : error));
+    H.errors.push('factory: ' + errorText(error));
   }
 
-  let applyDispose = null;
-  if (exported) {
+  let applyDispose: unknown = null;
+  if (exported !== null) {
     try {
       applyDispose = exported.apply(makeContext());
-      if (typeof applyDispose === 'function') H.cleanups.push(applyDispose);
+      if (isCleanup(applyDispose)) H.cleanups.push(applyDispose);
     } catch (error) {
-      H.errors.push('apply: ' + (error && error.stack ? error.stack : error));
+      H.errors.push('apply: ' + errorText(error));
     }
   }
 
   const root = q('[data-shortcut-modal="settings"]');
   const rowCards = root ? qa('li.jrmgQW_rowCard', root) : [];
   const modelEntries = root ? qa('.jrmgQW_modelEntry', root) : [];
-  const modelRows = modelEntries.map((entry) => q('.jrmgQW_modelRow', entry)).filter(Boolean);
+  const modelRows = modelEntries
+    .map((entry) => q('.jrmgQW_modelRow', entry))
+    .filter((row): row is HTMLElement => row !== null);
 
   /* -------------------------- decoration locators -------------------------- */
 
-  const vendorMarkers = () => qa('[data-dshml-vendor]');
+  const vendorMarkers = (): HTMLElement[] => qa('[data-dshml-vendor]');
 
-  function findProviderRow(displayName) {
-    return rowCards.filter((row) => text(q('.jrmgQW_rowName', row)) === displayName)[0] || null;
+  function findProviderRow(displayName: string): HTMLElement | null {
+    return rowCards.filter((row) => text(q('.jrmgQW_rowName', row)) === displayName)[0] ?? null;
   }
 
   /** Model rows carry [data-dshml-model-row] once decorated; the button is `.dshml-model-icon-btn`. */
-  function modelRowNodes() {
+  function modelRowNodes(): HTMLElement[] {
     return root ? qa('[data-dshml-model-row]', root) : [];
   }
 
-  function findModelRowButton(index) {
+  function findModelRowButton(index: number): HTMLButtonElement | null {
     const row = modelRowNodes()[index];
     if (!row) return null;
-    return q('.dshml-model-icon-btn', row) || null;
+    return q<HTMLButtonElement>('.dshml-model-icon-btn', row);
   }
 
-  function findComboboxFace(select) {
+  function findComboboxFace(select: Element | null): HTMLElement | null {
     if (!select) return null;
     const field = select.closest('.jrmgQW_field');
-    const scopes = [field, root].filter(Boolean);
+    const scopes: ParentNode[] = [field, root].filter((scope): scope is HTMLElement => scope !== null);
     for (const scope of scopes) {
       for (const button of qa('.dshml-combo-button', scope)) {
         if (button !== select && visible(button)) return button;
@@ -584,8 +827,9 @@ async function browserDriver(config) {
   }
 
   /** The open `.dshml-combo-menu` (hidden while the combobox is closed). */
-  function findComboMenu() {
-    const direct = qa('.dshml-combo .dshml-combo-menu, [data-dshml-combo="1"] [role="listbox"]').filter(visible)[0];
+  function findComboMenu(): HTMLElement | null {
+    const direct =
+      qa('.dshml-combo .dshml-combo-menu, [data-dshml-combo="1"] [role="listbox"]').filter(visible)[0] ?? null;
     if (direct) return direct;
     // Fallback: the smallest visible element that carries every option label.
     const labels = config.options.map((option) => option.label);
@@ -598,11 +842,11 @@ async function browserDriver(config) {
       return true;
     });
     candidates.sort((left, right) => text(left).length - text(right).length);
-    return candidates[0] || null;
+    return candidates[0] ?? null;
   }
 
   /** Menu entries carry `data-value`; fall back to matching their label text. */
-  function findMenuItems(menu) {
+  function findMenuItems(menu: Element | null): MenuItem[] {
     if (!menu) return [];
     const items = qa('.dshml-combo-item[data-value]', menu);
     if (items.length > 0) {
@@ -612,36 +856,36 @@ async function browserDriver(config) {
         node,
       }));
     }
-    const fallback = [];
+    const fallback: MenuItem[] = [];
     for (const option of config.options) {
-      const candidates = qa('*', menu).filter((node) => text(node) === option.label);
-      let smallest = null;
+      const candidates: HTMLElement[] = qa('*', menu).filter((node) => text(node) === option.label);
+      let smallest: HTMLElement | null = null;
       for (const candidate of candidates) if (smallest === null || smallest.contains(candidate)) smallest = candidate;
       if (smallest) fallback.push({ value: option.value, label: option.label, node: smallest });
     }
     return fallback;
   }
 
-  function clickable(node) {
-    return node.closest('button, [role="option"], [role="menuitem"], [role="menuitemradio"], li') || node;
+  function clickable(node: HTMLElement): HTMLElement {
+    return node.closest<HTMLElement>('button, [role="option"], [role="menuitem"], [role="menuitemradio"], li') || node;
   }
 
   /** The icon picker modal root is `[data-dshml-picker]` (portaled into body). */
-  function findPicker() {
-    const direct = qa('[data-dshml-picker]').filter(visible)[0];
+  function findPicker(): HTMLElement | null {
+    const direct = qa('[data-dshml-picker]').filter(visible)[0] ?? null;
     if (direct) return direct;
     const candidates = qa('.dshml-picker-layer, [role="dialog"]').filter(
       (node) => !node.hasAttribute('data-shortcut-modal') && visible(node),
     );
-    return candidates[0] || null;
+    return candidates[0] ?? null;
   }
 
-  function pickerTitle(picker) {
+  function pickerTitle(picker: Element | null): string {
     const title = picker ? q('.dshml-picker-title', picker) : null;
     return title ? text(title) : '';
   }
 
-  function findPickerOption(picker, label) {
+  function findPickerOption(picker: Element | null, label: string): HTMLElement | null {
     if (!picker) return null;
     const nodes = qa('.dshml-picker-option, [aria-label], [title], button, [role="option"]', picker);
     for (const node of nodes) {
@@ -649,12 +893,16 @@ async function browserDriver(config) {
       if (name === label) return node;
     }
     const labelled = qa('*', picker).filter((node) => text(node) === label);
-    let smallest = null;
+    let smallest: HTMLElement | null = null;
     for (const node of labelled) if (smallest === null || smallest.contains(node)) smallest = node;
     return smallest;
   }
 
-  async function chooseInCombobox(face, select, value) {
+  async function chooseInCombobox(
+    face: HTMLElement | null,
+    select: HTMLSelectElement | null,
+    value: string,
+  ): Promise<boolean> {
     if (!face || !select) return false;
     if (face.getAttribute('aria-expanded') !== 'true') face.click();
     const menu = await waitFor(findComboMenu, 3000);
@@ -673,7 +921,7 @@ async function browserDriver(config) {
     document.documentElement.setAttribute('data-dshml-screenshot', '1');
     await sleep(150);
     if (OPEN === 'combobox' || OPEN === 'menu') {
-      const select = q('.jrmgQW_addPanel select', root);
+      const select = q<HTMLSelectElement>('.jrmgQW_addPanel select', root);
       const face = select ? findComboboxFace(select) : null;
       if (face) face.click();
       await waitFor(findComboMenu, 3000);
@@ -683,13 +931,13 @@ async function browserDriver(config) {
       await waitFor(findPicker, 5000);
     }
     await sleep(350);
-    const screenshotResult = {
+    const screenshotResult: ScreenshotResult = {
       mode: 'screenshot',
       open: OPEN,
       decorated: {
         vendor: vendorMarkers().length,
         modelRows: qa('[data-dshml-model-row]').length,
-        combobox: !!findComboboxFace(q('.jrmgQW_addPanel select', root)),
+        combobox: !!findComboboxFace(q<HTMLSelectElement>('.jrmgQW_addPanel select', root)),
         picker: !!findPicker(),
       },
       pageErrors,
@@ -727,35 +975,43 @@ async function browserDriver(config) {
     // yet the vendor mark must still land before its row name.
     const accountRow = findProviderRow(config.accountProvider.displayName);
     const accountName = accountRow ? q('.jrmgQW_rowName', accountRow) : null;
-    const accountMarker = accountName
-      ? qa('[data-dshml-vendor="' + config.accountProvider.id + '"]', accountRow).filter(
-          (marker) => marker.parentElement === accountName.parentElement,
-        )[0]
-      : null;
+    const accountMarker =
+      (accountName
+        ? qa('[data-dshml-vendor="' + config.accountProvider.id + '"]', accountRow).filter(
+            (marker) => marker.parentElement === accountName.parentElement,
+          )[0]
+        : null) ?? null;
     add(
       'vendor logo before localized account row name (deepseek-account alias)',
       true,
       !!accountMarker && !!q('svg', accountMarker) && isBefore(accountMarker, accountName),
       accountMarker
         ? 'marker ' + describeNode(accountMarker) + ' precedes ' + describeNode(accountName)
-        : 'no [data-dshml-vendor="' + config.accountProvider.id + '"] beside "' + config.accountProvider.displayName +
-            '"; row buttons=' + (accountRow ? qa('button[aria-label]', accountRow).length : 'row missing'),
+        : 'no [data-dshml-vendor="' +
+            config.accountProvider.id +
+            '"] beside "' +
+            config.accountProvider.displayName +
+            '"; row buttons=' +
+            (accountRow ? qa('button[aria-label]', accountRow).length : 'row missing'),
     );
 
     const officialRow = findProviderRow(config.officialProvider.displayName);
     const officialName = officialRow ? q('.jrmgQW_rowName', officialRow) : null;
-    const rowMarker = officialName
-      ? qa('[data-dshml-vendor="' + config.officialProvider.id + '"]', officialRow).filter(
-          (marker) => marker.parentElement === officialName.parentElement,
-        )[0]
-      : null;
+    const rowMarker =
+      (officialName
+        ? qa('[data-dshml-vendor="' + config.officialProvider.id + '"]', officialRow).filter(
+            (marker) => marker.parentElement === officialName.parentElement,
+          )[0]
+        : null) ?? null;
     add(
       'vendor logo before official provider row name (' + config.officialProvider.displayName + ')',
       true,
       !!rowMarker && !!q('svg', rowMarker) && isBefore(rowMarker, officialName),
       rowMarker
         ? 'marker ' + describeNode(rowMarker) + ' precedes ' + describeNode(officialName)
-        : 'no [data-dshml-vendor="' + config.officialProvider.id + '"] beside .jrmgQW_rowName; markers=' +
+        : 'no [data-dshml-vendor="' +
+            config.officialProvider.id +
+            '"] beside .jrmgQW_rowName; markers=' +
             JSON.stringify(qa('[data-dshml-vendor]').map((node) => node.getAttribute('data-dshml-vendor'))),
     );
     if (rowMarker) {
@@ -769,11 +1025,12 @@ async function browserDriver(config) {
     }
 
     const editorTitle = officialRow ? q('.jrmgQW_editorHeader .jrmgQW_editorTitle', officialRow) : null;
-    const titleMarker = editorTitle
-      ? qa('[data-dshml-vendor="' + config.officialProvider.id + '"]', officialRow).filter(
-          (marker) => marker.parentElement === editorTitle.parentElement && isBefore(marker, editorTitle),
-        )[0]
-      : null;
+    const titleMarker =
+      (editorTitle
+        ? qa('[data-dshml-vendor="' + config.officialProvider.id + '"]', officialRow).filter(
+            (marker) => marker.parentElement === editorTitle.parentElement && isBefore(marker, editorTitle),
+          )[0]
+        : null) ?? null;
     add(
       'vendor logo before the provider editor title',
       true,
@@ -795,9 +1052,11 @@ async function browserDriver(config) {
         : 'custom provider row not found',
     );
 
-    const select = q('.jrmgQW_addPanel select', root);
+    const select = q<HTMLSelectElement>('.jrmgQW_addPanel select', root);
     const optionPollution = select
-      ? qa('option', select).filter((option) => option.children.length > 0 || qa('[data-dshml-vendor]', option).length > 0)
+      ? qa<HTMLOptionElement>('option', select).filter(
+          (option) => option.children.length > 0 || qa('[data-dshml-vendor]', option).length > 0,
+        )
       : [];
     add(
       'no decoration inserted inside native <select> options',
@@ -810,14 +1069,15 @@ async function browserDriver(config) {
 
     const rowStates = qa('.jrmgQW_modelEntry .jrmgQW_modelRow', root).map((row, index) => {
       const first = row.firstElementChild;
-      const button = first && first.classList.contains('dshml-model-icon-btn') ? first : q('.dshml-model-icon-btn', row);
+      const button =
+        first !== null && first.classList.contains('dshml-model-icon-btn') ? first : q('.dshml-model-icon-btn', row);
       const mark = button ? q('.dshml-model-mark', button) : null;
       return {
-        index: index,
-        row: row,
-        first: first,
+        index,
+        row,
+        first,
         marked: row.getAttribute('data-dshml-model-row') === '1',
-        button: button,
+        button,
         childCount: row.children.length,
         hasSvg: !!mark && !!q('svg', mark),
         placeholder: !!button && !!q('.dshml-model-placeholder', button),
@@ -839,7 +1099,11 @@ async function browserDriver(config) {
       JSON.stringify(
         rowStates.map((state) => ({
           row: state.index + 1,
-          first: state.first ? state.first.tagName.toLowerCase() + '.' + (typeof state.first.className === 'string' ? state.first.className.split(' ')[0] : '') : 'none',
+          first: state.first
+            ? state.first.tagName.toLowerCase() +
+              '.' +
+              (typeof state.first.className === 'string' ? state.first.className.split(' ')[0] : '')
+            : 'none',
           marked: state.marked,
           children: state.childCount,
           ariaLabel: state.ariaLabel,
@@ -850,7 +1114,9 @@ async function browserDriver(config) {
       'every model row shows a brand mark (heuristic initial icon, not the placeholder)',
       true,
       rowStates.length === config.modelRows && rowStates.every((state) => state.hasSvg && !state.placeholder),
-      JSON.stringify(rowStates.map((state) => ({ row: state.index + 1, svg: state.hasSvg, placeholder: state.placeholder }))),
+      JSON.stringify(
+        rowStates.map((state) => ({ row: state.index + 1, svg: state.hasSvg, placeholder: state.placeholder })),
+      ),
     );
     const gridTrackCounts = qa('.jrmgQW_modelEntry .jrmgQW_modelRow', root).map((row) => {
       const value = getComputedStyle(row).gridTemplateColumns;
@@ -863,7 +1129,7 @@ async function browserDriver(config) {
       'grid-template-columns track counts=' + JSON.stringify(gridTrackCounts),
     );
 
-    const selectHiddenOk = (() => {
+    const selectHiddenOk = ((): boolean => {
       if (!select) return false;
       const style = getComputedStyle(select);
       const opacityHidden = Number(style.opacity) === 0 || parseFloat(style.height) === 0;
@@ -902,7 +1168,7 @@ async function browserDriver(config) {
       !!face &&
         face.classList.contains('dshml-combo-button') &&
         visible(face) &&
-        text(face).indexOf(text(select.options[select.selectedIndex])) >= 0,
+        text(face).indexOf(text(select?.options[select.selectedIndex])) >= 0,
       face
         ? 'face ' + describeNode(face) + ' -> "' + text(face) + '"'
         : 'no visible .dshml-combo-button after the hidden select',
@@ -915,8 +1181,8 @@ async function browserDriver(config) {
       });
     }
 
-    let menu = null;
-    let menuItems = [];
+    let menu: HTMLElement | null = null;
+    let menuItems: MenuItem[] = [];
     if (face && select) {
       face.click();
       menu = await waitFor(findComboMenu, 4000);
@@ -931,9 +1197,9 @@ async function browserDriver(config) {
         menu === null
           ? 'no open .dshml-combo-menu containing all option labels'
           : 'items=' +
-            JSON.stringify(
-              menuItems.map((item) => ({ value: item.value, label: item.label, svg: !!q('svg', item.node) })),
-            ),
+              JSON.stringify(
+                menuItems.map((item) => ({ value: item.value, label: item.label, svg: !!q('svg', item.node) })),
+              ),
       );
 
       // The decorator inserts marks before *provider identity* text; it must never
@@ -987,15 +1253,15 @@ async function browserDriver(config) {
     // Clicking a model-row logo opens the picker.
     const firstMarkedRow = q('[data-dshml-model-row="1"]', root);
     const iconButton =
-      (firstMarkedRow ? q('.dshml-model-icon-btn', firstMarkedRow) : null) || findModelRowButton(0);
-    const markBefore = iconButton ? (q('.dshml-model-mark', iconButton) || {}).innerHTML || '' : '';
+      (firstMarkedRow ? q<HTMLButtonElement>('.dshml-model-icon-btn', firstMarkedRow) : null) || findModelRowButton(0);
+    const markBefore = iconButton ? (q('.dshml-model-mark', iconButton)?.innerHTML ?? '') : '';
     add(
       'model row exposes a clickable `.dshml-model-icon-btn`',
       true,
       !!iconButton && iconButton.tagName === 'BUTTON' && iconButton.type === 'button',
       iconButton ? describeNode(iconButton) : 'no .dshml-model-icon-btn in [data-dshml-model-row="1"]',
     );
-    let picker = null;
+    let picker: HTMLElement | null = null;
     if (iconButton) {
       iconButton.click();
       picker = await waitFor(findPicker, 5000);
@@ -1004,18 +1270,17 @@ async function browserDriver(config) {
         'clicking a model-row logo opens the icon picker modal',
         true,
         !!picker && (title.indexOf('选择模型图标') >= 0 || title.indexOf('Choose model icon') >= 0),
-        picker
-          ? 'root ' + describeNode(picker) + ' title "' + title + '"'
-          : 'no [data-dshml-picker] modal appeared',
+        picker ? 'root ' + describeNode(picker) + ' title "' + title + '"' : 'no [data-dshml-picker] modal appeared',
       );
     } else {
       add('clicking a model-row logo opens the icon picker modal', true, false, 'skipped: no picker button');
     }
 
     // Picking a brand writes the nested override through configForms.mutate.
-    let write = null;
-    if (picker) {
-      const brandOption = findPickerOption(picker, 'OpenAI');
+    let write: unknown[] | null = null;
+    if (picker !== null) {
+      const pickerNode = picker;
+      const brandOption = findPickerOption(pickerNode, 'OpenAI');
       add(
         'picker offers brand options',
         true,
@@ -1025,55 +1290,56 @@ async function browserDriver(config) {
       if (brandOption) {
         clickable(brandOption).click();
         write = await waitFor(() => {
-          return (
-            H.mutateCalls.filter((call) => {
-              const serialized = JSON.stringify(call);
-              return (
-                serialized.indexOf('modelIcons') >= 0 &&
-                serialized.indexOf(config.firstModel.providerId) >= 0 &&
-                serialized.indexOf(config.firstModel.modelId) >= 0
-              );
-            })[0] || null
-          );
+          const match = H.mutateCalls.filter((call) => {
+            const serialized = JSON.stringify(call);
+            return (
+              serialized.indexOf('modelIcons') >= 0 &&
+              serialized.indexOf(config.firstModel.providerId) >= 0 &&
+              serialized.indexOf(config.firstModel.modelId) >= 0
+            );
+          })[0];
+          return Array.isArray(match) ? match : null;
         }, 5000);
       }
-      const closed = await waitFor(() => !picker.isConnected || !visible(picker), 4000);
+      const closed = await waitFor(() => !pickerNode.isConnected || !visible(pickerNode), 4000);
       add('picker closes after a successful write', false, !!closed, closed ? 'modal removed' : 'modal still visible');
     }
 
-    const writeOperation = write
-      ? write.filter((operation) => operation && operation.op === 'set' && Array.isArray(operation.path))[0] || null
-      : null;
+    const writeOperation =
+      write === null ? null : (write.find((operation) => isRecord(operation) && operation.op === 'set') ?? null);
+    const writePath =
+      writeOperation !== null && isRecord(writeOperation) && Array.isArray(writeOperation.path)
+        ? writeOperation.path
+        : null;
+    const writeValue = writeOperation !== null && isRecord(writeOperation) ? writeOperation.value : undefined;
     add(
       'picking a brand writes modelIcons[provider][model] through configForms.mutate',
       true,
-      !!writeOperation &&
-        writeOperation.path[0] === 'modelIcons' &&
-        writeOperation.path[1] === config.firstModel.providerId &&
-        writeOperation.path[2] === config.firstModel.modelId &&
-        typeof writeOperation.value === 'string' &&
-        writeOperation.value !== 'none',
-      writeOperation
-        ? 'op=' + JSON.stringify(writeOperation)
-        : 'mutate calls=' + JSON.stringify(H.mutateCalls),
+      writePath !== null &&
+        writePath[0] === 'modelIcons' &&
+        writePath[1] === config.firstModel.providerId &&
+        writePath[2] === config.firstModel.modelId &&
+        typeof writeValue === 'string' &&
+        writeValue !== 'none',
+      writeOperation ? 'op=' + JSON.stringify(writeOperation) : 'mutate calls=' + JSON.stringify(H.mutateCalls),
     );
+    const overrideBucket = H.overrides[config.firstModel.providerId];
     add(
       'picked brand key lands in the persisted override map',
       true,
-      !!writeOperation &&
-        H.overrides[config.firstModel.providerId] !== undefined &&
-        H.overrides[config.firstModel.providerId][config.firstModel.modelId] === writeOperation.value,
+      overrideBucket !== undefined && overrideBucket[config.firstModel.modelId] === writeValue,
       'modelIcons=' + JSON.stringify(H.overrides),
     );
     add(
       'picked option is the OpenAI brand mark',
       true,
-      !!writeOperation && writeOperation.value === 'openai',
-      'value="' + (writeOperation ? writeOperation.value : '') + '"',
+      writeValue === 'openai',
+      'value="' + String(writeValue ?? '') + '"',
     );
     if (iconButton) {
+      const button = iconButton;
       const refreshedMark = await waitFor(() => {
-        const markNow = (q('.dshml-model-mark', iconButton) || {}).innerHTML || '';
+        const markNow = q('.dshml-model-mark', button)?.innerHTML ?? '';
         return markNow !== '' && markNow !== markBefore ? markNow : null;
       }, 4000);
       add(
@@ -1091,8 +1357,8 @@ async function browserDriver(config) {
     add(
       'composer label contribution still registers at priority -1',
       false,
-      !!labelRegistration && labelRegistration.options.priority === -1,
-      labelRegistration ? 'priority=' + labelRegistration.options.priority : 'not registered',
+      !!labelRegistration && labelRegistration.options?.priority === -1,
+      labelRegistration ? 'priority=' + String(labelRegistration.options?.priority) : 'not registered',
     );
     add(
       'settings.section contribution registers the Model icons page',
@@ -1106,27 +1372,29 @@ async function browserDriver(config) {
       'registrations=' + JSON.stringify(H.registrations.map((registration) => registration.options)),
     );
 
-    let labelHost = null;
-    let labelRoot = null;
+    let labelHost: HTMLElement | null = null;
+    let labelRoot: ReactRootLike | null = null;
     if (labelRegistration && window.React && window.ReactDOM) {
       try {
-        labelHost = document.createElement('div');
-        labelHost.id = 'dshml-label-probe';
-        labelHost.hidden = true;
-        document.body.appendChild(labelHost);
-        labelRoot = window.ReactDOM.createRoot(labelHost);
+        const host = document.createElement('div');
+        host.id = 'dshml-label-probe';
+        host.hidden = true;
+        document.body.appendChild(host);
+        labelHost = host;
+        const mounted = window.ReactDOM.createRoot(host);
+        labelRoot = mounted;
         const props = {
           provider: { id: config.firstModel.providerId, name: config.officialProvider.displayName },
           model: { id: config.firstModel.modelId, name: config.firstModel.displayName },
           placement: 'trigger',
         };
-        labelRoot.render(window.React.createElement(labelRegistration.component, props));
-        const rendered = await waitFor(() => labelHost.querySelector('.dshml-mark, svg'), 4000);
+        mounted.render(window.React.createElement(labelRegistration.component, props));
+        const rendered = await waitFor(() => host.querySelector('.dshml-mark, svg'), 4000);
         add(
           'composer label renders the overridden brand mark',
           false,
-          !!rendered && text(labelHost).indexOf(config.firstModel.displayName) >= 0,
-          rendered ? 'markup: ' + labelHost.innerHTML.slice(0, 160) : 'no mark rendered',
+          !!rendered && text(host).indexOf(config.firstModel.displayName) >= 0,
+          rendered ? 'markup: ' + host.innerHTML.slice(0, 160) : 'no mark rendered',
         );
         form.mutate([
           {
@@ -1135,29 +1403,26 @@ async function browserDriver(config) {
             value: 'none',
           },
         ]);
-        labelRoot.render(window.React.createElement(labelRegistration.component, props));
+        mounted.render(window.React.createElement(labelRegistration.component, props));
         await sleep(120);
         add(
           "composer label honours an explicit 'none' override",
           false,
-          labelHost.querySelector('svg, .dshml-mark') === null &&
-            text(labelHost).indexOf(config.firstModel.displayName) >= 0,
-          'markup: ' + labelHost.innerHTML.slice(0, 160),
+          host.querySelector('svg, .dshml-mark') === null && text(host).indexOf(config.firstModel.displayName) >= 0,
+          'markup: ' + host.innerHTML.slice(0, 160),
         );
-        form.mutate([
-          { op: 'unset', path: ['modelIcons', config.firstModel.providerId, config.firstModel.modelId] },
-        ]);
+        form.mutate([{ op: 'unset', path: ['modelIcons', config.firstModel.providerId, config.firstModel.modelId] }]);
       } catch (error) {
-        add('composer label renders the overridden brand mark', false, false, 'threw: ' + (error && error.stack ? error.stack : error));
+        add('composer label renders the overridden brand mark', false, false, 'threw: ' + errorText(error));
       } finally {
-        if (labelRoot) {
+        if (labelRoot !== null) {
           try {
             labelRoot.unmount();
           } catch {
             /* rendering a plain fragment needs no unmount bookkeeping */
           }
         }
-        if (labelHost) labelHost.remove();
+        if (labelHost !== null) labelHost.remove();
       }
     }
 
@@ -1175,7 +1440,7 @@ async function browserDriver(config) {
       try {
         dispose();
       } catch (error) {
-        H.errors.push('dispose: ' + (error && error.stack ? error.stack : error));
+        H.errors.push('dispose: ' + errorText(error));
       }
     }
     await sleep(300);
@@ -1183,10 +1448,9 @@ async function browserDriver(config) {
     const markerCount = qa('[data-dshml-vendor]', root || document).length;
     const rowMarkerCount = qa('[data-dshml-model-row]', root || document).length;
     const ownerCount = qa('[data-dshml-owner="1"]', root || document).length;
-    const rowsRestored =
-      qa('.jrmgQW_modelEntry .jrmgQW_modelRow', root || document).every(
-        (row) => row.firstElementChild !== null && row.firstElementChild.tagName === 'INPUT',
-      );
+    const rowsRestored = qa('.jrmgQW_modelEntry .jrmgQW_modelRow', root || document).every(
+      (row) => row.firstElementChild !== null && row.firstElementChild.tagName === 'INPUT',
+    );
     add(
       'dispose removes the inserted decoration',
       true,
@@ -1208,7 +1472,7 @@ async function browserDriver(config) {
         rowsRestored,
     );
 
-    const selectAfter = q('.jrmgQW_addPanel select', root || document);
+    const selectAfter = q<HTMLSelectElement>('.jrmgQW_addPanel select', root || document);
     const selectStyle = selectAfter ? getComputedStyle(selectAfter) : null;
     add(
       'dispose restores the native provider select',
@@ -1216,45 +1480,51 @@ async function browserDriver(config) {
       !!selectAfter &&
         selectAfter.getAttribute('aria-hidden') !== 'true' &&
         selectAfter.tabIndex !== -1 &&
+        selectStyle !== null &&
         selectStyle.position !== 'absolute' &&
         selectStyle.pointerEvents !== 'none' &&
         Number(selectStyle.opacity) > 0.9,
       selectAfter
         ? 'aria-hidden=' +
-          selectAfter.getAttribute('aria-hidden') +
-          ' tabIndex=' +
-          selectAfter.tabIndex +
-          ' position=' +
-          selectStyle.position +
-          ' opacity=' +
-          selectStyle.opacity
+            selectAfter.getAttribute('aria-hidden') +
+            ' tabIndex=' +
+            selectAfter.tabIndex +
+            ' position=' +
+            selectStyle?.position +
+            ' opacity=' +
+            selectStyle?.opacity
         : 'select missing after dispose',
     );
     add(
       'dispose removes the custom combobox and plugin stylesheets',
       true,
       findComboboxFace(selectAfter) === null && qa('style[data-plugin="dsh-model-logos"]').length === 0,
-      'combobox=' + (findComboboxFace(selectAfter) === null ? 'gone' : 'still present') + ', style tags=' + qa('style[data-plugin="dsh-model-logos"]').length,
+      'combobox=' +
+        (findComboboxFace(selectAfter) === null ? 'gone' : 'still present') +
+        ', style tags=' +
+        qa('style[data-plugin="dsh-model-logos"]').length,
     );
 
     const ancestorRow = findProviderRow(config.officialProvider.displayName);
     const rowsList = q('.jrmgQW_rows', root || document);
     if (ancestorRow && rowsList) {
-      const clone = ancestorRow.cloneNode(true);
+      const clone = ancestorRow.cloneNode(true) as HTMLElement;
       rowsList.appendChild(clone);
       await sleep(350);
       add(
         'dispose disconnects the settings MutationObserver',
         true,
         qa('[data-dshml-vendor]', clone).length === 0,
-        qa('[data-dshml-vendor]', clone).length === 0 ? 'clone stayed undecorated' : 'observer kept decorating after dispose',
+        qa('[data-dshml-vendor]', clone).length === 0
+          ? 'clone stayed undecorated'
+          : 'observer kept decorating after dispose',
       );
       clone.remove();
     }
 
     add('no errors thrown while disposing', true, H.errors.length === 0, JSON.stringify(H.errors));
 
-    const result = {
+    const result: VerifyResult = {
       ok: assertions.every((assertion) => !assertion.required || assertion.ok),
       mode: 'verify',
       lang: config.lang,
@@ -1286,15 +1556,34 @@ async function browserDriver(config) {
 /* Node harness                                                               */
 /* -------------------------------------------------------------------------- */
 
-const DRIVER_SOURCE =
-  '(' + browserDriver.toString() + ')(' + JSON.stringify(DRIVER_CONFIG) + ');';
+const DRIVER_SOURCE = '(' + browserDriver.toString() + ')(' + JSON.stringify(DRIVER_CONFIG) + ');';
 
-function findEdge() {
+/** True for any non-null object (arrays included). */
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object';
+}
+
+/** The stack of anything thrown in this process. */
+function readableError(error: unknown): string {
+  if (isPlainRecord(error) && typeof error.stack === 'string') return error.stack;
+  return String(error);
+}
+
+/** Narrow a parsed driver result to its runtime shape. */
+function isDriverResult(value: unknown): value is DriverResult {
+  if (!isPlainRecord(value)) return false;
+  if (value.mode !== 'verify' && value.mode !== 'screenshot') return false;
+  if (!Array.isArray(value.pageErrors) || !Array.isArray(value.consoleIssues)) return false;
+  if (value.mode === 'verify') return Array.isArray(value.assertions);
+  return isPlainRecord(value.decorated);
+}
+
+function findEdge(): string {
   const candidates = [
     process.env.EDGE,
     'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
     'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
-  ].filter(Boolean);
+  ].filter((candidate): candidate is string => typeof candidate === 'string' && candidate !== '');
   const found = candidates.filter((candidate) => existsSync(candidate))[0];
   if (!found) {
     console.error('error: Edge not found; set EDGE=<msedge.exe path>');
@@ -1303,7 +1592,7 @@ function findEdge() {
   return found;
 }
 
-function readRequired(path, label) {
+function readRequired(path: string, label: string): string {
   if (!existsSync(path)) {
     console.error('error: missing ' + label + ': ' + path);
     process.exit(1);
@@ -1312,10 +1601,13 @@ function readRequired(path, label) {
 }
 
 /** Insert the harness scripts before `</body>`; CSS/markup live in the fixture itself. */
-function buildHarness(fixtureHtml, clientJs, headExtra) {
+function buildHarness(fixtureHtml: string, clientJs: string, headExtra: string): string {
   const react = readRequired(REACT_UMD, 'React development UMD');
   const reactDom = readRequired(REACT_DOM_UMD, 'ReactDOM development UMD');
-  const loaderStub = `window.__dshmlModule = null;
+  const loaderStub = `// tsx compiles this script with esbuild's keepNames transform, so the serialized
+// driver body references the bundler's __name() helper; keep it resolvable here.
+window.__name = function (target) { return target; };
+window.__dshmlModule = null;
 window.__ModuleLoader__ = {
   load(definition) {
     window.__dshmlModule = definition;
@@ -1345,7 +1637,14 @@ window.__ModuleLoader__ = {
   return fixtureHtml.slice(0, closeBodyAt) + scripts + fixtureHtml.slice(closeBodyAt);
 }
 
-function runEdge(edge, edgeArgs, timeoutMs) {
+/** The outcome of one headless-Edge invocation. */
+interface RunResult {
+  stdout: string;
+  stderr?: string;
+  failed?: boolean;
+}
+
+function runEdge(edge: string, edgeArgs: string[], timeoutMs: number): RunResult {
   try {
     const stdout = execFileSync(edge, edgeArgs, {
       encoding: 'utf8',
@@ -1356,15 +1655,16 @@ function runEdge(edge, edgeArgs, timeoutMs) {
     });
     return { stdout };
   } catch (error) {
+    const failure = error as { stdout?: unknown; stderr?: unknown; message?: unknown };
     return {
-      stdout: error.stdout ? String(error.stdout) : '',
-      stderr: error.stderr ? String(error.stderr) : String(error.message),
+      stdout: failure.stdout ? String(failure.stdout) : '',
+      stderr: failure.stderr ? String(failure.stderr) : String(failure.message),
       failed: true,
     };
   }
 }
 
-function decodeEntities(html) {
+function decodeEntities(html: string): string {
   return html
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
@@ -1373,17 +1673,20 @@ function decodeEntities(html) {
     .replace(/&amp;/g, '&');
 }
 
-function parseResult(dom) {
+function parseResult(dom: string): DriverResult | null {
   const match = /<pre id="dshml-result"[^>]*>([\s\S]*?)<\/pre>/.exec(dom);
   if (!match) return null;
+  const encoded = match[1];
+  if (encoded === undefined) return null;
   try {
-    return JSON.parse(decodeEntities(match[1]));
+    const parsed: unknown = JSON.parse(decodeEntities(encoded));
+    return isDriverResult(parsed) ? parsed : null;
   } catch {
     return null;
   }
 }
 
-function printAssertions(result) {
+function printAssertions(result: VerifyResult): number {
   let passed = 0;
   let failed = 0;
   let warnings = 0;
@@ -1406,11 +1709,11 @@ function printAssertions(result) {
   return failed;
 }
 
-async function main() {
+async function main(): Promise<void> {
   const fixtureHtml = readRequired(FIXTURE, 'settings fixture');
   const clientJs = readRequired(CLIENT, 'generated client bundle');
 
-  const buildMarkers = {
+  const buildMarkers: Record<string, boolean> = {
     'settings decorator (data-dshml-vendor)': clientJs.indexOf('dshml-vendor') >= 0,
     'model-row decorator (data-dshml-model-row)': clientJs.indexOf('data-dshml-model-row') >= 0,
     'settings section (settings.section)': clientJs.indexOf('settings.section') >= 0,
@@ -1421,7 +1724,7 @@ async function main() {
   if (stale) {
     console.error('warning: client.js looks stale (no Settings decoration code found):');
     for (const name of missingMarkers) console.error('  - missing ' + name);
-    console.error('  ask the Lead to run `node scripts/build-client.mjs` first');
+    console.error('  ask the Lead to run `npm run build` first');
     if (requireBuild) process.exit(2);
   }
   if (!existsSync(REACT_UMD) || !existsSync(REACT_DOM_UMD)) {
@@ -1431,7 +1734,13 @@ async function main() {
 
   const tmpDir = mkdtempSync(join(tmpdir(), 'dshml-verify-'));
   const edge = findEdge();
-  const edgeArgsBase = ['--headless=new', '--disable-gpu', '--hide-scrollbars', '--no-first-run', '--no-default-browser-check'];
+  const edgeArgsBase = [
+    '--headless=new',
+    '--disable-gpu',
+    '--hide-scrollbars',
+    '--no-first-run',
+    '--no-default-browser-check',
+  ];
   const profileDir = join(tmpDir, 'edge-profile');
   mkdirSync(profileDir, { recursive: true });
 
@@ -1457,7 +1766,7 @@ async function main() {
           '--force-device-scale-factor=' + String(scale),
           `--user-data-dir=${profileDir}`,
           `--window-size=${width},${height}`,
-          `--virtual-time-budget=8000`,
+          '--virtual-time-budget=8000',
           `--screenshot=${pngPath}`,
           '--dump-dom',
           url,
@@ -1466,20 +1775,26 @@ async function main() {
       );
       const result = parseResult(run.stdout);
       const deadline = Date.now() + 20000;
-      while (!existsSync(pngPath) && Date.now() < deadline) await new Promise((done) => setTimeout(done, 200));
+      while (!existsSync(pngPath) && Date.now() < deadline) {
+        await new Promise<void>((done) => {
+          setTimeout(done, 200);
+        });
+      }
       if (!existsSync(pngPath) || statSync(pngPath).size === 0) {
         console.error('error: no screenshot produced at ' + pngPath);
         if (run.stderr) console.error(run.stderr.slice(0, 2000));
         process.exit(1);
       }
-      if (result && result.decorated) {
+      if (result !== null && result.mode === 'screenshot') {
         const decorated = result.decorated;
         if (decorated.vendor === 0 || decorated.modelRows < DRIVER_CONFIG.modelRows) {
-          console.error('warning: page was not fully decorated when the screenshot was taken: ' + JSON.stringify(decorated));
+          console.error(
+            'warning: page was not fully decorated when the screenshot was taken: ' + JSON.stringify(decorated),
+          );
         }
       }
       console.log(`wrote ${pngPath} (${statSync(pngPath).size} bytes, ${width * scale}×${height * scale}px)`);
-      if (result && result.consoleIssues && result.consoleIssues.length > 0) {
+      if (result !== null && result.consoleIssues.length > 0) {
         console.log('console issues: ' + result.consoleIssues.length);
       }
       return;
@@ -1495,7 +1810,7 @@ async function main() {
       150000,
     );
     const result = parseResult(run.stdout);
-    if (!result) {
+    if (result === null || result.mode !== 'verify') {
       console.error('error: the harness page produced no result block.');
       if (run.stderr) console.error(run.stderr.slice(0, 4000));
       const dumpPath = join(tmpDir, 'dump.html');
@@ -1533,7 +1848,7 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error('error: ' + (error && error.stack ? error.stack : error));
+main().catch((error: unknown) => {
+  console.error('error: ' + readableError(error));
   process.exit(1);
 });

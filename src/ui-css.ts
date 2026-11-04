@@ -1,9 +1,9 @@
 /**
  * Settings surfaces stylesheet for the model-logos plugin.
  *
- * One template-literal fragment concatenated into the generated client bundle
- * after `src/i18n.js` / `src/overrides.js`. `src/label.js` injects it into the
- * same `<style data-plugin-css>` element as the composer label rules.
+ * One template-literal string inlined into the generated client bundle after
+ * `src/i18n.ts` / `src/overrides.ts`. `src/client.ts` injects it into the same
+ * `<style data-plugin-css>` element as the composer label rules.
  *
  * Conventions:
  * - every class is prefixed `dshml-picker-*` (modal) or `dshml-section-*`
@@ -13,7 +13,7 @@
  * - no `@import`, no external URLs, no backtick or `${` inside the template.
  */
 
-const DSHML_UI_CSS = `
+export const DSHML_UI_CSS: string = `
 /* ── icon picker modal ─────────────────────────────────────────────── */
 
 .dshml-picker-layer {

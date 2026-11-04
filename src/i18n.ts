@@ -1,12 +1,16 @@
 /**
  * Plugin copy (Chinese / English).
  *
- * Fragment inlined into the client bundle. The active language follows the DSH
- * locale service when it is mounted; otherwise the browser language decides.
- * `dshmlT(key, vars)` replaces `{name}` placeholders.
+ * Copy dictionary for the plugin, inlined into the client bundle. The active
+ * language follows the DSH locale service when it is mounted; otherwise the
+ * browser language decides. `dshmlT(key, vars)` replaces `{name}` placeholders.
  */
 
-const DSHML_COPY = {
+/** Languages the plugin ships copy for. */
+type DshmlLang = 'zh' | 'en';
+
+/** Copy dictionary: the same keys exist in every language. */
+const DSHML_COPY: Readonly<Record<DshmlLang, Readonly<Record<string, string>>>> = {
   zh: {
     'picker.title': '选择模型图标',
     'picker.search': '搜索图标',
@@ -98,10 +102,10 @@ const DSHML_COPY = {
 };
 
 /** Language forced by the DSH locale service; null means auto-detect. */
-let dshmlForcedLang = null;
+let dshmlForcedLang: DshmlLang | null = null;
 
 /** Detect the active copy language. */
-function dshmlLang() {
+export function dshmlLang(): DshmlLang {
   if (dshmlForcedLang === 'zh' || dshmlForcedLang === 'en') return dshmlForcedLang;
   try {
     const documentLang = typeof document !== 'undefined' ? document.documentElement?.lang : '';
@@ -115,22 +119,21 @@ function dshmlLang() {
 }
 
 /** Switch copy language from the DSH locale service. */
-function dshmlSetLang(value) {
+export function dshmlSetLang(value: unknown): void {
   dshmlForcedLang = value === 'zh' || value === 'en' ? value : null;
 }
 
 /**
  * Look up one copy string.
- * @param {string} key - dictionary key (`picker.title`, …).
- * @param {Record<string, string | number>} [vars] - `{name}` placeholders.
- * @returns {string}
+ * @param key - dictionary key (`picker.title`, …).
+ * @param vars - `{name}` placeholders.
  */
-function dshmlT(key, vars) {
+export function dshmlT(key: string, vars?: Readonly<Record<string, string | number>> | null): string {
   const lang = dshmlLang();
   const table = DSHML_COPY[lang] ?? DSHML_COPY.en;
   let text = table[key] ?? DSHML_COPY.en[key] ?? key;
   if (vars !== undefined && vars !== null) {
-    text = text.replace(/\{(\w+)\}/g, (match, name) =>
+    text = text.replace(/\{(\w+)\}/g, (match: string, name: string) =>
       Object.prototype.hasOwnProperty.call(vars, name) ? String(vars[name]) : match,
     );
   }

@@ -8,10 +8,10 @@ choice is not what you want.
 
 The plugin covers two families of icons, deliberately kept apart:
 
-| Kind | What it identifies | Where it appears |
-| --- | --- | --- |
+| Kind                        | What it identifies                       | Where it appears                                                                                                    |
+| --------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | **Vendor logo** (厂商 Logo) | the provider/channel that serves a model | Settings → Models provider rows, the Settings → Models editor titles, and every option of the add-provider dropdown |
-| **Model logo** (模型 Logo) | the brand of the model itself | the composer model button, the model picker, and the model rows of the Settings → Models provider editor |
+| **Model logo** (模型 Logo)  | the brand of the model itself            | the composer model button, the model picker, and the model rows of the Settings → Models provider editor            |
 
 Vendor logos only exist for the **official channel directory** (the shipped
 provider routes). Hand-declared custom providers — a relay, a self-hosted server,
@@ -32,11 +32,11 @@ A single contribution to the shipped `conversation.input.model.label` slot draws
 the model's mark before the catalog name in all three placements the selector
 uses it for:
 
-| Placement | Where it shows |
-| --- | --- |
+| Placement | Where it shows                                             |
+| --------- | ---------------------------------------------------------- |
 | `trigger` | the model name in the composer's bottom-right model button |
-| `menu` | the current model in the picker's root menu row |
-| `option` | every model row inside the picker |
+| `menu`    | the current model in the picker's root menu row            |
+| `option`  | every model row inside the picker                          |
 
 It owns no interaction there: clicks, search, focus, check marks, reasoning-effort
 labels and accessibility text stay with the shipped selector.
@@ -97,7 +97,7 @@ No network request, no localStorage, no state outside the DSH settings document.
 
 ## How matching works
 
-`src/match.mjs` is a pure, ordered heuristic over the provider and model identity
+`src/match.ts` is a pure, ordered heuristic over the provider and model identity
 each surface exposes.
 
 **Model logos** (`matchModelLogo`) run model-level rules first, so an aggregator
@@ -124,15 +124,17 @@ rounded square, flat white glyph) so it renders identically offline and stays
 legible at the shipped sizes (14 px in the composer trigger/menu, 16 px in
 options, `1em`/16 px in Settings).
 
-- `src/logos-cn.mjs` — DeepSeek, Qwen, Zhipu/GLM, Kimi/Moonshot, MiniMax, Doubao,
+- `src/logos/cn.ts` — DeepSeek, Qwen, Zhipu/GLM, Kimi/Moonshot, MiniMax, Doubao,
   Baidu/ERNIE, Tencent/Hunyuan, StepFun, 01.AI.
-- `src/logos-intl.mjs` — OpenAI, Claude/Anthropic, Gemini, Meta/Llama, Mistral,
+- `src/logos/intl.ts` — OpenAI, Claude/Anthropic, Gemini, Meta/Llama, Mistral,
   xAI/Grok, Microsoft, NVIDIA, AWS, Cohere, Perplexity, Hugging Face, Ollama,
   Groq, OpenRouter.
-- `src/logos-vendors.mjs` — the remaining official channel brands: Xiaomi,
+- `src/logos/vendors.ts` — the remaining official channel brands: Xiaomi,
   OpenCode, Cerebras, Cloudflare, Together AI, Fireworks, GitHub,
   Vercel, Baseten, Microsoft Azure, Ant Ling, Radius, TypeSafe.
-- `src/artwork.mjs` — runtime helpers: `letterTile(text)` (deterministic
+- `src/logos/index.ts` — the merged `LOGOS` set every renderer reads (the build
+  validates coverage, duplicates and SVG safety before a bundle may ship).
+- `src/artwork.ts` — runtime helpers: `letterTile(text)` (deterministic
   colour tile used for unknown official channels and for the picker's letter
   option) and the XML/HTML escapers.
 
@@ -160,36 +162,54 @@ a plain letter "M" on the same orange tile, so they were easy to confuse):
 
 ## Build
 
-`client.js` is generated — never edit it by hand. It inlines the pure modules
-(`src/match.mjs`, `src/artwork.mjs`, `src/resolve.mjs`), serializes the artwork
-from `src/logos-*.mjs`, and appends the browser fragments (`src/i18n.js`,
-`src/overrides.js`, `src/ui-css.js`, `src/picker.js`, `src/decorate.js`,
-`src/section.js`, `src/label.js`) inside the browser module factory.
+`client.js` and `index.js` are generated — never edit them by hand, and they are
+not committed: they land in the package root only because the local DSH install
+loads the bundle from disk. `npm install` regenerates them (via the `prepare`
+script); after editing a source file run `npm run build` before reloading the
+plugin in DSH. The sources are TypeScript:
+
+- `src/client.ts` is bundled by esbuild into the browser module: one
+  `window.__ModuleLoader__` factory closure with `react` / `react-dom/client` left
+  external (the loader's `require` supplies them).
+- `src/host.ts` is bundled into `index.js`, an ES module with
+  `@deepseek-ai/schemastery` external.
+
+Before writing either artifact, `scripts/build.ts` validates the artwork
+(duplicates, non-empty titles, self-contained SVGs, coverage of every matcher
+key, the generated letter-tile fallback) and the bundle's loader contract.
+
+The whole toolchain — strict TypeScript, Vitest, oxlint, oxfmt, the module map
+and the contribution rules — is documented in
+[`docs/engineering.md`](docs/engineering.md).
 
 ```sh
-node scripts/build-client.mjs          # write client.js
-node scripts/build-client.mjs --check  # fail when client.js is stale
-node --test "test/*.test.mjs"          # matcher + artwork + resolver + bundle tests
-node scripts/preview-logos.mjs         # design sheet -> .preview/logos.png
-node scripts/preview-logos.mjs --only claude      # one mark, large -> .preview/claude.png
-node scripts/preview-logos.mjs --only-set vendors # the new vendor marks sheet
-node scripts/verify-dom.mjs            # decorate the Settings fixture in headless Edge
-node scripts/verify-live.mjs           # the running GUI serves this exact build
+npm run build          # generate client.js + index.js
+npm run check          # fail when an artifact is missing or stale
+npm test               # matcher + artwork + resolver + bundle tests (Vitest)
+npm run typecheck      # tsc --noEmit
+npm run lint           # oxlint
+npm run fmt            # oxfmt --write .
+npm run verify         # typecheck + lint + fmt:check + test + build + check
+npm run preview        # design sheet -> .preview/logos.png
+npm run preview -- --only claude      # one mark, large -> .preview/claude.png
+npm run preview -- --only-set vendors # the vendor marks sheet
+npm run verify:dom     # decorate the Settings fixture in headless Edge
+npm run verify:live    # the running GUI serves this exact build
 ```
 
-`scripts/preview-logos.mjs` renders the marks at shipped sizes on light and dark
+`scripts/preview-logos.ts` renders the marks at shipped sizes on light and dark
 surfaces, next to a simulated composer trigger, model menu and Settings provider
 rows, and captures the result with headless Edge. It is a design aid only, not
 part of the bundle.
 
-`scripts/verify-dom.mjs` loads the real generated `client.js` in headless Edge
+`scripts/verify-dom.ts` loads the real generated `client.js` in headless Edge
 against `test/fixtures/settings-models.html` — a faithful static copy of the
 shipped Settings → Models markup — with stubbed React/plugin services, then
 asserts the vendor marks, the model-row buttons, the combobox replacement, the
 picker write path, and clean disposal. It also renders
 `docs/preview-settings.png`.
 
-`scripts/verify-live.mjs` recomputes the artifact revision the Host serves
+`scripts/verify-live.ts` recomputes the artifact revision the Host serves
 (`SHA-1` over the bundle's mtime/ctime/size), fetches
 `/plugins/??dsh-model-logos/client.js&rev=<rev>` from the running GUI and checks
 the served bytes: a 200 proves the page's HMR transport has published exactly the
@@ -263,7 +283,7 @@ icon settings are unavailable.
   the label contribution (slot, priority −1, override rendering, letter and none
   sentinels, the shipped release badge), the settings-section registration, and
   that `apply()` disposers remove the stylesheet, listeners and observer.
-- `scripts/verify-dom.mjs` drives the faithful Settings fixture in headless Edge
+- `scripts/verify-dom.ts` drives the faithful Settings fixture in headless Edge
   and screenshots the decorated page: **36 assertions pass** — vendor logos on
   official rows/editor titles (including the localized DeepSeek account row),
   none on the declared custom provider, model-row buttons and the 5-track grid,
@@ -288,7 +308,7 @@ icon settings are unavailable.
   MiniMax waveform and Mistral pixel-block M: `docs/preview.png`; the vendor
   marks: `docs/preview-vendors.png`; before/after of the two corrected marks:
   `docs/preview-corrected-marks.png`.
-- Live bundle check with `scripts/verify-live.mjs` against the running Web GUI:
+- Live bundle check with `scripts/verify-live.ts` against the running Web GUI:
   `/plugins/??dsh-model-logos/client.js&rev=cee18b707e67` returned the freshly
   built artifact (170,170 bytes served, 38 artwork entries), proving the client
   HMR transport published this exact build without an app restart.

@@ -1,5 +1,5 @@
 /**
- * Client half of the model-logos bundle.
+ * Client entry of the model-logos bundle.
  *
  * Contributions:
  *  - `conversation.input.model.label` draws a brand mark (or a configured
@@ -7,12 +7,28 @@
  *    composer uses it for.
  *  - `settings.section` adds the "Model icons" settings page.
  *  - A settings-page decorator adds vendor marks to the Models provider rows and
- *    the add-provider dropdown, and a model-icon buttons to the model rows.
+ *    the add-provider dropdown, and model-icon buttons to the model rows.
  *
- * This file is a fragment: `scripts/build-client.mjs` wraps it in the browser
- * module factory and supplies `React`, `h`, `createRoot`, `LOGOS`, and the
- * inlined pure/fragment modules that precede it.
+ * `scripts/build.ts` bundles this entry into `client.js`, wrapping it in the
+ * `window.__ModuleLoader__` factory that supplies `React`, `createRoot` and the
+ * platform module table. The `inject` export is the bundle's Cordis service
+ * declaration; `apply` is its mount point.
  */
+import type { ReactNode } from 'react';
+import { h } from './runtime';
+import type { DshContext, Identity, ModelLabelInput, ModelMark } from './types';
+import { dshmlT } from './i18n';
+import { DSHML_UI_CSS } from './ui-css';
+import {
+  dshmlCatalogState,
+  dshmlIconState,
+  dshmlModelMark,
+  dshmlMountIconStore,
+  dshmlRefreshCatalog,
+  dshmlUseIconState,
+} from './overrides';
+import { dshmlDecorateNow, dshmlMountSettingsDecorator, dshmlRequestDecorate } from './decorate';
+import { DshmlModelIconsSection } from './section';
 
 const LABEL_STYLE_ID = 'dsh-model-logos/label.css';
 
@@ -56,11 +72,8 @@ const LABEL_CSS = `
 .dshml-combo-item-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 `;
 
-/**
- * Inject the plugin stylesheet once; returns a disposer that removes it.
- * @returns {() => void}
- */
-function mountLabelStyles() {
+/** Inject the plugin stylesheet once; returns a disposer that removes it. */
+function mountLabelStyles(): () => void {
   if (typeof document === 'undefined') return function noop() {};
   if (document.querySelector('style[data-plugin-css="' + LABEL_STYLE_ID + '"]') !== null) {
     return function noop() {};
@@ -76,7 +89,7 @@ function mountLabelStyles() {
 }
 
 /** Localized catalog display name, falling back to the raw model id. */
-function dshModelLabelText(model) {
+function dshModelLabelText(model: Identity | null): string {
   if (model === null || typeof model !== 'object') return '';
   const name = typeof model.name === 'string' ? model.name.trim() : '';
   if (name !== '') return name;
@@ -88,7 +101,7 @@ function dshModelLabelText(model) {
  * official DeepSeek Flash entry. This contribution shadows that label for every
  * model, so it must keep the badge it would otherwise render.
  */
-function isOfficialFlashReleaseBadge(provider, model) {
+function isOfficialFlashReleaseBadge(provider: Identity | null, model: Identity | null): boolean {
   if (provider === null || typeof provider !== 'object') return false;
   if (model === null || typeof model !== 'object') return false;
   const providerId = typeof provider.id === 'string' ? provider.id : '';
@@ -106,17 +119,18 @@ function isOfficialFlashReleaseBadge(provider, model) {
  * The mark is the per-model resolved icon (explicit override / letter tile /
  * heuristic initial icon); falls back to the plain catalog name.
  */
-function ModelLogoLabel(props) {
+function ModelLogoLabel(props: ModelLabelInput): ReactNode {
   // Subscribe so an icon picked anywhere re-renders every placement.
   dshmlUseIconState();
   const provider = props !== null && props !== undefined && props.provider !== undefined ? props.provider : null;
   const model = props !== null && props !== undefined && props.model !== undefined ? props.model : null;
-  const placement = props !== null && props !== undefined && typeof props.placement === 'string' ? props.placement : 'trigger';
-  const text = dshModelLabelText(model);
-  const mark = dshmlModelMark(provider, model);
+  const placement =
+    props !== null && props !== undefined && typeof props.placement === 'string' ? props.placement : 'trigger';
+  const text = dshModelLabelText(model as Identity | null);
+  const mark: ModelMark = dshmlModelMark(provider, model);
   const badge = isOfficialFlashReleaseBadge(provider, model);
   if (mark.svg === null && !badge) return text;
-  const children = [];
+  const children: ReactNode[] = [];
   if (mark.svg !== null) {
     children.push(
       h('span', {
@@ -133,7 +147,8 @@ function ModelLogoLabel(props) {
   return h('span', { className: 'dshml-root dshml-' + placement }, children);
 }
 
-const INJECT = ['slots'];
+/** Cordis service declaration of this browser bundle. */
+export const inject = ['slots'];
 
 /**
  * Register every contribution.
@@ -142,8 +157,8 @@ const INJECT = ['slots'];
  * release-badge label (registered at the default priority 0), and the lowest
  * priority renders in a single slot.
  */
-function apply(ctx) {
-  ctx.effect(function mountStyles() {
+export function apply(ctx: DshContext): void {
+  ctx.effect?.(function mountStyles() {
     return mountLabelStyles();
   }, 'dsh-model-logos: label styles');
 
@@ -151,7 +166,7 @@ function apply(ctx) {
   // settings still gets heuristic marks in the composer.
   dshmlMountIconStore(ctx);
 
-  ctx.slots.inject('conversation.input.model.label', function injectLabelSlot() {
+  ctx.slots.inject?.('conversation.input.model.label', function injectLabelSlot() {
     return ctx.slots.register(
       {
         name: 'conversation.input.model.label',
@@ -161,7 +176,7 @@ function apply(ctx) {
     );
   });
 
-  ctx.slots.inject('settings.section', function injectSettingsSection() {
+  ctx.slots.inject?.('settings.section', function injectSettingsSection() {
     return ctx.slots.register(
       {
         name: 'settings.section',
@@ -173,7 +188,7 @@ function apply(ctx) {
     );
   });
 
-  ctx.effect(function mountSettingsDecorator() {
+  ctx.effect?.(function mountSettingsDecorator() {
     return dshmlMountSettingsDecorator(ctx);
   }, 'dsh-model-logos: settings decoration');
 

@@ -1,7 +1,7 @@
 /**
  * Icon state, settings persistence and catalog access.
  *
- * This fragment owns the single browser-side view of the plugin's user-settings
+ * This module owns the single browser-side view of the plugin's user-settings
  * namespace (`dsh-model-logos`), plus the model catalog that the icon picker's
  * settings section lists. It is mounted from the bundle's `apply(ctx)`, but every
  * consumer (composer label, settings decoration, picker, section) reads it
@@ -13,15 +13,41 @@
  * `ctx.configForms.get(NS)` → `remote.settings.mutate`, which lands in the
  * profile's `cordis.patch.yml` (no localStorage).
  */
+import { letterTextFor, withOverride, withoutOverride, flattenOverrides, resolveModelIcon } from './resolve';
+import { matchVendorLogo } from './match';
+import { letterTile } from './artwork';
+import { LOGOS } from './logos';
+import { React } from './runtime';
+import { dshmlT, dshmlSetLang } from './i18n';
+import type {
+  CatalogModel,
+  CatalogProvider,
+  CatalogState,
+  ConfigForm,
+  ConfigFormSnapshot,
+  ConfigFormsService,
+  ConfigMutateOp,
+  DshContext,
+  IconResolution,
+  IconState,
+  Identity,
+  LocaleService,
+  ModelMark,
+  OverrideDocument,
+  RemoteLlmService,
+  RemoteService,
+  SettingsNamespaceView,
+  VendorMark,
+} from './types';
 
 /** Host plugin entry id — the settings namespace that stores our overrides. */
-const DSHML_SETTINGS_NS = 'dsh-model-logos';
+export const DSHML_SETTINGS_NS = 'dsh-model-logos';
 
 /** Settings field name declared by the host half's volatile Config. */
-const DSHML_SETTINGS_FIELD = 'modelIcons';
+export const DSHML_SETTINGS_FIELD = 'modelIcons';
 
 /** Snapshot store for the icon overrides. */
-const dshmlIconsRef = {
+const dshmlIconsRef: { snapshot: IconState; listeners: Set<() => void> } = {
   snapshot: {
     status: 'loading',
     overrides: {},
@@ -32,7 +58,7 @@ const dshmlIconsRef = {
 };
 
 /** Snapshot store for the picker section's catalog. */
-const dshmlCatalogRef = {
+const dshmlCatalogRef: { snapshot: CatalogState; listeners: Set<() => void> } = {
   snapshot: {
     status: 'loading',
     providers: [],
@@ -42,43 +68,60 @@ const dshmlCatalogRef = {
 };
 
 /** The mounted config form (null until the settings service is available). */
-let dshmlIconForm = null;
+let dshmlIconForm: ConfigForm | null = null;
 /** Debouncer handle for catalog refreshes. */
-let dshmlCatalogTimer = null;
+let dshmlCatalogTimer: ReturnType<typeof setTimeout> | null = null;
 /** Latest catalog refresh sequence, so an older read never wins. */
 let dshmlCatalogGeneration = 0;
 /** Services captured while mounting. */
-let dshmlRemoteService = null;
-let dshmlRemoteLlm = null;
-let dshmlConfigFormsService = null;
+let dshmlRemoteService: RemoteService | null = null;
+let dshmlRemoteLlm: RemoteLlmService | null = null;
+let dshmlConfigFormsService: ConfigFormsService | null = null;
+
+/**
+ * Read a property of an unknown value, or `undefined` for non-objects: the
+ * settings mirror and remote answers arrive untyped and are narrowed here.
+ */
+function dshmlRead(value: unknown, key: string): unknown {
+  if (value === null || typeof value !== 'object') return undefined;
+  return (value as Record<string, unknown>)[key];
+}
+
+/** Treat an unknown value as a list: arrays are used as-is, anything else is empty. */
+function dshmlListOf(value: unknown): readonly unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+/** Message of an unknown thrown value, exactly like `String(error?.message ?? error)`. */
+function dshmlErrorMessage(error: unknown): string {
+  return String(dshmlRead(error, 'message') ?? error);
+}
+
+/** Normalize the answer of an optional `subscribe()` to a disposer (or null). */
+function dshmlDisposerOf(value: unknown): (() => void) | null {
+  return typeof value === 'function' ? (value as () => void) : null;
+}
 
 /** Read a service from an injected child context defensively. */
-function dshmlServiceOf(scope, name) {
+function dshmlServiceOf(scope: unknown, name: string): unknown {
   if (scope === null || typeof scope !== 'object') return undefined;
   try {
-    if (typeof scope.get === 'function') {
-      const value = scope.get(name);
+    const probe = scope as { get?: (id: string) => unknown };
+    if (typeof probe.get === 'function') {
+      const value = probe.get(name);
       if (value !== undefined) return value;
     }
   } catch {
     // Fall through to the property read.
   }
-  const key = name.includes('.') ? name.split('.').pop() : name;
-  return scope[key];
-}
-
-/** The remote `llm` namespace (directory reads), once injected. */
-function dshmlRemoteNamespace(name) {
-  if (name === 'llm') return dshmlRemoteLlm;
-  const remote = dshmlRemoteService;
-  if (remote === null || typeof remote !== 'object') return undefined;
-  return remote[name];
+  const key = name.includes('.') ? (name.split('.').pop() ?? name) : name;
+  return (scope as Record<string, unknown>)[key];
 }
 
 /** Replace the icons snapshot and notify subscribers. */
-function dshmlPublishIcons(next) {
+function dshmlPublishIcons(next: IconState): void {
   dshmlIconsRef.snapshot = next;
-  for (const listener of [...dshmlIconsRef.listeners]) {
+  for (const listener of Array.from(dshmlIconsRef.listeners)) {
     try {
       listener();
     } catch (error) {
@@ -88,9 +131,9 @@ function dshmlPublishIcons(next) {
 }
 
 /** Replace the catalog snapshot and notify subscribers. */
-function dshmlPublishCatalog(next) {
+function dshmlPublishCatalog(next: CatalogState): void {
   dshmlCatalogRef.snapshot = next;
-  for (const listener of [...dshmlCatalogRef.listeners]) {
+  for (const listener of Array.from(dshmlCatalogRef.listeners)) {
     try {
       listener();
     } catch (error) {
@@ -100,12 +143,12 @@ function dshmlPublishCatalog(next) {
 }
 
 /** Current icon state (stable reference between changes). */
-function dshmlIconState() {
+export function dshmlIconState(): IconState {
   return dshmlIconsRef.snapshot;
 }
 
 /** Subscribe to icon-state changes. */
-function dshmlSubscribeIconState(listener) {
+export function dshmlSubscribeIconState(listener: () => void): () => void {
   dshmlIconsRef.listeners.add(listener);
   return function unsubscribe() {
     dshmlIconsRef.listeners.delete(listener);
@@ -113,17 +156,17 @@ function dshmlSubscribeIconState(listener) {
 }
 
 /** React hook over the icon state. */
-function dshmlUseIconState() {
+export function dshmlUseIconState(): IconState {
   return React.useSyncExternalStore(dshmlSubscribeIconState, dshmlIconState, dshmlIconState);
 }
 
 /** Current catalog snapshot. */
-function dshmlCatalogState() {
+export function dshmlCatalogState(): CatalogState {
   return dshmlCatalogRef.snapshot;
 }
 
 /** Subscribe to catalog changes; the first subscriber wakes a refresh. */
-function dshmlSubscribeCatalog(listener) {
+export function dshmlSubscribeCatalog(listener: () => void): () => void {
   dshmlCatalogRef.listeners.add(listener);
   if (dshmlCatalogRef.listeners.size === 1) dshmlScheduleCatalogRefresh(0);
   return function unsubscribe() {
@@ -132,35 +175,37 @@ function dshmlSubscribeCatalog(listener) {
 }
 
 /** React hook over the model catalog. */
-function dshmlUseModelCatalog() {
+export function dshmlUseModelCatalog(): CatalogState {
   return React.useSyncExternalStore(dshmlSubscribeCatalog, dshmlCatalogState, dshmlCatalogState);
 }
 
 /** Resolve one model identity against the live overrides. */
-function dshmlResolveFor(provider, model) {
+export function dshmlResolveFor(
+  provider: Identity | null | undefined,
+  model: Identity | null | undefined,
+): IconResolution {
   return resolveModelIcon(dshmlIconState().overrides, provider, model);
 }
 
 /** Letter-tile source text for the picker preview and DOM fallbacks. */
-function dshmlLetterTextFor(provider, model) {
+export function dshmlLetterTextFor(provider: Identity | null | undefined, model: Identity | null | undefined): string {
   return letterTextFor(provider, model);
 }
 
 /**
  * The mark data a renderer should draw: a brand SVG or a generated letter tile,
  * or null when the pair has no mark (auto found nothing, disabled, or 'none').
- * @returns {{ resolved: object, svg: string | null, title: string | null }}
  */
-function dshmlModelMark(provider, model) {
+export function dshmlModelMark(provider: Identity | null | undefined, model: Identity | null | undefined): ModelMark {
   const resolved = dshmlResolveFor(provider, model);
   if (resolved.disabled) return { resolved, svg: null, title: null };
   if (resolved.letter) {
     const tile = letterTile(dshmlLetterTextFor(provider, model));
     return { resolved, svg: tile.svg, title: tile.title };
   }
-  if (resolved.key !== null && LOGOS[resolved.key] !== undefined) {
-    return { resolved, svg: LOGOS[resolved.key].svg, title: LOGOS[resolved.key].title };
-  }
+  const key = resolved.key;
+  const logo = key !== null ? LOGOS[key] : undefined;
+  if (logo !== undefined) return { resolved, svg: logo.svg, title: logo.title };
   return { resolved, svg: null, title: null };
 }
 
@@ -168,13 +213,11 @@ function dshmlModelMark(provider, model) {
  * The vendor mark for an official channel row / dropdown option.
  * Unknown official channels fall back to a letter tile; pass allowFallback=false
  * for custom (hand-declared) providers, which get no vendor mark at all.
- * @returns {{ key: string | null, svg: string | null, title: string | null }}
  */
-function dshmlVendorMark(providerId, displayName, allowFallback) {
+export function dshmlVendorMark(providerId: string, displayName?: string | null, allowFallback?: boolean): VendorMark {
   const key = matchVendorLogo(providerId);
-  if (key !== null && LOGOS[key] !== undefined) {
-    return { key, svg: LOGOS[key].svg, title: LOGOS[key].title };
-  }
+  const logo = key !== null ? LOGOS[key] : undefined;
+  if (logo !== undefined) return { key, svg: logo.svg, title: logo.title };
   if (allowFallback !== false) {
     const tile = letterTile(displayName || providerId || '?');
     return { key: null, svg: tile.svg, title: tile.title };
@@ -183,8 +226,8 @@ function dshmlVendorMark(providerId, displayName, allowFallback) {
 }
 
 /** Adopt the settings form snapshot into the icon store. */
-function dshmlAcceptIconForm(form) {
-  let snapshot;
+function dshmlAcceptIconForm(form: ConfigForm): void {
+  let snapshot: ConfigFormSnapshot;
   try {
     snapshot = form.getSnapshot();
   } catch (error) {
@@ -209,13 +252,15 @@ function dshmlAcceptIconForm(form) {
     return;
   }
   const value = snapshot.value;
-  const raw = value !== null && typeof value === 'object' ? value[DSHML_SETTINGS_FIELD] : undefined;
-  const overrides = raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const raw = value !== null && typeof value === 'object' ? dshmlRead(value, DSHML_SETTINGS_FIELD) : undefined;
+  const overrides: OverrideDocument =
+    raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? (raw as OverrideDocument) : {};
   const previous = dshmlIconState();
   // Keep an optimistic value while a queued write has not been folded back yet.
-  const merged = Object.keys(previous.overrides).length > 0 && previous.status === 'ready' && dshmlIconFormWriting
-    ? previous.overrides
-    : overrides;
+  const merged =
+    Object.keys(previous.overrides).length > 0 && previous.status === 'ready' && dshmlIconFormWriting
+      ? previous.overrides
+      : overrides;
   dshmlPublishIcons({
     status: 'ready',
     overrides: merged,
@@ -229,12 +274,12 @@ let dshmlIconFormWriting = 0;
 
 /**
  * Write one override operation.
- * @param {string} providerId - provider route id.
- * @param {string} modelId - model id.
- * @param {string | null} icon - brand key, 'none', 'letter', or null to clear.
- * @returns {Promise<boolean>} whether the Host accepted the write.
+ * @param providerId - provider route id.
+ * @param modelId - model id.
+ * @param icon - brand key, 'none', 'letter', or null to clear.
+ * @returns whether the Host accepted the write.
  */
-async function dshmlWriteIcon(providerId, modelId, icon) {
+async function dshmlWriteIcon(providerId: string, modelId: string, icon: string | null): Promise<boolean> {
   const provider = typeof providerId === 'string' ? providerId.trim() : '';
   const model = typeof modelId === 'string' ? modelId.trim() : '';
   if (provider === '' || model === '') return false;
@@ -249,15 +294,17 @@ async function dshmlWriteIcon(providerId, modelId, icon) {
   }
   const previous = dshmlIconState();
   const value = typeof icon === 'string' ? icon.trim() : '';
-  const optimistic = value === ''
-    ? withoutOverride(previous.overrides, provider, model)
-    : withOverride(previous.overrides, provider, model, value);
+  const optimistic =
+    value === ''
+      ? withoutOverride(previous.overrides, provider, model)
+      : withOverride(previous.overrides, provider, model, value);
   dshmlPublishIcons({ ...previous, overrides: optimistic, error: null });
   dshmlIconFormWriting += 1;
   try {
-    const ops = value === ''
-      ? [{ op: 'unset', path: [DSHML_SETTINGS_FIELD, provider, model] }]
-      : [{ op: 'set', path: [DSHML_SETTINGS_FIELD, provider, model], value }];
+    const ops: ConfigMutateOp[] =
+      value === ''
+        ? [{ op: 'unset', path: [DSHML_SETTINGS_FIELD, provider, model] }]
+        : [{ op: 'set', path: [DSHML_SETTINGS_FIELD, provider, model], value }];
     const ok = await form.mutate(ops);
     if (ok !== true) {
       dshmlPublishIcons({ ...dshmlIconState(), error: dshmlT('picker.saveFailed') });
@@ -275,96 +322,135 @@ async function dshmlWriteIcon(providerId, modelId, icon) {
 }
 
 /** Set one explicit model icon (brand key, 'none', or 'letter'). */
-function dshmlSetModelIcon(providerId, modelId, icon) {
+export function dshmlSetModelIcon(providerId: string, modelId: string, icon: string | null): Promise<boolean> {
   return dshmlWriteIcon(providerId, modelId, icon);
 }
 
 /** Reset one model to the heuristic initial icon. */
-function dshmlClearModelIcon(providerId, modelId) {
+export function dshmlClearModelIcon(providerId: string, modelId: string): Promise<boolean> {
   return dshmlWriteIcon(providerId, modelId, null);
 }
 
 /** Unwrap a remote answer: `{ok,value}` envelopes and plain values both work. */
-function dshmlUnwrapRemote(answer) {
-  if (answer !== null && typeof answer === 'object' && typeof answer.ok === 'boolean') {
-    if (answer.ok !== true) throw new Error(answer.error?.message ?? 'remote call refused');
-    return answer.value;
+function dshmlUnwrapRemote(answer: unknown): unknown {
+  const ok = dshmlRead(answer, 'ok');
+  if (typeof ok === 'boolean') {
+    if (ok !== true) {
+      const message = dshmlRead(dshmlRead(answer, 'error'), 'message');
+      throw new Error(message === null || message === undefined ? 'remote call refused' : String(message));
+    }
+    return dshmlRead(answer, 'value');
   }
   return answer;
 }
 
+/** One `{providerId, modelId, name}` row read from a settings namespace value. */
+interface DshmlCatalogModelRow {
+  providerId: string;
+  modelId: string;
+  name: string;
+}
+
 /** Read the model entries a settings namespace value carries. */
-function dshmlModelsFromView(view) {
+function dshmlModelsFromView(view: SettingsNamespaceView | null | undefined): DshmlCatalogModelRow[] {
   const value = view?.value;
-  const out = [];
+  const out: DshmlCatalogModelRow[] = [];
   if (value === null || typeof value !== 'object') return out;
-  if (view.ns === 'llm-pi-ai') {
-    const providers = value.providers;
-    if (providers === null || typeof providers !== 'object' || Array.isArray(providers)) return out;
+  if (view?.ns === 'llm-pi-ai') {
+    const providers = dshmlRead(value, 'providers');
+    if (providers === null || typeof providers !== 'object' || Array.isArray(providers)) {
+      return out;
+    }
     for (const providerId of Object.keys(providers)) {
-      const profile = providers[providerId];
+      const profile = (providers as Record<string, unknown>)[providerId];
       if (profile === null || typeof profile !== 'object' || Array.isArray(profile)) continue;
-      const models = Array.isArray(profile.models) ? profile.models : [];
+      const models = dshmlListOf(dshmlRead(profile, 'models'));
       for (const model of models) {
         if (model === null || typeof model !== 'object') continue;
-        const modelId = typeof model.id === 'string' ? model.id.trim() : '';
+        const id = dshmlRead(model, 'id');
+        const modelId = typeof id === 'string' ? id.trim() : '';
         if (modelId === '') continue;
-        const name = typeof model.name === 'string' && model.name.trim() !== '' ? model.name.trim() : modelId;
+        const rawName = dshmlRead(model, 'name');
+        const name = typeof rawName === 'string' && rawName.trim() !== '' ? rawName.trim() : modelId;
         out.push({ providerId, modelId, name });
       }
     }
     return out;
   }
-  if (view.ns === 'llm-deepseek') {
-    const models = Array.isArray(value.models) ? value.models : [];
+  if (view?.ns === 'llm-deepseek') {
+    const models = dshmlListOf(dshmlRead(value, 'models'));
     for (const model of models) {
       if (model === null || typeof model !== 'object') continue;
-      const modelId = typeof model.id === 'string' ? model.id.trim() : '';
+      const id = dshmlRead(model, 'id');
+      const modelId = typeof id === 'string' ? id.trim() : '';
       if (modelId === '') continue;
-      const name = typeof model.name === 'string' && model.name.trim() !== '' ? model.name.trim() : modelId;
+      const rawName = dshmlRead(model, 'name');
+      const name = typeof rawName === 'string' && rawName.trim() !== '' ? rawName.trim() : modelId;
       out.push({ providerId: 'deepseek-official', modelId, name });
     }
   }
   return out;
 }
 
+/** One provider entry while the catalog is assembled. */
+interface DshmlCatalogEntry {
+  providerId: string;
+  displayName: string;
+  official: boolean;
+  declared: boolean;
+  models: CatalogModel[];
+  modelIds: Set<string>;
+}
+
 /** Join the provider directory with the settings-document model lists. */
-function dshmlBuildCatalog(directory, registered, views, overrides) {
-  const providers = new Map();
-  const ensureProvider = (providerId, displayName, official, declared) => {
+function dshmlBuildCatalog(
+  directory: unknown,
+  registered: unknown,
+  views: readonly SettingsNamespaceView[],
+  overrides: OverrideDocument,
+): CatalogProvider[] {
+  const providers = new Map<string, DshmlCatalogEntry>();
+  const ensureProvider = (
+    providerId: string,
+    displayName: unknown,
+    official: unknown,
+    declared: unknown,
+  ): DshmlCatalogEntry => {
     const existing = providers.get(providerId);
     if (existing !== undefined) return existing;
-    const entry = {
+    const entry: DshmlCatalogEntry = {
       providerId,
-      displayName: displayName || providerId,
+      displayName: typeof displayName === 'string' && displayName !== '' ? displayName : providerId,
       official: official === true,
       declared: declared === true,
       models: [],
-      modelIds: new Set(),
+      modelIds: new Set<string>(),
     };
     providers.set(providerId, entry);
     return entry;
   };
-  const addModel = (providerId, modelId, name, source) => {
-    const entry = ensureProvider(providerId, providerId, false, true);
-    if (entry.modelIds.has(modelId)) return;
-    entry.modelIds.add(modelId);
-    entry.models.push({ modelId, name: name || modelId, manual: source === 'override' });
-  };
-  for (const row of Array.isArray(directory) ? directory : []) {
-    if (row === null || typeof row !== 'object' || typeof row.provider !== 'string' || row.provider === '') continue;
-    const entry = ensureProvider(row.provider, row.displayName, row.declared !== true, row.declared === true);
-    entry.official = row.declared !== true;
-    entry.declared = row.declared === true;
-    if (typeof row.displayName === 'string' && row.displayName.trim() !== '') entry.displayName = row.displayName.trim();
+  for (const row of dshmlListOf(directory)) {
+    const provider = dshmlRead(row, 'provider');
+    if (typeof provider !== 'string' || provider === '') continue;
+    const declared = dshmlRead(row, 'declared') === true;
+    const entry = ensureProvider(provider, dshmlRead(row, 'displayName'), !declared, declared);
+    entry.official = !declared;
+    entry.declared = declared;
+    const displayName = dshmlRead(row, 'displayName');
+    if (typeof displayName === 'string' && displayName.trim() !== '') {
+      entry.displayName = displayName.trim();
+    }
   }
-  for (const route of Array.isArray(registered) ? registered : []) {
-    const id = route !== null && typeof route === 'object' && typeof route.id === 'string' ? route.id : '';
-    if (id === '') continue;
-    const entry = ensureProvider(id, typeof route.name === 'string' ? route.name : id, true, false);
-    if (entry.displayName === id && typeof route.name === 'string' && route.name.trim() !== '') entry.displayName = route.name.trim();
+  for (const route of dshmlListOf(registered)) {
+    const id = dshmlRead(route, 'id');
+    if (typeof id !== 'string' || id === '') continue;
+    const routeName = dshmlRead(route, 'name');
+    const entry = ensureProvider(id, typeof routeName === 'string' ? routeName : id, true, false);
+    if (entry.displayName === id && typeof routeName === 'string' && routeName.trim() !== '') {
+      entry.displayName = routeName.trim();
+    }
   }
-  for (const view of Array.isArray(views) ? views : []) {
+  for (const view of views) {
     for (const model of dshmlModelsFromView(view)) {
       const entry = ensureProvider(model.providerId, model.providerId, false, true);
       if (entry.modelIds.has(model.modelId)) continue;
@@ -378,7 +464,7 @@ function dshmlBuildCatalog(directory, registered, views, overrides) {
     entry.modelIds.add(row.modelId);
     entry.models.push({ modelId: row.modelId, name: row.modelId, manual: true });
   }
-  const ordered = [...providers.values()].map((entry) => ({
+  const ordered: CatalogProvider[] = [...providers.values()].map((entry) => ({
     providerId: entry.providerId,
     displayName: entry.displayName,
     official: entry.official,
@@ -393,44 +479,47 @@ function dshmlBuildCatalog(directory, registered, views, overrides) {
 }
 
 /** Refresh the catalog snapshot from the directory, the mirror and overrides. */
-async function dshmlRefreshCatalog() {
+export async function dshmlRefreshCatalog(): Promise<void> {
   const generation = ++dshmlCatalogGeneration;
   const llm = dshmlRemoteLlm;
   const configForms = dshmlConfigFormsService;
-  let directory = [];
-  let registered = [];
-  const warnings = [];
+  let directory: unknown = [];
+  let registered: unknown = [];
+  const warnings: string[] = [];
   try {
-    if (llm !== null && llm !== undefined && typeof llm === 'object') {
+    if (llm !== null) {
       if (typeof llm.listConfigurableProviders === 'function') {
         try {
           directory = dshmlUnwrapRemote(await llm.listConfigurableProviders()) ?? [];
         } catch (error) {
-          warnings.push(String(error?.message ?? error));
+          warnings.push(dshmlErrorMessage(error));
         }
       }
       if (typeof llm.listProviders === 'function') {
         try {
           registered = dshmlUnwrapRemote(await llm.listProviders()) ?? [];
         } catch (error) {
-          warnings.push(String(error?.message ?? error));
+          warnings.push(dshmlErrorMessage(error));
         }
       }
     }
-    let views = [];
-    if (configForms !== null && typeof configForms === 'object' && typeof configForms.describe === 'function') {
+    let views: readonly SettingsNamespaceView[] = [];
+    if (configForms !== null && typeof configForms.describe === 'function') {
       const mirror = configForms.describe();
       if (mirror !== null && typeof mirror === 'object') {
         if (typeof mirror.ensure === 'function') await mirror.ensure();
         const snapshot = typeof mirror.getSnapshot === 'function' ? mirror.getSnapshot() : null;
         const view = snapshot !== null && typeof snapshot === 'object' ? snapshot.view : null;
-        if (view !== null && typeof view === 'object' && Array.isArray(view.namespaces)) views = view.namespaces;
+        if (view !== null && typeof view === 'object') {
+          const namespaces = view.namespaces;
+          if (Array.isArray(namespaces)) views = namespaces;
+        }
       }
     }
     if (generation !== dshmlCatalogGeneration) return;
     const providers = dshmlBuildCatalog(directory, registered, views, dshmlIconState().overrides);
     if (providers.length === 0 && warnings.length > 0 && dshmlCatalogState().providers.length === 0) {
-      dshmlPublishCatalog({ status: 'unavailable', providers: [], error: warnings[0] });
+      dshmlPublishCatalog({ status: 'unavailable', providers: [], error: warnings[0] ?? null });
       return;
     }
     dshmlPublishCatalog({ status: 'ready', providers, error: null });
@@ -439,13 +528,13 @@ async function dshmlRefreshCatalog() {
     dshmlPublishCatalog({
       status: dshmlCatalogState().providers.length > 0 ? 'ready' : 'unavailable',
       providers: dshmlCatalogState().providers,
-      error: String(error?.message ?? error),
+      error: dshmlErrorMessage(error),
     });
   }
 }
 
 /** Debounced catalog refresh. */
-function dshmlScheduleCatalogRefresh(delay) {
+export function dshmlScheduleCatalogRefresh(delay?: number): void {
   if (dshmlCatalogTimer !== null) {
     clearTimeout(dshmlCatalogTimer);
     dshmlCatalogTimer = null;
@@ -458,23 +547,24 @@ function dshmlScheduleCatalogRefresh(delay) {
 }
 
 /** Wire the settings form and watch the settings mirror. */
-function dshmlMountSettingsScope(scope) {
+function dshmlMountSettingsScope(scope: DshContext): () => void {
   const configForms = dshmlServiceOf(scope, 'configForms');
   if (configForms === undefined) return function noop() {};
-  dshmlConfigFormsService = configForms;
-  const form = typeof configForms.get === 'function' ? configForms.get(DSHML_SETTINGS_NS) : null;
+  const service = configForms as ConfigFormsService;
+  dshmlConfigFormsService = service;
+  const form = typeof service.get === 'function' ? service.get(DSHML_SETTINGS_NS) : null;
   if (form === null) return function noop() {};
   dshmlIconForm = form;
   const apply = () => dshmlAcceptIconForm(form);
   apply();
-  const off = typeof form.subscribe === 'function' ? form.subscribe(apply) : null;
-  let offMirror = null;
+  const off = typeof form.subscribe === 'function' ? dshmlDisposerOf(form.subscribe(apply)) : null;
+  let offMirror: (() => void) | null = null;
   try {
-    const mirror = typeof configForms.describe === 'function' ? configForms.describe() : null;
+    const mirror = typeof service.describe === 'function' ? service.describe() : null;
     if (mirror !== null && typeof mirror === 'object') {
       if (typeof mirror.ensure === 'function') mirror.ensure();
       if (typeof mirror.subscribe === 'function') {
-        offMirror = mirror.subscribe(() => dshmlScheduleCatalogRefresh(60));
+        offMirror = dshmlDisposerOf(mirror.subscribe(() => dshmlScheduleCatalogRefresh(60)));
       }
     }
   } catch {
@@ -483,58 +573,61 @@ function dshmlMountSettingsScope(scope) {
   dshmlScheduleCatalogRefresh(0);
   return function cleanup() {
     if (dshmlIconForm === form) dshmlIconForm = null;
-    if (typeof off === 'function') off();
-    if (typeof offMirror === 'function') offMirror();
+    if (off !== null) off();
+    if (offMirror !== null) offMirror();
   };
 }
 
 /** Wire the provider directory (`remote.llm` projected namespace). */
-function dshmlMountRemoteLlmScope(scope) {
+function dshmlMountRemoteLlmScope(scope: DshContext): () => void {
   const llm = dshmlServiceOf(scope, 'remote.llm');
   if (llm === undefined) return function noop() {};
-  dshmlRemoteLlm = llm;
+  const service = llm as RemoteLlmService;
+  dshmlRemoteLlm = service;
   dshmlScheduleCatalogRefresh(0);
   return function cleanup() {
-    if (dshmlRemoteLlm === llm) dshmlRemoteLlm = null;
+    if (dshmlRemoteLlm === service) dshmlRemoteLlm = null;
   };
 }
 
 /** Wire forwarded topology events from the remote root service. */
-function dshmlMountRemoteScope(scope) {
+function dshmlMountRemoteScope(scope: DshContext): () => void {
   const remote = dshmlServiceOf(scope, 'remote');
   if (remote === undefined) return function noop() {};
-  dshmlRemoteService = remote;
-  let offEvent = null;
+  const service = remote as RemoteService;
+  dshmlRemoteService = service;
+  let offEvent: (() => void) | null = null;
   try {
-    if (typeof remote.$on === 'function') {
-      offEvent = remote.$on('llm/adapters-updated', () => dshmlScheduleCatalogRefresh(120));
+    if (typeof service.$on === 'function') {
+      offEvent = dshmlDisposerOf(service.$on('llm/adapters-updated', () => dshmlScheduleCatalogRefresh(120)));
     }
   } catch {
     // Older hosts: the mirror subscription still refreshes the catalog.
   }
   if (offEvent === null && typeof scope.on === 'function') {
     try {
-      const off = scope.on('llm/adapters-updated', () => dshmlScheduleCatalogRefresh(120));
-      if (typeof off === 'function') offEvent = off;
+      const off = dshmlDisposerOf(scope.on('llm/adapters-updated', () => dshmlScheduleCatalogRefresh(120)));
+      if (off !== null) offEvent = off;
     } catch {
       // Ignore an unavailable event bus.
     }
   }
   dshmlScheduleCatalogRefresh(0);
   return function cleanup() {
-    if (dshmlRemoteService === remote) dshmlRemoteService = null;
-    if (typeof offEvent === 'function') offEvent();
+    if (dshmlRemoteService === service) dshmlRemoteService = null;
+    if (offEvent !== null) offEvent();
   };
 }
 
 /** Wire the DSH locale service so copy follows the app language. */
-function dshmlMountLocaleScope(scope) {
+function dshmlMountLocaleScope(scope: DshContext): () => void {
   const locale = dshmlServiceOf(scope, 'locale');
   if (locale === undefined) return function noop() {};
+  const service = locale as LocaleService;
   const apply = () => {
-    let active = null;
+    let active: unknown = null;
     try {
-      const snapshot = typeof locale.getSnapshot === 'function' ? locale.getSnapshot() : null;
+      const snapshot = typeof service.getSnapshot === 'function' ? service.getSnapshot() : null;
       active = snapshot !== null && typeof snapshot === 'object' ? snapshot.active : null;
     } catch {
       active = null;
@@ -544,9 +637,9 @@ function dshmlMountLocaleScope(scope) {
     dshmlPublishCatalog(dshmlCatalogState());
   };
   apply();
-  const off = typeof locale.subscribe === 'function' ? locale.subscribe(apply) : null;
+  const off = typeof service.subscribe === 'function' ? dshmlDisposerOf(service.subscribe(apply)) : null;
   return function cleanup() {
-    if (typeof off === 'function') off();
+    if (off !== null) off();
   };
 }
 
@@ -555,9 +648,9 @@ function dshmlMountLocaleScope(scope) {
  * independently: a deployment without the settings service keeps the composer
  * marks (they just stay heuristic-only).
  */
-function dshmlMountIconStore(ctx) {
+export function dshmlMountIconStore(ctx: DshContext): void {
   if (ctx === null || typeof ctx !== 'object') return;
-  const scopes = [
+  const scopes: ReadonlyArray<readonly [string, (scope: DshContext) => () => void]> = [
     ['locale', dshmlMountLocaleScope],
     ['configForms', dshmlMountSettingsScope],
     ['remote', dshmlMountRemoteScope],
@@ -567,10 +660,10 @@ function dshmlMountIconStore(ctx) {
     try {
       if (typeof ctx.inject === 'function') {
         ctx.inject([service], (child) => {
-          child.effect(() => wire(child), 'dsh-model-logos: ' + service);
+          child.effect?.(() => wire(child), 'dsh-model-logos: ' + service);
         });
       } else if (typeof ctx.get === 'function' && ctx.get(service) !== undefined) {
-        ctx.effect(() => wire(ctx), 'dsh-model-logos: ' + service);
+        ctx.effect?.(() => wire(ctx), 'dsh-model-logos: ' + service);
       }
     } catch (error) {
       console.warn('[dsh-model-logos] cannot inject ' + service, error);

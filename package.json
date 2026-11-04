@@ -1,16 +1,9 @@
 {
   "name": "dsh-model-logos",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
-  "type": "module",
   "description": "Shows each model's brand mark beside its name in the composer model selector and model picker, and vendor/model logos across Settings → Models, with a per-model icon picker.",
   "license": "MIT",
-  "exports": {
-    ".": "./index.js",
-    "./client": "./client.js",
-    "./locale/*.json": "./locale/*.json",
-    "./icon": "./icon.svg"
-  },
   "files": [
     "index.js",
     "client.js",
@@ -24,20 +17,60 @@
     "docs",
     "README.md"
   ],
+  "type": "module",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
   "scripts": {
-    "build": "node scripts/build-client.mjs",
-    "check": "node scripts/build-client.mjs --check",
-    "preview": "node scripts/preview-logos.mjs",
-    "verify-live": "node scripts/verify-live.mjs",
-    "verify-dom": "node scripts/verify-dom.mjs",
-    "test": "node --test \"test/*.test.mjs\""
+    "build": "tsx scripts/build.ts",
+    "check": "tsx scripts/build.ts --check",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "fmt": "oxfmt --write .",
+    "fmt:check": "oxfmt --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "preview": "tsx scripts/preview-logos.ts",
+    "verify:dom": "tsx scripts/verify-dom.ts",
+    "verify:live": "tsx scripts/verify-live.ts",
+    "verify": "npm run typecheck && npm run lint && npm run fmt:check && npm run test && npm run build && npm run check",
+    "prepare": "simple-git-hooks && npm run build"
   },
   "dependencies": {
     "@deepseek-ai/schemastery": "^3.18.5"
   },
   "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "@vitest/coverage-v8": "^5.1.0",
+    "esbuild": "^0.28.2",
+    "lint-staged": "^17.6.0",
+    "oxfmt": "^0.76.0",
+    "oxlint": "^1.91.0",
     "react": "18.3.1",
-    "react-dom": "18.3.1"
+    "react-dom": "18.3.1",
+    "simple-git-hooks": "^2.14.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "npx lint-staged"
+  },
+  "lint-staged": {
+    "*.{ts,mts,json,jsonc,yml,yaml,md,css}": [
+      "oxlint --fix",
+      "oxfmt --write"
+    ]
+  },
+  "engines": {
+    "node": ">=22.12.0"
   },
   "dsh": {
     "bundle": {

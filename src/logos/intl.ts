@@ -2,7 +2,7 @@
  * Brand marks for international model families.
  *
  * Contract for every entry:
- *   key   — a key returned by src/match.mjs
+ *   key   — a key returned by src/match.ts
  *   { title, svg } where svg is one self-contained 24x24 <svg> string.
  *
  * Artwork rules (they keep 14-16px rendering legible and inlining safe):
@@ -22,16 +22,17 @@
  * Keys owned here: openai, claude, gemini, meta, mistral, xai, microsoft, nvidia,
  * aws, cohere, perplexity, huggingface, ollama, groq, openrouter.
  */
+import type { LogoSet } from '../types';
 
 /** One 24x24 mark: rounded brand tile plus the glyph drawn on top of it. */
-const mark = (fill, glyph) =>
+const mark = (fill: string, glyph: string): string =>
   `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect width="24" height="24" rx="6" fill="${fill}"/>${glyph}</svg>`;
 
 /**
  * Repeat a glyph centred on the canvas centre, `count` times, `step` degrees apart.
  * Used for the radially symmetric marks (OpenAI rosette, Claude sun).
  */
-const radial = (count, step, glyph) =>
+const radial = (count: number, step: number, glyph: string): string =>
   `<g fill="#FFFFFF">${Array.from(
     { length: count },
     (_, index) => `<path transform="translate(12 12) rotate(${index * step})" d="${glyph}"/>`,
@@ -53,8 +54,7 @@ const COHERE_SEGMENTS = [
   'M12 4.9A7.1 7.1 0 0 1 17.89 8.03L14.9 10.04A3.5 3.5 0 0 0 12 8.5Z',
 ];
 
-/** @type {Record<string, { title: string, svg: string }>} */
-export const LOGOS = {
+export const LOGOS: LogoSet = {
   // Six-fold interlocking rosette: six rounded blades around a small hexagonal
   // centre void; brand mark is monochrome, so a near-black tile carries it.
   openai: {
@@ -145,10 +145,7 @@ export const LOGOS = {
   // Cohere's segmented circular monogram: five thick broken rings.
   cohere: {
     title: 'Cohere',
-    svg: mark(
-      '#39594D',
-      `<g fill="#FFFFFF">${COHERE_SEGMENTS.map((d) => `<path d="${d}"/>`).join('')}</g>`,
-    ),
+    svg: mark('#39594D', `<g fill="#FFFFFF">${COHERE_SEGMENTS.map((d) => `<path d="${d}"/>`).join('')}</g>`),
   },
 
   // Perplexity's geometric square knot (a square-cut spiral).

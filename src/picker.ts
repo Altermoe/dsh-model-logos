@@ -1,27 +1,33 @@
 /**
  * Icon picker modal for the model-logos plugin.
  *
- * Fragment (no imports/require): `scripts/build-client.mjs` concatenates this
- * file into the browser module factory after `src/i18n.js` and
- * `src/overrides.js`, so the following names are in scope and must not be
- * redefined here: `React`, `h`, `createRoot`, `LOGOS`, `letterTile`, `dshmlT`,
- * `dshmlLang`, `dshmlIconState`, `dshmlSubscribeIconState`,
- * `dshmlUseIconState`, `dshmlResolveFor`, `dshmlLetterTextFor`,
- * `dshmlSetModelIcon`, `dshmlClearModelIcon`, `dshmlUseModelCatalog`.
+ * Opens a centered modal through its own `react-dom/client` root inside a plain
+ * `document.body` child, never inside the React tree of the caller. Only one
+ * picker may be mounted at a time; opening a second one closes the first.
  *
- * This file also carries the small DOM-free helpers that `src/section.js`
- * reuses (`dshmlUiCopy`, `dshmlUiOverrideValue`, `dshmlUiResolve`,
- * `dshmlUiLetterTile`, `dshmlUiBrandOptions`, `dshmlUiLogo`, the letter-icon
- * literal and the two placeholder SVGs). Function declarations hoist across
- * the concatenated factory, so `section.js` can call them safely.
- *
- * Only one picker may be mounted at a time; opening a second one closes the
- * first. The modal lives in its own `react-dom/client` root inside a plain
- * `document.body` child, never inside the React tree of the caller.
+ * This module also carries the small DOM-free render helpers that
+ * `src/section.ts` reuses (`dshmlUiCopy`, `dshmlUiOverrideValue`,
+ * `dshmlUiResolve`, `dshmlUiLetterTile`, `dshmlUiLogo`, the letter-icon literal
+ * and the two placeholder SVGs). They are exported here instead of being
+ * shared through a concatenated scope.
  */
+import type { ChangeEvent, ReactElement } from 'react';
+import { h, React, getCreateRoot } from './runtime';
+import type { IconState, Logo } from './types';
+import { dshmlT } from './i18n';
+import { letterTile } from './artwork';
+import { LOGOS } from './logos';
+import {
+  dshmlClearModelIcon,
+  dshmlIconState,
+  dshmlLetterTextFor,
+  dshmlResolveFor,
+  dshmlSetModelIcon,
+  dshmlUseIconState,
+} from './overrides';
 
 /** Persisted override value meaning "render a deterministic letter tile". */
-const DSHML_LETTER_ICON = 'letter';
+export const DSHML_LETTER_ICON = 'letter';
 
 /** Neutral "let the heuristic decide" mark (sparkle in a rounded square). */
 const DSHML_PICKER_AUTO_SVG =
@@ -31,7 +37,7 @@ const DSHML_PICKER_AUTO_SVG =
   '</svg>';
 
 /** "No icon" mark (crossed circle). */
-const DSHML_PICKER_NONE_SVG =
+export const DSHML_PICKER_NONE_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">' +
   '<circle cx="12" cy="12" r="8.6" fill="none" stroke="#98a1b0" stroke-width="1.4"/>' +
   '<path d="M6.1 17.9 17.9 6.1" fill="none" stroke="#98a1b0" stroke-width="1.4" stroke-linecap="round"/>' +
@@ -41,115 +47,129 @@ const DSHML_PICKER_NONE_SVG =
 let dshmlPickerSerial = 0;
 
 /** The currently mounted picker's close function, or null. */
-let dshmlPickerOpenClose = null;
+let dshmlPickerOpenClose: (() => void) | null = null;
+
+/** One validated brand option: artwork key plus its title. */
+export interface DshmlUiLogoEntry {
+  key: string;
+  title: string;
+  svg: string;
+}
+
+/** Normalized resolution shape the picker and the settings section render. */
+export interface DshmlUiResolution {
+  key: string | null;
+  source: string;
+  disabled: boolean;
+  letter: boolean;
+}
+
+/** A validated letter tile (generated tile for one model). */
+export interface DshmlUiLetterTile {
+  title: string;
+  svg: string;
+}
 
 /** Lazily built, sorted brand option list (LOGOS never changes after load). */
-let dshmlUiBrandCache = null;
+let dshmlUiBrandCache: DshmlUiLogoEntry[] | null = null;
 
 /**
  * `dshmlT` lookup that degrades to an English fallback instead of showing a raw
  * dictionary key when i18n is missing an entry.
- * @param {string} key
- * @param {string} fallback
- * @returns {string}
+ * @param key - dictionary key.
+ * @param fallback - English literal used when the lookup has no entry.
  */
-function dshmlUiCopy(key, fallback) {
+export function dshmlUiCopy(key: string, fallback: string): string {
   try {
-    if (typeof dshmlT === 'function') {
-      const value = dshmlT(key);
-      if (typeof value === 'string' && value !== '' && value !== key) return value;
-    }
-  } catch (error) {
+    const value: unknown = dshmlT(key);
+    if (typeof value === 'string' && value !== '' && value !== key) return value;
+  } catch {
     /* fall through to the literal */
   }
   return fallback;
 }
 
-/** @returns {{ status: string, overrides: any, writable: boolean, error: string }} */
-function dshmlUiFallbackState() {
-  return { status: 'loading', overrides: null, writable: false, error: '' };
+/** State rendered while the icon store is missing, broken or still loading. */
+function dshmlUiFallbackState(): IconState {
+  return { status: 'loading', overrides: {}, writable: false, error: '' };
 }
 
-/** @returns {{ status: string, overrides: any, writable: boolean, error: string }} */
-function dshmlUiState() {
+/** Current icon-store snapshot, or the safe fallback state. */
+function dshmlUiState(): IconState {
   try {
-    if (typeof dshmlIconState === 'function') {
-      const state = dshmlIconState();
-      if (state !== null && typeof state === 'object') return state;
-    }
-  } catch (error) {
+    const state: unknown = dshmlIconState();
+    if (state !== null && typeof state === 'object') return state as IconState;
+  } catch {
     /* fall through */
   }
   return dshmlUiFallbackState();
 }
 
 /** Latest store error message, or '' — used to explain a failed write. */
-function dshmlUiCurrentError() {
+export function dshmlUiCurrentError(): string {
   const state = dshmlUiState();
   return typeof state.error === 'string' ? state.error : '';
 }
 
 /**
- * @param {any} state icon-store state
- * @returns {Record<string, Record<string, string>> | null}
+ * The nested override map inside an icon-store state, when it is an object.
+ * @param state - icon-store state (defensively treated as unknown).
  */
-function dshmlUiOverrides(state) {
+export function dshmlUiOverrides(state: unknown): Record<string, unknown> | null {
   if (state === null || typeof state !== 'object') return null;
-  const overrides = state.overrides;
-  return overrides !== null && typeof overrides === 'object' ? overrides : null;
+  const overrides = (state as { overrides?: unknown }).overrides;
+  return overrides !== null && typeof overrides === 'object' ? (overrides as Record<string, unknown>) : null;
 }
 
 /**
- * @param {Record<string, any> | null} overrides
- * @param {string} providerId
- * @param {string} modelId
- * @returns {string | null} stored override value (`'none'` / `'letter'` / brand key)
+ * The stored override value of one pair, or null when unset.
+ * @param overrides - validated override map (defensively treated as unknown).
+ * @param providerId - provider route id.
+ * @param modelId - model id.
+ * @returns `'none'`, `'letter'`, a brand key, or null.
  */
-function dshmlUiOverrideValue(overrides, providerId, modelId) {
+export function dshmlUiOverrideValue(overrides: unknown, providerId: string, modelId: string): string | null {
   if (overrides === null || typeof overrides !== 'object') return null;
   try {
-    const bucket = overrides[providerId];
+    const bucket = (overrides as Record<string, unknown>)[providerId];
     if (bucket === null || typeof bucket !== 'object') return null;
-    const value = bucket[modelId];
+    const value = (bucket as Record<string, unknown>)[modelId];
     return typeof value === 'string' && value !== '' ? value : null;
-  } catch (error) {
+  } catch {
     return null;
   }
 }
 
 /**
- * @param {string} key
- * @returns {{ key: string, title: string, svg: string } | null}
+ * One brand mark from the merged artwork set.
+ * @param key - artwork key (defensively treated as unknown).
  */
-function dshmlUiLogo(key) {
+export function dshmlUiLogo(key: unknown): DshmlUiLogoEntry | null {
   if (typeof key !== 'string' || key === '') return null;
   try {
-    if (typeof LOGOS !== 'object' || LOGOS === null) return null;
-    const entry = LOGOS[key];
-    if (entry === null || typeof entry !== 'object') return null;
+    const entry: Logo | undefined = LOGOS[key];
+    if (entry === undefined || typeof entry !== 'object') return null;
     if (typeof entry.svg !== 'string' || entry.svg === '') return null;
     return {
       key: key,
       title: typeof entry.title === 'string' && entry.title !== '' ? entry.title : key,
       svg: entry.svg,
     };
-  } catch (error) {
+  } catch {
     return null;
   }
 }
 
 /** All selectable brand marks, sorted by title, built once. */
-function dshmlUiBrandOptions() {
+function dshmlUiBrandOptions(): DshmlUiLogoEntry[] {
   if (dshmlUiBrandCache !== null) return dshmlUiBrandCache;
-  const options = [];
+  const options: DshmlUiLogoEntry[] = [];
   try {
-    if (typeof LOGOS === 'object' && LOGOS !== null) {
-      for (const key of Object.keys(LOGOS)) {
-        const entry = dshmlUiLogo(key);
-        if (entry !== null) options.push(entry);
-      }
+    for (const key of Object.keys(LOGOS)) {
+      const entry = dshmlUiLogo(key);
+      if (entry !== null) options.push(entry);
     }
-  } catch (error) {
+  } catch {
     /* keep whatever was collected */
   }
   options.sort(function byTitle(a, b) {
@@ -162,21 +182,18 @@ function dshmlUiBrandOptions() {
 /**
  * Letter text exactly as the picker previews it: model name → model id →
  * provider id → '?'. Delegates to `dshmlLetterTextFor` when present.
- * @param {string} providerId
- * @param {string} modelId
- * @param {string} modelName
- * @returns {string}
+ * @param providerId - provider route id.
+ * @param modelId - model id.
+ * @param modelName - catalog display name.
  */
-function dshmlUiLetterText(providerId, modelId, modelName) {
+function dshmlUiLetterText(providerId: string, modelId: string, modelName: string): string {
   try {
-    if (typeof dshmlLetterTextFor === 'function') {
-      const text = dshmlLetterTextFor(
-        { id: providerId, name: '' },
-        { id: modelId, name: typeof modelName === 'string' ? modelName : '' },
-      );
-      if (typeof text === 'string' && text !== '') return text;
-    }
-  } catch (error) {
+    const text: unknown = dshmlLetterTextFor(
+      { id: providerId, name: '' },
+      { id: modelId, name: typeof modelName === 'string' ? modelName : '' },
+    );
+    if (typeof text === 'string' && text !== '') return text;
+  } catch {
     /* fall through to the local mirror */
   }
   const name = typeof modelName === 'string' ? modelName.trim() : '';
@@ -187,69 +204,82 @@ function dshmlUiLetterText(providerId, modelId, modelName) {
 }
 
 /**
- * @returns {{ title: string, svg: string } | null}
+ * The letter tile the picker previews for one pair, or null when generation failed.
+ * @param providerId - provider route id.
+ * @param modelId - model id.
+ * @param modelName - catalog display name.
  */
-function dshmlUiLetterTile(providerId, modelId, modelName) {
+export function dshmlUiLetterTile(providerId: string, modelId: string, modelName: string): DshmlUiLetterTile | null {
   const text = dshmlUiLetterText(providerId, modelId, modelName);
   try {
-    if (typeof letterTile === 'function') {
-      const tile = letterTile(text);
-      if (tile !== null && typeof tile === 'object' && typeof tile.svg === 'string' && tile.svg !== '') {
+    const tile: unknown = letterTile(text);
+    if (tile !== null && typeof tile === 'object') {
+      const candidate = tile as { title?: unknown; svg?: unknown };
+      if (typeof candidate.svg === 'string' && candidate.svg !== '') {
         return {
-          title: typeof tile.title === 'string' && tile.title !== '' ? tile.title : text,
-          svg: tile.svg,
+          title: typeof candidate.title === 'string' && candidate.title !== '' ? candidate.title : text,
+          svg: candidate.svg,
         };
       }
     }
-  } catch (error) {
+  } catch {
     /* fall through */
   }
   return null;
 }
 
 /**
- * @returns {{ key: string | null, source: string, disabled: boolean, letter: boolean }}
+ * Resolve one pair for rendering, normalizing whatever the store returned.
+ * @param providerId - provider route id.
+ * @param modelId - model id.
+ * @param modelName - catalog display name.
  */
-function dshmlUiResolve(providerId, modelId, modelName) {
+export function dshmlUiResolve(providerId: string, modelId: string, modelName: string): DshmlUiResolution {
   try {
-    if (typeof dshmlResolveFor === 'function') {
-      const result = dshmlResolveFor(
-        { id: providerId, name: '' },
-        { id: modelId, name: typeof modelName === 'string' ? modelName : '' },
-      );
-      if (result !== null && typeof result === 'object') {
-        return {
-          key: typeof result.key === 'string' && result.key !== '' ? result.key : null,
-          source: typeof result.source === 'string' ? result.source : 'none',
-          disabled: result.disabled === true,
-          letter: result.letter === true,
-        };
-      }
+    const result: unknown = dshmlResolveFor(
+      { id: providerId, name: '' },
+      { id: modelId, name: typeof modelName === 'string' ? modelName : '' },
+    );
+    if (result !== null && typeof result === 'object') {
+      const candidate = result as { key?: unknown; source?: unknown; disabled?: unknown; letter?: unknown };
+      return {
+        key: typeof candidate.key === 'string' && candidate.key !== '' ? candidate.key : null,
+        source: typeof candidate.source === 'string' ? candidate.source : 'none',
+        disabled: candidate.disabled === true,
+        letter: candidate.letter === true,
+      };
     }
-  } catch (error) {
+  } catch {
     /* fall through */
   }
   return { key: null, source: 'none', disabled: false, letter: false };
 }
 
 /** Wrapper around a possibly-missing hook so a broken store renders a state. */
-function dshmlUiUseIconState() {
+export function dshmlUiUseIconState(): IconState {
   try {
-    if (typeof dshmlUseIconState === 'function') {
-      const state = dshmlUseIconState();
-      if (state !== null && typeof state === 'object') return state;
-    }
-  } catch (error) {
+    const state: unknown = dshmlUseIconState();
+    if (state !== null && typeof state === 'object') return state as IconState;
+  } catch {
     /* fall through */
   }
   return dshmlUiFallbackState();
 }
 
-/**
- * One grid cell: a sticky-current option with its mark and label.
- * @param {any} props
- */
-function DshmlPickerOption(props) {
+/** The props one picker grid cell accepts. */
+interface DshmlPickerOptionProps {
+  optionKey: string;
+  label?: string | null;
+  svg?: string | null;
+  ariaLabel?: string | null;
+  hint?: string | null;
+  selected?: boolean;
+  disabled?: boolean;
+  onSelect?: () => void;
+}
+
+/** One grid cell: a sticky-current option with its mark and label. */
+function DshmlPickerOption(props: DshmlPickerOptionProps): ReactElement {
   const label = typeof props.label === 'string' && props.label !== '' ? props.label : props.optionKey;
   const svg = typeof props.svg === 'string' ? props.svg : '';
   return h(
@@ -275,11 +305,17 @@ function DshmlPickerOption(props) {
   );
 }
 
-/**
- * The modal content. Receives already-validated ids from dshmlOpenIconPicker.
- * @param {any} props
- */
-function DshmlIconPickerApp(props) {
+/** The props the modal content receives from `dshmlOpenIconPicker`. */
+interface DshmlIconPickerAppProps {
+  providerId: string;
+  modelId: string;
+  displayName: string;
+  onChanged?: (() => void) | undefined;
+  onClose: () => void;
+}
+
+/** The modal content. Receives already-validated ids from dshmlOpenIconPicker. */
+function DshmlIconPickerApp(props: DshmlIconPickerAppProps): ReactElement {
   const providerId = props.providerId;
   const modelId = props.modelId;
   const displayName = typeof props.displayName === 'string' ? props.displayName : '';
@@ -288,40 +324,47 @@ function DshmlIconPickerApp(props) {
   const [query, setQuery] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState('');
-  const dialogRef = React.useRef(null);
-  const titleIdRef = React.useRef(null);
+  const dialogRef = React.useRef<HTMLDivElement>(null);
+  const titleIdRef = React.useRef<string | null>(null);
   if (titleIdRef.current === null) {
     dshmlPickerSerial += 1;
     titleIdRef.current = 'dshml-picker-title-' + dshmlPickerSerial;
   }
+  const titleId = titleIdRef.current;
 
-  React.useEffect(function trapKeys() {
-    function onKeyDown(event) {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        props.onClose();
-        return;
+  React.useEffect(
+    function trapKeys() {
+      function onKeyDown(event: KeyboardEvent) {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          props.onClose();
+          return;
+        }
+        if (event.key !== 'Tab') return;
+        const dialog = dialogRef.current;
+        if (dialog === null || typeof dialog.querySelectorAll !== 'function') return;
+        const nodes = dialog.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        );
+        if (nodes.length === 0) return;
+        const first = nodes[0];
+        const last = nodes[nodes.length - 1];
+        if (first === undefined || last === undefined) return;
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          if (typeof last.focus === 'function') last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          if (typeof first.focus === 'function') first.focus();
+        }
       }
-      if (event.key !== 'Tab') return;
-      const dialog = dialogRef.current;
-      if (dialog === null || typeof dialog.querySelectorAll !== 'function') return;
-      const nodes = dialog.querySelectorAll('button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])');
-      if (nodes.length === 0) return;
-      const first = nodes[0];
-      const last = nodes[nodes.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        if (typeof last.focus === 'function') last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        if (typeof first.focus === 'function') first.focus();
-      }
-    }
-    document.addEventListener('keydown', onKeyDown, true);
-    return function untrapKeys() {
-      document.removeEventListener('keydown', onKeyDown, true);
-    };
-  }, [props.onClose]);
+      document.addEventListener('keydown', onKeyDown, true);
+      return function untrapKeys() {
+        document.removeEventListener('keydown', onKeyDown, true);
+      };
+    },
+    [props.onClose],
+  );
 
   const overrides = dshmlUiOverrides(state);
   const rawOverride = dshmlUiOverrideValue(overrides, providerId, modelId);
@@ -340,8 +383,7 @@ function DshmlIconPickerApp(props) {
     const autoLogo = dshmlUiLogo(resolved.key);
     if (autoLogo !== null) autoSvg = autoLogo.svg;
   }
-  const letterSvg =
-    letterTileEntry !== null ? letterTileEntry.svg : DSHML_PICKER_AUTO_SVG;
+  const letterSvg = letterTileEntry !== null ? letterTileEntry.svg : DSHML_PICKER_AUTO_SVG;
 
   const allBrands = dshmlUiBrandOptions();
   const normalizedQuery = query.trim().toLowerCase();
@@ -355,12 +397,12 @@ function DshmlIconPickerApp(props) {
           );
         });
 
-  function explainWriteFailure() {
+  function explainWriteFailure(): string {
     const message = dshmlUiCurrentError();
     return message !== '' ? message : dshmlUiCopy('picker.saveFailed', 'Could not save — try again');
   }
 
-  function selectIcon(kind, brandKey) {
+  function selectIcon(kind: 'auto' | 'none' | 'letter' | 'brand', brandKey: string | null): void {
     if (busy === true) return;
     if (unavailable === true) {
       setError(dshmlUiCopy('picker.unavailable', 'Icon settings unavailable (host plugin not loaded)'));
@@ -368,22 +410,16 @@ function DshmlIconPickerApp(props) {
     }
     setError('');
     setBusy(true);
-    let write;
+    let write: Promise<boolean>;
     try {
       if (kind === 'auto') {
-        if (typeof dshmlClearModelIcon !== 'function') {
-          throw new Error('dshmlClearModelIcon is unavailable');
-        }
         write = dshmlClearModelIcon(providerId, modelId);
       } else {
-        if (typeof dshmlSetModelIcon !== 'function') {
-          throw new Error('dshmlSetModelIcon is unavailable');
-        }
         const value = kind === 'none' ? 'none' : kind === 'letter' ? DSHML_LETTER_ICON : brandKey;
-        write = dshmlSetModelIcon(providerId, modelId, value);
+        write = dshmlSetModelIcon(providerId, modelId, value ?? '');
       }
-    } catch (error) {
-      write = Promise.reject(error);
+    } catch (writeError) {
+      write = Promise.reject(writeError);
     }
     Promise.resolve(write).then(
       function saved(ok) {
@@ -395,7 +431,7 @@ function DshmlIconPickerApp(props) {
         if (typeof props.onChanged === 'function') {
           try {
             props.onChanged();
-          } catch (callbackError) {
+          } catch {
             /* a failing callback must not keep the modal open */
           }
         }
@@ -410,13 +446,15 @@ function DshmlIconPickerApp(props) {
 
   const disabled = unavailable === true || busy === true;
 
-  const headChildren = [
+  const headChildren: ReactElement[] = [
     h('div', { key: 'heading', className: 'dshml-picker-heading' }, [
-      h('h2', { key: 'title', className: 'dshml-picker-title', id: titleIdRef.current }, dshmlUiCopy('picker.title', 'Choose model icon')),
+      h(
+        'h2',
+        { key: 'title', className: 'dshml-picker-title', id: titleId },
+        dshmlUiCopy('picker.title', 'Choose model icon'),
+      ),
       h('div', { key: 'subtitle', className: 'dshml-picker-subtitle' }, [
-        displayName !== ''
-          ? h('span', { key: 'name', className: 'dshml-picker-subtitle-name' }, displayName)
-          : null,
+        displayName !== '' ? h('span', { key: 'name', className: 'dshml-picker-subtitle-name' }, displayName) : null,
         displayName !== '' ? h('span', { key: 'sep1', className: 'dshml-picker-subtitle-sep' }, '·') : null,
         h('span', { key: 'provider' }, providerId),
         h('span', { key: 'sep2', className: 'dshml-picker-subtitle-sep' }, '·'),
@@ -501,15 +539,13 @@ function DshmlIconPickerApp(props) {
       className: 'dshml-picker-dialog',
       role: 'dialog',
       'aria-modal': 'true',
-      'aria-labelledby': titleIdRef.current,
+      'aria-labelledby': titleId,
       tabIndex: -1,
       ref: dialogRef,
     },
     [
       h('div', { key: 'head', className: 'dshml-picker-head' }, headChildren),
-      error !== ''
-        ? h('p', { key: 'error', className: 'dshml-picker-error', role: 'alert' }, error)
-        : null,
+      error !== '' ? h('p', { key: 'error', className: 'dshml-picker-error', role: 'alert' }, error) : null,
       unavailable === true
         ? h(
             'p',
@@ -526,14 +562,18 @@ function DshmlIconPickerApp(props) {
           'aria-label': dshmlUiCopy('picker.search', 'Search icons'),
           value: query,
           autoFocus: true,
-          onChange: function onSearch(event) {
+          onChange: function onSearch(event: ChangeEvent<HTMLInputElement>) {
             setQuery(event.target.value);
           },
         }),
       ]),
       h('div', { key: 'body', className: 'dshml-picker-body' }, [
         h('div', { key: 'specials', className: 'dshml-picker-specials' }, specialOptions),
-        h('h3', { key: 'brand-title', className: 'dshml-picker-group-title' }, dshmlUiCopy('picker.brands', 'Brand marks')),
+        h(
+          'h3',
+          { key: 'brand-title', className: 'dshml-picker-group-title' },
+          dshmlUiCopy('picker.brands', 'Brand marks'),
+        ),
         brandCells.length > 0
           ? h('div', { key: 'brands', className: 'dshml-picker-grid' }, brandCells)
           : h(
@@ -546,38 +586,48 @@ function DshmlIconPickerApp(props) {
   );
 }
 
+/** Options accepted by {@link dshmlOpenIconPicker}. */
+export interface IconPickerOptions {
+  /** Provider route id. */
+  providerId: string;
+  /** Model id. */
+  modelId: string;
+  /** Catalog display name shown in the modal subtitle. */
+  displayName?: string | null;
+  /** Element focus is restored to when the modal closes. */
+  anchor?: Element | null;
+  /** Called after a successful write, before the modal closes. */
+  onChanged?: (() => void) | undefined;
+}
+
 /**
  * Open the centered icon picker for one provider+model pair.
- *
- * @param {{ providerId: string, modelId: string, displayName?: string, anchor?: Element | null, onChanged?: () => void }} options
- * @returns {() => void} close function (idempotent; also restores focus)
+ * @param options - provider/model identity, optional display name, focus anchor
+ *   and a change callback.
+ * @returns close function (idempotent; also restores focus).
  */
-function dshmlOpenIconPicker(options) {
+export function dshmlOpenIconPicker(options: IconPickerOptions | null): () => void {
   const noop = function noopPicker() {};
   if (typeof document === 'undefined') return noop;
   if (options === null || typeof options !== 'object') return noop;
   const providerId = typeof options.providerId === 'string' ? options.providerId.trim() : '';
   const modelId = typeof options.modelId === 'string' ? options.modelId.trim() : '';
   if (providerId === '' || modelId === '') return noop;
-  if (typeof createRoot !== 'function') return noop;
+  const createRoot = getCreateRoot();
+  if (createRoot === null) return noop;
 
   if (dshmlPickerOpenClose !== null) {
     const previousClose = dshmlPickerOpenClose;
     try {
       previousClose();
-    } catch (error) {
+    } catch {
       /* the old instance is already gone */
     }
   }
 
   const previouslyFocused = document.activeElement;
-  let anchor = null;
-  const candidate = options.anchor;
-  if (candidate !== null && candidate !== undefined && typeof candidate.focus === 'function') {
-    anchor = candidate;
-  } else if (previouslyFocused !== null && previouslyFocused !== undefined && typeof previouslyFocused.focus === 'function') {
-    anchor = previouslyFocused;
-  }
+  let anchor: HTMLElement | null = dshmlUiFocusTarget(options.anchor);
+  if (anchor === null) anchor = dshmlUiFocusTarget(previouslyFocused);
 
   const container = document.createElement('div');
   container.className = 'dshml-picker-layer';
@@ -592,7 +642,7 @@ function dshmlOpenIconPicker(options) {
     try {
       if (anchor.isConnected === false) return;
       anchor.focus();
-    } catch (error) {
+    } catch {
       /* focus restore is best-effort */
     }
   }
@@ -603,14 +653,14 @@ function dshmlOpenIconPicker(options) {
     if (dshmlPickerOpenClose === close) dshmlPickerOpenClose = null;
     try {
       root.unmount();
-    } catch (error) {
+    } catch {
       /* the root may already be torn down */
     }
     if (container.parentNode !== null) container.parentNode.removeChild(container);
     restoreFocus();
   }
 
-  function onLayerClick(event) {
+  function onLayerClick(event: MouseEvent) {
     if (event.target === container) close();
   }
 
@@ -627,10 +677,17 @@ function dshmlOpenIconPicker(options) {
         onClose: close,
       }),
     );
-  } catch (error) {
+  } catch {
     close();
     return noop;
   }
 
   return close;
+}
+
+/** The element to focus, or null when it has no `focus()` method. */
+function dshmlUiFocusTarget(value: unknown): HTMLElement | null {
+  if (value === null || value === undefined) return null;
+  const candidate = value as { focus?: unknown };
+  return typeof candidate.focus === 'function' ? (value as HTMLElement) : null;
 }
