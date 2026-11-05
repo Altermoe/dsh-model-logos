@@ -10,6 +10,9 @@ index.js
 # Build and verification scratch space (screenshots, headless-Edge profiles, reports)
 .preview/
 
+# Ranking/artwork fetch caches (the committed snapshots live in reference/)
+.cache/
+
 # Test and coverage output
 coverage/
 junit.xml

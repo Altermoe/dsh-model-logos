@@ -1,6 +1,6 @@
 {
   "name": "dsh-model-logos",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "description": "Shows each model's brand mark beside its name in the composer model selector and model picker, and vendor/model logos across Settings → Models, with a per-model icon picker.",
   "keywords": [
@@ -35,7 +35,8 @@
     "reference",
     "docs",
     "README.md",
-    "README.zh.md"
+    "README.zh.md",
+    "THIRD_PARTY_LICENSES.md"
   ],
   "type": "module",
   "exports": {
@@ -55,10 +56,13 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "logo:check": "tsx scripts/import-logos.ts --check",
+    "rank": "tsx scripts/rank-logos.ts --collect",
+    "rank:check": "tsx scripts/rank-logos.ts --check",
     "preview": "tsx scripts/preview-logos.ts",
     "verify:dom": "tsx scripts/verify-dom.ts",
     "verify:live": "tsx scripts/verify-live.ts",
-    "verify": "pnpm run typecheck && pnpm run lint && pnpm run fmt:check && pnpm run test && pnpm run build && pnpm run check",
+    "verify": "pnpm run typecheck && pnpm run lint && pnpm run fmt:check && pnpm run test && pnpm run logo:check && pnpm run rank:check && pnpm run build && pnpm run check",
     "prepare": "simple-git-hooks && pnpm run build"
   },
   "dependencies": {

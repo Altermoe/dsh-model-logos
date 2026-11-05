@@ -22,13 +22,14 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 
-import { LOGOS as CN_LOGOS } from '../src/logos/cn';
-import { LOGOS as INTL_LOGOS } from '../src/logos/intl';
-import { LOGOS as VENDOR_LOGOS } from '../src/logos/vendors';
-import { LOGO_KEYS, VENDOR_CHANNELS, VENDOR_RULES } from '../src/match';
+import { LOGOS as MANUAL_LOGOS } from '../src/logos/manual';
+import { LOGOS as OFFICIAL_LOGOS } from '../src/logos/official.generated';
+import { SHARED_VENDOR_MARKS } from '../src/logos/groups';
+import { LOGO_RANKS } from '../src/logos/ranking';
+import { LOGO_KEYS, MODEL_RULES, PICKER_ONLY_KEYS, PROVIDER_RULES, VENDOR_CHANNELS, VENDOR_RULES } from '../src/match';
 import { letterTile } from '../src/artwork';
 import { DSHML_NAV_ICON_CSS, DSHML_NAV_ICON_SVG, DSHML_NAV_MARKER } from '../src/nav-icon';
-import type { Logo, LogoSet } from '../src/types';
+import type { BrandLogo, LogoGroup, LogoSet } from '../src/types';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const CLIENT_OUT = resolve(ROOT, 'client.js');
@@ -47,26 +48,32 @@ const CLIENT_EXTERNALS = ['react', 'react-dom', 'react-dom/client'];
 const problems: string[] = [];
 const warnings: string[] = [];
 
-/** Source sets, in the order they are documented in `docs/architecture.md`. */
+/** Source sets, in the order they are documented in `docs/engineering.md`. */
 const ARTWORK_SETS: ReadonlyArray<{ name: string; logos: LogoSet }> = [
-  { name: 'src/logos/intl.ts', logos: INTL_LOGOS },
-  { name: 'src/logos/cn.ts', logos: CN_LOGOS },
-  { name: 'src/logos/vendors.ts', logos: VENDOR_LOGOS },
+  { name: 'src/logos/official.generated.ts', logos: OFFICIAL_LOGOS },
+  { name: 'src/logos/manual.ts', logos: MANUAL_LOGOS },
 ];
 
 /** The five characters that must be entity-escaped in generated SVG text. */
-function isLogo(value: unknown): value is Logo {
+function isLogoShape(value: unknown): value is { title: string; svg: string } {
   if (value === null || typeof value !== 'object') return false;
   const candidate = value as { title?: unknown; svg?: unknown };
   return typeof candidate.title === 'string' && typeof candidate.svg === 'string';
 }
 
+/** A brand entry: title, svg and one picker group. */
+function isLogo(value: unknown): value is BrandLogo {
+  if (!isLogoShape(value)) return false;
+  const group = (value as { group?: unknown }).group;
+  return group === 'vendor' || group === 'model';
+}
+
 /** Validate one artwork set and merge it into `merged`, reporting collisions. */
-function collectLogos(merged: Map<string, Logo>): void {
+function collectLogos(merged: Map<string, BrandLogo>): void {
   for (const set of ARTWORK_SETS) {
     for (const [key, value] of Object.entries(set.logos)) {
       if (!isLogo(value)) {
-        problems.push(`${set.name}: logo "${key}" must be a { title, svg } object`);
+        problems.push(`${set.name}: logo "${key}" must be a { title, svg, group } object`);
         continue;
       }
       if (value.title.trim() === '') problems.push(`${set.name}: logo "${key}" needs a non-empty title`);
@@ -91,13 +98,13 @@ function collectLogos(merged: Map<string, Logo>): void {
       if (/https?:/i.test(withoutNamespace)) {
         problems.push(`${set.name}: logo "${key}" must not reference external resources`);
       }
-      merged.set(key, { title: value.title.trim(), svg: value.svg.trim() });
+      merged.set(key, { title: value.title.trim(), svg: value.svg.trim(), group: value.group });
     }
   }
 }
 
 /** Validate that every matcher key has artwork and every artwork key is reachable. */
-function validateCoverage(merged: Map<string, Logo>): void {
+function validateCoverage(merged: Map<string, BrandLogo>): void {
   if (LOGO_KEYS.length === 0) problems.push('src/match.ts: LOGO_KEYS must not be empty');
   if (new Set(LOGO_KEYS).size !== LOGO_KEYS.length) problems.push('src/match.ts: LOGO_KEYS has duplicate entries');
 
@@ -107,18 +114,63 @@ function validateCoverage(merged: Map<string, Logo>): void {
   for (const key of merged.keys()) {
     if (!LOGO_KEYS.includes(key)) warnings.push(`logo "${key}" is never returned by a rule`);
   }
+
+  const ruleKeys = new Set<string>();
+  for (const [key] of MODEL_RULES) ruleKeys.add(key);
+  for (const [key] of PROVIDER_RULES) ruleKeys.add(key);
+  for (const [key] of VENDOR_RULES) ruleKeys.add(key);
+  for (const key of Object.values(VENDOR_CHANNELS)) ruleKeys.add(key);
+  for (const key of PICKER_ONLY_KEYS) ruleKeys.add(key);
+  for (const key of LOGO_KEYS) {
+    if (!ruleKeys.has(key)) warnings.push(`logo "${key}" is never matched and is not picker-only`);
+  }
+  for (const key of PICKER_ONLY_KEYS) {
+    if (!LOGO_KEYS.includes(key)) problems.push(`picker-only key "${key}" is not in LOGO_KEYS`);
+  }
+
   for (const [key] of VENDOR_RULES) {
     if (!LOGO_KEYS.includes(key)) problems.push(`vendor rule key "${key}" is not in LOGO_KEYS`);
   }
   for (const [channel, key] of Object.entries(VENDOR_CHANNELS)) {
     if (!LOGO_KEYS.includes(key)) problems.push(`vendor channel "${channel}" maps to unknown key "${key}"`);
+    const entry = merged.get(key);
+    if (entry !== undefined && entry.group !== 'vendor' && !SHARED_VENDOR_MARKS.includes(key)) {
+      problems.push(`vendor channel "${channel}" maps to model-only mark "${key}"`);
+    }
+  }
+}
+
+/** Validate the picker groups and the generated prominence snapshot. */
+function validateGroupsAndRanks(merged: Map<string, BrandLogo>): void {
+  const groups: Record<LogoGroup, string[]> = { vendor: [], model: [] };
+  for (const [key, entry] of merged) {
+    groups[entry.group].push(key);
+  }
+  for (const group of ['vendor', 'model'] as const) {
+    if (groups[group].length === 0) problems.push(`artwork group "${group}" must not be empty`);
+    const ranks = groups[group]
+      .map((key) => LOGO_RANKS[key])
+      .filter((rank): rank is number => typeof rank === 'number' && Number.isFinite(rank))
+      .sort((a, b) => a - b);
+    if (ranks.length !== groups[group].length) {
+      problems.push(`artwork group "${group}" has keys without a prominence rank`);
+    }
+    for (let index = 0; index < ranks.length; index++) {
+      if (ranks[index] !== index + 1) {
+        problems.push(`artwork group "${group}" ranks must be contiguous from 1 (got ${ranks.join(',')})`);
+        break;
+      }
+    }
+  }
+  for (const key of Object.keys(LOGO_RANKS)) {
+    if (!merged.has(key)) problems.push(`prominence rank for unknown logo "${key}"`);
   }
 }
 
 /** Validate the generated letter-tile fallback that ships in the runtime. */
 function validateLetterTile(): void {
   const sample = letterTile('测试');
-  if (!isLogo(sample)) {
+  if (!isLogoShape(sample)) {
     problems.push('src/artwork.ts: letterTile must return { title, svg }');
     return;
   }
@@ -243,9 +295,10 @@ function readArtifact(path: string): string {
 async function main(): Promise<void> {
   const checkOnly = process.argv.includes('--check');
 
-  const merged = new Map<string, Logo>();
+  const merged = new Map<string, BrandLogo>();
   collectLogos(merged);
   validateCoverage(merged);
+  validateGroupsAndRanks(merged);
   validateLetterTile();
   validateNavIcon();
 

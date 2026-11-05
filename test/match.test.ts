@@ -5,12 +5,11 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { LOGOS as CN_LOGOS } from '../src/logos/cn';
-import { LOGOS as INTL_LOGOS } from '../src/logos/intl';
-import { LOGOS as VENDOR_LOGOS } from '../src/logos/vendors';
+import { LOGOS } from '../src/logos';
 import {
   LOGO_KEYS,
   MODEL_RULES,
+  PICKER_ONLY_KEYS,
   PROVIDER_RULES,
   VENDOR_CHANNELS,
   VENDOR_RULES,
@@ -18,7 +17,7 @@ import {
   matchVendorLogo,
   normalizeModelText,
 } from '../src/match';
-import type { Logo, LogoSet } from '../src/types';
+import type { BrandLogo } from '../src/types';
 
 /** A provider/model pair as the composer slot and model rows pass it. */
 interface PairInput {
@@ -35,41 +34,42 @@ describe('match', () => {
   const cases: ReadonlyArray<readonly [PairInput, string | null]> = [
     // The providers configured in this profile.
     [pair('deepseek-account', 'deepseek-flash', 'DeepSeek-V4.1-Flash'), 'deepseek'],
-    [pair('zai-coding-cn', 'glm-5.3-flash', 'GLM-5.3-Flash'), 'zhipu'],
+    [pair('zai-coding-cn', 'glm-5.3-flash', 'GLM-5.3-Flash'), 'glm'],
     // Model-level brands on aggregator/opaque providers.
     [pair('openrouter', 'anthropic/claude-sonnet-4.5'), 'claude'],
-    [pair('openrouter', 'openai/gpt-5.2'), 'openai'],
+    [pair('openrouter', 'openai/gpt-5.2'), 'gpt'],
     [pair('openrouter', 'google/gemini-3-pro'), 'gemini'],
-    [pair('ollama', 'llama3.1:70b', 'Llama 3.1'), 'meta'],
+    [pair('ollama', 'llama3.1:70b', 'Llama 3.1'), 'llama'],
     [pair('ollama', 'qwen3:32b', 'Qwen3'), 'qwen'],
     [pair('custom', 'deepseek-reasoner'), 'deepseek'],
     [pair('custom', 'Qwen3-Max'), 'qwen'],
     [pair('custom', 'kimi-k2-thinking'), 'kimi'],
     [pair('custom', 'MiniMax-M2'), 'minimax'],
+    [pair('custom', 'Hailuo-02'), 'hailuo'],
     [pair('custom', 'mistral-large-latest'), 'mistral'],
-    [pair('custom', 'grok-4.1'), 'xai'],
+    [pair('custom', 'grok-4.1'), 'grok'],
     [pair('custom', 'doubao-seed-1.8'), 'doubao'],
-    [pair('custom', 'ERNIE-5.0'), 'baidu'],
-    [pair('custom', 'hunyuan-t1'), 'tencent'],
-    [pair('custom', 'command-r-plus'), 'cohere'],
+    [pair('custom', 'ERNIE-5.0'), 'ernie'],
+    [pair('custom', 'hunyuan-t1'), 'hunyuan'],
+    [pair('custom', 'command-r-plus'), 'command'],
     [pair('custom', 'sonar-pro'), 'perplexity'],
-    [pair('custom', 'Phi-4-mini'), 'microsoft'],
-    [pair('custom', 'Nemotron-4-340B'), 'nvidia'],
-    [pair('custom', 'amazon-nova-pro'), 'aws'],
+    [pair('custom', 'Phi-4-mini'), 'phi'],
+    [pair('custom', 'Nemotron-4-340B'), 'nemotron'],
+    [pair('custom', 'amazon-nova-pro'), 'nova'],
     [pair('custom', 'huggingface/foo'), 'huggingface'],
     [pair('custom', 'groq/compound'), 'groq'],
     [pair('custom', 'step-2-mini'), 'stepfun'],
     [pair('custom', 'yi-large'), 'yi'],
     // Model-level brands added with the vendor artwork.
-    [pair('custom', 'MiMo-VL-7B', 'MiMo-VL-7B'), 'xiaomi'],
+    [pair('custom', 'MiMo-VL-7B', 'MiMo-VL-7B'), 'xiaomimimo'],
     [pair('custom', 'Ling-mini-2.0', 'Ling-mini-2.0'), 'antling'],
     // Provider-level fallbacks for opaque model ids.
     [pair('deepseek-official', 'chat'), 'deepseek'],
     [pair('google-vertex', 'default'), 'gemini'],
-    [pair('azure-openai-east', 'deployment-1'), 'openai'],
+    [pair('azure-openai-east', 'deployment-1'), 'gpt'],
     [pair('moonshot-ai', 'chat'), 'kimi'],
-    [pair('nvidia-nim', 'default'), 'nvidia'],
-    [pair('xiaomi-token-plan-cn', 'opaque-model-1'), 'xiaomi'],
+    [pair('nvidia-nim', 'default'), 'nemotron'],
+    [pair('xiaomi-token-plan-cn', 'opaque-model-1'), 'xiaomimimo'],
     // Unknown stays unmarked.
     [pair('acme-llm', 'acme-chat-1', 'Acme Chat 1'), null],
     [pair('custom', 'internal-model-v0'), null],
@@ -85,6 +85,9 @@ describe('match', () => {
     const keys = new Set<string>();
     for (const [key] of MODEL_RULES) keys.add(key);
     for (const [key] of PROVIDER_RULES) keys.add(key);
+    for (const [key] of VENDOR_RULES) keys.add(key);
+    for (const key of Object.values(VENDOR_CHANNELS)) keys.add(key);
+    for (const key of PICKER_ONLY_KEYS) keys.add(key);
     for (const key of keys) expect(LOGO_KEYS.includes(key), `missing logo key: ${key}`).toBeTruthy();
     for (const key of LOGO_KEYS) expect(keys.has(key), `LOGO_KEYS entry without a rule: ${key}`).toBeTruthy();
   });
@@ -96,8 +99,8 @@ describe('match', () => {
   it('tolerates missing provider or model data', () => {
     expect(matchModelLogo(null)).toBe(null);
     expect(matchModelLogo({})).toBe(null);
-    expect(matchModelLogo({ provider: { id: 'openai' } })).toBe('openai');
-    expect(matchModelLogo({ model: { id: 'gpt-4o' } })).toBe('openai');
+    expect(matchModelLogo({ provider: { id: 'openai' } })).toBe('gpt');
+    expect(matchModelLogo({ model: { id: 'gpt-4o' } })).toBe('gpt');
   });
 
   /**
@@ -107,8 +110,8 @@ describe('match', () => {
    */
   const OFFICIAL_CHANNEL_KEYS = {
     'amazon-bedrock': 'aws',
-    'ant-ling': 'antling',
-    anthropic: 'claude',
+    'ant-ling': 'antgroup',
+    anthropic: 'anthropic',
     azure: 'azure',
     baseten: 'baseten',
     cerebras: 'cerebras',
@@ -119,26 +122,26 @@ describe('match', () => {
     'deepseek-official': 'deepseek',
     fireworks: 'fireworks',
     'github-copilot': 'github',
-    google: 'gemini',
-    'google-vertex': 'gemini',
+    google: 'google',
+    'google-vertex': 'google',
     groq: 'groq',
     huggingface: 'huggingface',
-    'kimi-coding': 'kimi',
+    'kimi-coding': 'moonshot',
     meta: 'meta',
     minimax: 'minimax',
     'minimax-cn': 'minimax',
     mistral: 'mistral',
-    moonshotai: 'kimi',
-    'moonshotai-cn': 'kimi',
+    moonshotai: 'moonshot',
+    'moonshotai-cn': 'moonshot',
     nvidia: 'nvidia',
     openai: 'openai',
     'openai-codex': 'openai',
     opencode: 'opencode',
     'opencode-go': 'opencode',
     openrouter: 'openrouter',
-    'qwen-token-plan': 'qwen',
-    'qwen-token-plan-cn': 'qwen',
-    'qwen-token-plan-individual': 'qwen',
+    'qwen-token-plan': 'alibaba',
+    'qwen-token-plan-cn': 'alibaba',
+    'qwen-token-plan-individual': 'alibaba',
     radius: 'radius',
     together: 'together',
     typesafe: 'typesafe',
@@ -186,32 +189,13 @@ describe('match', () => {
     }
   });
 
-  /** The hand-drawn artwork sets (vendors are authored in their own module). */
-  const ARTWORK_SETS: ReadonlyArray<readonly [string, LogoSet]> = [
-    ['src/logos/intl.ts', INTL_LOGOS],
-    ['src/logos/cn.ts', CN_LOGOS],
-    ['src/logos/vendors.ts', VENDOR_LOGOS],
-  ];
-
-  /** Load and merge the artwork sets, asserting every export is a logo set. */
-  function loadArtwork(): Record<string, Logo> {
-    const logos: Record<string, Logo> = {};
-    for (const [setName, set] of ARTWORK_SETS) {
-      expect(typeof set, `${setName} must export LOGOS`).toBe('object');
-      for (const [key, value] of Object.entries(set)) {
-        expect(logos[key], `duplicate logo key across artwork sets: ${key}`).toBeUndefined();
-        logos[key] = value;
-      }
-    }
-    return logos;
-  }
-
-  it('every logo key has inlinable artwork, including the vendor marks', () => {
-    const logos = loadArtwork();
+  it('every logo key has inlinable artwork and a picker group', () => {
+    const logos: Readonly<Record<string, BrandLogo>> = LOGOS;
     for (const key of LOGO_KEYS) {
       const entry = logos[key];
       expect(entry, `LOGO_KEYS entry has no artwork: ${key}`).toBeDefined();
       if (entry === undefined) continue;
+      expect(entry.group === 'vendor' || entry.group === 'model', `${key}.group must be vendor or model`).toBeTruthy();
       expect(typeof entry.title, `${key}.title must be a string`).toBe('string');
       expect(entry.title.trim() !== '', `${key}.title must not be empty`).toBeTruthy();
       expect(typeof entry.svg, `${key}.svg must be a string`).toBe('string');

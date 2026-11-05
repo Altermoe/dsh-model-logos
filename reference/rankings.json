@@ -1,0 +1,2721 @@
+{
+  "schemaVersion": 1,
+  "collectedAt": "2026-11-05T03:36:39.640Z",
+  "window": {
+    "start": "2026-05-01",
+    "end": "2026-10-31"
+  },
+  "weights": {
+    "github": 0.2,
+    "npm": 0.2,
+    "wikipedia": 0.25,
+    "huggingface": 0.2,
+    "bilibili": 0.15
+  },
+  "sources": [
+    {
+      "id": "github",
+      "label": "GitHub organisation followers",
+      "weight": 0.2
+    },
+    {
+      "id": "npm",
+      "label": "npm weekly downloads",
+      "weight": 0.2
+    },
+    {
+      "id": "wikipedia",
+      "label": "Wikipedia pageviews (en + zh)",
+      "weight": 0.25
+    },
+    {
+      "id": "huggingface",
+      "label": "Hugging Face model likes + downloads",
+      "weight": 0.2
+    },
+    {
+      "id": "bilibili",
+      "label": "Bilibili search results + top-20 plays",
+      "weight": 0.15
+    }
+  ],
+  "keys": [
+    {
+      "key": "anthropic",
+      "title": "Anthropic",
+      "group": "vendor",
+      "rank": 1,
+      "score": 0.864827,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "huggingface"
+      ],
+      "sources": {
+        "github": {
+          "value": 95395,
+          "handle": "anthropics",
+          "url": "https://api.github.com/orgs/anthropics"
+        },
+        "npm": {
+          "value": 65073320,
+          "handle": "@anthropic-ai/sdk",
+          "url": "https://api.npmjs.org/downloads/point/last-week/%40anthropic-ai%2Fsdk"
+        },
+        "wikipedia": {
+          "value": 1793298,
+          "handle": "en:Anthropic | zh:Anthropic",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Anthropic/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Anthropic",
+              "views": 1685783
+            },
+            "zh": {
+              "title": "Anthropic",
+              "views": 107515
+            }
+          }
+        },
+        "bilibili": {
+          "value": 740419,
+          "numResults": 1000,
+          "sumTop20Plays": 740419,
+          "handle": "Anthropic",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=Anthropic"
+        }
+      }
+    },
+    {
+      "key": "google",
+      "title": "Google",
+      "group": "vendor",
+      "rank": 2,
+      "score": 0.863657,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [],
+      "sources": {
+        "github": {
+          "value": 81532,
+          "handle": "google",
+          "url": "https://api.github.com/orgs/google"
+        },
+        "npm": {
+          "value": 30787253,
+          "handle": "@google/genai",
+          "url": "https://api.npmjs.org/downloads/point/last-week/%40google%2Fgenai"
+        },
+        "wikipedia": {
+          "value": 4450652,
+          "handle": "en:Google | zh:谷歌",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Google/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Google",
+              "views": 4447236
+            },
+            "zh": {
+              "title": "谷歌",
+              "views": 3416
+            }
+          }
+        },
+        "huggingface": {
+          "value": 82263748,
+          "likes": 77019,
+          "downloads": 82186729,
+          "handle": "google",
+          "url": "https://huggingface.co/api/models?author=google&limit=1000"
+        },
+        "bilibili": {
+          "value": 6206381,
+          "numResults": 1000,
+          "sumTop20Plays": 6206381,
+          "handle": "谷歌",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=%E8%B0%B7%E6%AD%8C"
+        }
+      }
+    },
+    {
+      "key": "openai",
+      "title": "OpenAI",
+      "group": "vendor",
+      "rank": 3,
+      "score": 0.826427,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [],
+      "sources": {
+        "github": {
+          "value": 141942,
+          "handle": "openai",
+          "url": "https://api.github.com/orgs/openai"
+        },
+        "npm": {
+          "value": 55854658,
+          "handle": "openai",
+          "url": "https://api.npmjs.org/downloads/point/last-week/openai"
+        },
+        "wikipedia": {
+          "value": 1454978,
+          "handle": "en:OpenAI | zh:OpenAI",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/OpenAI/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "OpenAI",
+              "views": 1383210
+            },
+            "zh": {
+              "title": "OpenAI",
+              "views": 71768
+            }
+          }
+        },
+        "huggingface": {
+          "value": 54809029,
+          "likes": 32618,
+          "downloads": 54776411,
+          "handle": "openai",
+          "url": "https://huggingface.co/api/models?author=openai&limit=1000"
+        },
+        "bilibili": {
+          "value": 140156,
+          "numResults": 1000,
+          "sumTop20Plays": 140156,
+          "handle": "OpenAI",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=OpenAI"
+        }
+      }
+    },
+    {
+      "key": "nvidia",
+      "title": "NVIDIA",
+      "group": "vendor",
+      "rank": 4,
+      "score": 0.810487,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "npm"
+      ],
+      "sources": {
+        "github": {
+          "value": 32404,
+          "handle": "nvidia",
+          "url": "https://api.github.com/orgs/nvidia"
+        },
+        "wikipedia": {
+          "value": 1261677,
+          "handle": "en:Nvidia | zh:英伟达",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Nvidia/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Nvidia",
+              "views": 1134741
+            },
+            "zh": {
+              "title": "英伟达",
+              "views": 126936
+            }
+          }
+        },
+        "huggingface": {
+          "value": 34645936,
+          "likes": 69080,
+          "downloads": 34576856,
+          "handle": "nvidia",
+          "url": "https://huggingface.co/api/models?author=nvidia&limit=1000"
+        },
+        "bilibili": {
+          "value": 1108978,
+          "numResults": 1000,
+          "sumTop20Plays": 1108978,
+          "handle": "英伟达",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=%E8%8B%B1%E4%BC%9F%E8%BE%BE"
+        }
+      }
+    },
+    {
+      "key": "github",
+      "title": "GitHub",
+      "group": "vendor",
+      "rank": 5,
+      "score": 0.802292,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "huggingface"
+      ],
+      "sources": {
+        "github": {
+          "value": 94001,
+          "handle": "github",
+          "url": "https://api.github.com/orgs/github"
+        },
+        "npm": {
+          "value": 26098522,
+          "handle": "@octokit/rest",
+          "url": "https://api.npmjs.org/downloads/point/last-week/%40octokit%2Frest"
+        },
+        "wikipedia": {
+          "value": 782300,
+          "handle": "en:GitHub | zh:GitHub",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/GitHub/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "GitHub",
+              "views": 739360
+            },
+            "zh": {
+              "title": "GitHub",
+              "views": 42940
+            }
+          }
+        },
+        "bilibili": {
+          "value": 9132092,
+          "numResults": 1000,
+          "sumTop20Plays": 9132092,
+          "handle": "GitHub",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=GitHub"
+        }
+      }
+    },
+    {
+      "key": "meta",
+      "title": "Meta",
+      "group": "vendor",
+      "rank": 6,
+      "score": 0.766322,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "npm"
+      ],
+      "sources": {
+        "github": {
+          "value": 37230,
+          "handle": "meta",
+          "url": "https://api.github.com/orgs/meta"
+        },
+        "wikipedia": {
+          "value": 797508,
+          "handle": "en:Meta_Platforms | zh:Meta_Platforms",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Meta_Platforms/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Meta_Platforms",
+              "views": 746713
+            },
+            "zh": {
+              "title": "Meta_Platforms",
+              "views": 50795
+            }
+          }
+        },
+        "huggingface": {
+          "value": 13357972,
+          "likes": 69280,
+          "downloads": 13288692,
+          "handle": "meta-llama",
+          "url": "https://huggingface.co/api/models?author=meta-llama&limit=1000"
+        },
+        "bilibili": {
+          "value": 638406,
+          "numResults": 1000,
+          "sumTop20Plays": 638406,
+          "handle": "Meta AI",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=Meta%20AI"
+        }
+      }
+    },
+    {
+      "key": "microsoft",
+      "title": "Microsoft",
+      "group": "vendor",
+      "rank": 7,
+      "score": 0.758636,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [],
+      "sources": {
+        "github": {
+          "value": 133236,
+          "handle": "microsoft",
+          "url": "https://api.github.com/orgs/microsoft"
+        },
+        "npm": {
+          "value": 653024,
+          "handle": "botbuilder",
+          "url": "https://api.npmjs.org/downloads/point/last-week/botbuilder"
+        },
+        "wikipedia": {
+          "value": 1100385,
+          "handle": "en:Microsoft | zh:微软",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Microsoft/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Microsoft",
+              "views": 1067667
+            },
+            "zh": {
+              "title": "微软",
+              "views": 32718
+            }
+          }
+        },
+        "huggingface": {
+          "value": 40589069,
+          "likes": 59899,
+          "downloads": 40529170,
+          "handle": "microsoft",
+          "url": "https://huggingface.co/api/models?author=microsoft&limit=1000"
+        },
+        "bilibili": {
+          "value": 1368584,
+          "numResults": 1000,
+          "sumTop20Plays": 1368584,
+          "handle": "微软",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=%E5%BE%AE%E8%BD%AF"
+        }
+      }
+    },
+    {
+      "key": "cloudflare",
+      "title": "Cloudflare",
+      "group": "vendor",
+      "rank": 8,
+      "score": 0.699257,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "huggingface"
+      ],
+      "sources": {
+        "github": {
+          "value": 18852,
+          "handle": "cloudflare",
+          "url": "https://api.github.com/orgs/cloudflare"
+        },
+        "npm": {
+          "value": 39802006,
+          "handle": "wrangler",
+          "url": "https://api.npmjs.org/downloads/point/last-week/wrangler"
+        },
+        "wikipedia": {
+          "value": 264593,
+          "handle": "en:Cloudflare | zh:Cloudflare",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Cloudflare/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Cloudflare",
+              "views": 251285
+            },
+            "zh": {
+              "title": "Cloudflare",
+              "views": 13308
+            }
+          }
+        },
+        "bilibili": {
+          "value": 2277446,
+          "numResults": 1000,
+          "sumTop20Plays": 2277446,
+          "handle": "Cloudflare",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=Cloudflare"
+        }
+      }
+    },
+    {
+      "key": "vercel",
+      "title": "Vercel",
+      "group": "vendor",
+      "rank": 9,
+      "score": 0.631331,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "huggingface"
+      ],
+      "sources": {
+        "github": {
+          "value": 31895,
+          "handle": "vercel",
+          "url": "https://api.github.com/orgs/vercel"
+        },
+        "npm": {
+          "value": 43656329,
+          "handle": "ai",
+          "url": "https://api.npmjs.org/downloads/point/last-week/ai"
+        },
+        "wikipedia": {
+          "value": 119526,
+          "handle": "en:Vercel",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Vercel/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Vercel",
+              "views": 119526
+            }
+          }
+        },
+        "bilibili": {
+          "value": 176122,
+          "numResults": 1000,
+          "sumTop20Plays": 176122,
+          "handle": "Vercel",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=Vercel"
+        }
+      }
+    },
+    {
+      "key": "bytedance",
+      "title": "ByteDance",
+      "group": "vendor",
+      "rank": 10,
+      "score": 0.623286,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "npm"
+      ],
+      "sources": {
+        "github": {
+          "value": 19297,
+          "handle": "bytedance",
+          "url": "https://api.github.com/orgs/bytedance"
+        },
+        "wikipedia": {
+          "value": 294241,
+          "handle": "en:ByteDance | zh:字节跳动",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/ByteDance/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "ByteDance",
+              "views": 211647
+            },
+            "zh": {
+              "title": "字节跳动",
+              "views": 82594
+            }
+          }
+        },
+        "huggingface": {
+          "value": 1185813,
+          "likes": 8652,
+          "downloads": 1177161,
+          "handle": "ByteDance",
+          "url": "https://huggingface.co/api/models?author=ByteDance&limit=1000"
+        },
+        "bilibili": {
+          "value": 3057649,
+          "numResults": 1000,
+          "sumTop20Plays": 3057649,
+          "handle": "字节跳动",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=%E5%AD%97%E8%8A%82%E8%B7%B3%E5%8A%A8"
+        }
+      }
+    },
+    {
+      "key": "aws",
+      "title": "AWS",
+      "group": "vendor",
+      "rank": 11,
+      "score": 0.613934,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [],
+      "sources": {
+        "github": {
+          "value": 17349,
+          "handle": "aws",
+          "url": "https://api.github.com/orgs/aws"
+        },
+        "npm": {
+          "value": 21687534,
+          "handle": "@aws-sdk/client-bedrock-runtime",
+          "url": "https://api.npmjs.org/downloads/point/last-week/%40aws-sdk%2Fclient-bedrock-runtime"
+        },
+        "wikipedia": {
+          "value": 279786,
+          "handle": "en:Amazon_Web_Services | zh:亚马逊云计算服务",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Amazon_Web_Services/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Amazon_Web_Services",
+              "views": 272860
+            },
+            "zh": {
+              "title": "亚马逊云计算服务",
+              "views": 6926
+            }
+          }
+        },
+        "huggingface": {
+          "value": 21259833,
+          "likes": 2181,
+          "downloads": 21257652,
+          "handle": "amazon",
+          "url": "https://huggingface.co/api/models?author=amazon&limit=1000"
+        },
+        "bilibili": {
+          "value": 742639,
+          "numResults": 1000,
+          "sumTop20Plays": 742639,
+          "handle": "AWS",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=AWS"
+        }
+      }
+    },
+    {
+      "key": "huggingface",
+      "title": "Hugging Face",
+      "group": "vendor",
+      "rank": 12,
+      "score": 0.57489,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [],
+      "sources": {
+        "github": {
+          "value": 70488,
+          "handle": "huggingface",
+          "url": "https://api.github.com/orgs/huggingface"
+        },
+        "npm": {
+          "value": 5055307,
+          "handle": "@huggingface/transformers",
+          "url": "https://api.npmjs.org/downloads/point/last-week/%40huggingface%2Ftransformers"
+        },
+        "wikipedia": {
+          "value": 573370,
+          "handle": "en:Hugging_Face | zh:Hugging_Face",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Hugging_Face/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Hugging_Face",
+              "views": 554807
+            },
+            "zh": {
+              "title": "Hugging_Face",
+              "views": 18563
+            }
+          }
+        },
+        "huggingface": {
+          "value": 173890,
+          "likes": 295,
+          "downloads": 173595,
+          "handle": "huggingface",
+          "url": "https://huggingface.co/api/models?author=huggingface&limit=1000"
+        },
+        "bilibili": {
+          "value": 424117,
+          "numResults": 1000,
+          "sumTop20Plays": 424117,
+          "handle": "Hugging Face",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=Hugging%20Face"
+        }
+      }
+    },
+    {
+      "key": "moonshot",
+      "title": "Moonshot AI",
+      "group": "vendor",
+      "rank": 13,
+      "score": 0.557841,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "npm"
+      ],
+      "sources": {
+        "github": {
+          "value": 10076,
+          "handle": "MoonshotAI",
+          "url": "https://api.github.com/orgs/MoonshotAI"
+        },
+        "wikipedia": {
+          "value": 185344,
+          "handle": "en:Moonshot_AI | zh:月之暗面",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Moonshot_AI/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Moonshot_AI",
+              "views": 183319
+            },
+            "zh": {
+              "title": "月之暗面",
+              "views": 2025
+            }
+          }
+        },
+        "huggingface": {
+          "value": 2155351,
+          "likes": 27456,
+          "downloads": 2127895,
+          "handle": "moonshotai",
+          "url": "https://huggingface.co/api/models?author=moonshotai&limit=1000"
+        },
+        "bilibili": {
+          "value": 1297651,
+          "numResults": 1000,
+          "sumTop20Plays": 1297651,
+          "handle": "月之暗面",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=%E6%9C%88%E4%B9%8B%E6%9A%97%E9%9D%A2"
+        }
+      }
+    },
+    {
+      "key": "azure",
+      "title": "Microsoft Azure",
+      "group": "vendor",
+      "rank": 14,
+      "score": 0.557466,
+      "lowConfidence": false,
+      "inherited": [
+        "huggingface"
+      ],
+      "missing": [],
+      "sources": {
+        "github": {
+          "value": 15583,
+          "handle": "Azure",
+          "url": "https://api.github.com/orgs/Azure"
+        },
+        "npm": {
+          "value": 442382,
+          "handle": "@azure/openai",
+          "url": "https://api.npmjs.org/downloads/point/last-week/%40azure%2Fopenai"
+        },
+        "wikipedia": {
+          "value": 119452,
+          "handle": "en:Microsoft_Azure | zh:Microsoft_Azure",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Microsoft_Azure/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Microsoft_Azure",
+              "views": 114275
+            },
+            "zh": {
+              "title": "Microsoft_Azure",
+              "views": 5177
+            }
+          }
+        },
+        "huggingface": {
+          "value": 40589069,
+          "likes": 59899,
+          "downloads": 40529170,
+          "handle": "microsoft",
+          "url": "https://huggingface.co/api/models?author=microsoft&limit=1000",
+          "inheritedFrom": "microsoft"
+        },
+        "bilibili": {
+          "value": 599599,
+          "numResults": 1000,
+          "sumTop20Plays": 599599,
+          "handle": "Azure",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=Azure"
+        }
+      }
+    },
+    {
+      "key": "alibaba",
+      "title": "Alibaba",
+      "group": "vendor",
+      "rank": 15,
+      "score": 0.550753,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [],
+      "sources": {
+        "github": {
+          "value": 21555,
+          "handle": "alibaba",
+          "url": "https://api.github.com/orgs/alibaba"
+        },
+        "npm": {
+          "value": 247595,
+          "handle": "@alicloud/tea-util",
+          "url": "https://api.npmjs.org/downloads/point/last-week/%40alicloud%2Ftea-util"
+        },
+        "wikipedia": {
+          "value": 270820,
+          "handle": "en:Alibaba_Group | zh:阿里巴巴集团",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Alibaba_Group/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Alibaba_Group",
+              "views": 227978
+            },
+            "zh": {
+              "title": "阿里巴巴集团",
+              "views": 42842
+            }
+          }
+        },
+        "huggingface": {
+          "value": 5333048,
+          "likes": 3508,
+          "downloads": 5329540,
+          "handle": "Alibaba-NLP",
+          "url": "https://huggingface.co/api/models?author=Alibaba-NLP&limit=1000"
+        },
+        "bilibili": {
+          "value": 2138742,
+          "numResults": 1000,
+          "sumTop20Plays": 2138742,
+          "handle": "阿里巴巴",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=%E9%98%BF%E9%87%8C%E5%B7%B4%E5%B7%B4"
+        }
+      }
+    },
+    {
+      "key": "tencent",
+      "title": "Tencent",
+      "group": "vendor",
+      "rank": 16,
+      "score": 0.527709,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [],
+      "sources": {
+        "github": {
+          "value": 15072,
+          "handle": "Tencent",
+          "url": "https://api.github.com/orgs/Tencent"
+        },
+        "npm": {
+          "value": 47629,
+          "handle": "tencentcloud-sdk-nodejs",
+          "url": "https://api.npmjs.org/downloads/point/last-week/tencentcloud-sdk-nodejs"
+        },
+        "wikipedia": {
+          "value": 362525,
+          "handle": "en:Tencent | zh:腾讯",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Tencent/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Tencent",
+              "views": 317091
+            },
+            "zh": {
+              "title": "腾讯",
+              "views": 45434
+            }
+          }
+        },
+        "huggingface": {
+          "value": 4638322,
+          "likes": 33969,
+          "downloads": 4604353,
+          "handle": "tencent",
+          "url": "https://huggingface.co/api/models?author=tencent&limit=1000"
+        },
+        "bilibili": {
+          "value": 599779,
+          "numResults": 1000,
+          "sumTop20Plays": 599779,
+          "handle": "腾讯",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=%E8%85%BE%E8%AE%AF"
+        }
+      }
+    },
+    {
+      "key": "ollama",
+      "title": "Ollama",
+      "group": "vendor",
+      "rank": 17,
+      "score": 0.503237,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "huggingface"
+      ],
+      "sources": {
+        "github": {
+          "value": 10614,
+          "handle": "ollama",
+          "url": "https://api.github.com/orgs/ollama"
+        },
+        "npm": {
+          "value": 1151608,
+          "handle": "ollama",
+          "url": "https://api.npmjs.org/downloads/point/last-week/ollama"
+        },
+        "wikipedia": {
+          "value": 111250,
+          "handle": "en:Ollama | zh:Ollama",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Ollama/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Ollama",
+              "views": 104965
+            },
+            "zh": {
+              "title": "Ollama",
+              "views": 6285
+            }
+          }
+        },
+        "bilibili": {
+          "value": 1405047,
+          "numResults": 1000,
+          "sumTop20Plays": 1405047,
+          "handle": "Ollama",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=Ollama"
+        }
+      }
+    },
+    {
+      "key": "zhipu",
+      "title": "Zhipu AI",
+      "group": "vendor",
+      "rank": 18,
+      "score": 0.489805,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "npm"
+      ],
+      "sources": {
+        "github": {
+          "value": 6503,
+          "handle": "zai-org",
+          "url": "https://api.github.com/orgs/zai-org"
+        },
+        "wikipedia": {
+          "value": 59916,
+          "handle": "en:Zhipu_AI | zh:智谱",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Zhipu_AI/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Zhipu_AI",
+              "views": 5832
+            },
+            "zh": {
+              "title": "智谱",
+              "views": 54084
+            }
+          }
+        },
+        "huggingface": {
+          "value": 16913416,
+          "likes": 47332,
+          "downloads": 16866084,
+          "handle": "zai-org",
+          "url": "https://huggingface.co/api/models?author=zai-org&limit=1000"
+        },
+        "bilibili": {
+          "value": 630936,
+          "numResults": 1000,
+          "sumTop20Plays": 630936,
+          "handle": "智谱",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=%E6%99%BA%E8%B0%B1"
+        }
+      }
+    },
+    {
+      "key": "xiaomi",
+      "title": "Xiaomi",
+      "group": "vendor",
+      "rank": 19,
+      "score": 0.450515,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "npm"
+      ],
+      "sources": {
+        "github": {
+          "value": 4029,
+          "handle": "Xiaomi",
+          "url": "https://api.github.com/orgs/Xiaomi"
+        },
+        "wikipedia": {
+          "value": 236511,
+          "handle": "en:Xiaomi | zh:小米集团",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Xiaomi/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Xiaomi",
+              "views": 233875
+            },
+            "zh": {
+              "title": "小米集团",
+              "views": 2636
+            }
+          }
+        },
+        "huggingface": {
+          "value": 375985,
+          "likes": 5857,
+          "downloads": 370128,
+          "handle": "XiaomiMiMo",
+          "url": "https://huggingface.co/api/models?author=XiaomiMiMo&limit=1000"
+        },
+        "bilibili": {
+          "value": 790135,
+          "numResults": 1000,
+          "sumTop20Plays": 790135,
+          "handle": "小米",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=%E5%B0%8F%E7%B1%B3"
+        }
+      }
+    },
+    {
+      "key": "opencode",
+      "title": "OpenCode",
+      "group": "vendor",
+      "rank": 20,
+      "score": 0.385408,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "huggingface"
+      ],
+      "sources": {
+        "github": {
+          "value": 6939,
+          "handle": "anomalyco",
+          "url": "https://api.github.com/orgs/anomalyco"
+        },
+        "npm": {
+          "value": 4768774,
+          "handle": "opencode-ai",
+          "url": "https://api.npmjs.org/downloads/point/last-week/opencode-ai"
+        },
+        "wikipedia": {
+          "value": 10243,
+          "handle": "en:OpenCode",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/OpenCode/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "OpenCode",
+              "views": 10243
+            }
+          }
+        },
+        "bilibili": {
+          "value": 981725,
+          "numResults": 1000,
+          "sumTop20Plays": 981725,
+          "handle": "OpenCode",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=OpenCode"
+        }
+      }
+    },
+    {
+      "key": "baidu",
+      "title": "Baidu",
+      "group": "vendor",
+      "rank": 21,
+      "score": 0.362274,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [],
+      "sources": {
+        "github": {
+          "value": 3259,
+          "handle": "baidu",
+          "url": "https://api.github.com/orgs/baidu"
+        },
+        "npm": {
+          "value": 977,
+          "handle": "baidu-aip-sdk",
+          "url": "https://api.npmjs.org/downloads/point/last-week/baidu-aip-sdk"
+        },
+        "wikipedia": {
+          "value": 174297,
+          "handle": "en:Baidu | zh:百度",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Baidu/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Baidu",
+              "views": 130354
+            },
+            "zh": {
+              "title": "百度",
+              "views": 43943
+            }
+          }
+        },
+        "huggingface": {
+          "value": 4974334,
+          "likes": 10639,
+          "downloads": 4963695,
+          "handle": "baidu",
+          "url": "https://huggingface.co/api/models?author=baidu&limit=1000"
+        },
+        "bilibili": {
+          "value": 248919,
+          "numResults": 1000,
+          "sumTop20Plays": 248919,
+          "handle": "百度",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=%E7%99%BE%E5%BA%A6"
+        }
+      }
+    },
+    {
+      "key": "openrouter",
+      "title": "OpenRouter",
+      "group": "vendor",
+      "rank": 22,
+      "score": 0.357643,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "huggingface"
+      ],
+      "sources": {
+        "github": {
+          "value": 4487,
+          "handle": "OpenRouterTeam",
+          "url": "https://api.github.com/orgs/OpenRouterTeam"
+        },
+        "npm": {
+          "value": 4236037,
+          "handle": "@openrouter/ai-sdk-provider",
+          "url": "https://api.npmjs.org/downloads/point/last-week/%40openrouter%2Fai-sdk-provider"
+        },
+        "wikipedia": {
+          "value": 25221,
+          "handle": "en:OpenRouter",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/OpenRouter/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "OpenRouter",
+              "views": 25221
+            }
+          }
+        },
+        "bilibili": {
+          "value": 160290,
+          "numResults": 1000,
+          "sumTop20Plays": 160290,
+          "handle": "OpenRouter",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=OpenRouter"
+        }
+      }
+    },
+    {
+      "key": "groq",
+      "title": "Groq",
+      "group": "vendor",
+      "rank": 23,
+      "score": 0.349271,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "huggingface"
+      ],
+      "sources": {
+        "github": {
+          "value": 1367,
+          "handle": "groq",
+          "url": "https://api.github.com/orgs/groq"
+        },
+        "npm": {
+          "value": 1241757,
+          "handle": "groq-sdk",
+          "url": "https://api.npmjs.org/downloads/point/last-week/groq-sdk"
+        },
+        "wikipedia": {
+          "value": 72968,
+          "handle": "en:Groq | zh:Groq",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Groq/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Groq",
+              "views": 71544
+            },
+            "zh": {
+              "title": "Groq",
+              "views": 1424
+            }
+          }
+        },
+        "bilibili": {
+          "value": 184690,
+          "numResults": 1000,
+          "sumTop20Plays": 184690,
+          "handle": "Groq",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=Groq"
+        }
+      }
+    },
+    {
+      "key": "cohere",
+      "title": "Cohere",
+      "group": "vendor",
+      "rank": 24,
+      "score": 0.335357,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [],
+      "sources": {
+        "github": {
+          "value": 1490,
+          "handle": "cohere-ai",
+          "url": "https://api.github.com/orgs/cohere-ai"
+        },
+        "npm": {
+          "value": 674523,
+          "handle": "cohere-ai",
+          "url": "https://api.npmjs.org/downloads/point/last-week/cohere-ai"
+        },
+        "wikipedia": {
+          "value": 88897,
+          "handle": "en:Cohere",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Cohere/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Cohere",
+              "views": 88897
+            }
+          }
+        },
+        "huggingface": {
+          "value": 555213,
+          "likes": 11431,
+          "downloads": 543782,
+          "handle": "CohereLabs",
+          "url": "https://huggingface.co/api/models?author=CohereLabs&limit=1000"
+        },
+        "bilibili": {
+          "value": 74352,
+          "numResults": 1000,
+          "sumTop20Plays": 74352,
+          "handle": "Cohere",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=Cohere"
+        }
+      }
+    },
+    {
+      "key": "antgroup",
+      "title": "Ant Group",
+      "group": "vendor",
+      "rank": 25,
+      "score": 0.305666,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "npm"
+      ],
+      "sources": {
+        "github": {
+          "value": 863,
+          "handle": "antgroup",
+          "url": "https://api.github.com/orgs/antgroup"
+        },
+        "wikipedia": {
+          "value": 55238,
+          "handle": "en:Ant_Group | zh:蚂蚁集团",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Ant_Group/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Ant_Group",
+              "views": 34481
+            },
+            "zh": {
+              "title": "蚂蚁集团",
+              "views": 20757
+            }
+          }
+        },
+        "huggingface": {
+          "value": 378445,
+          "likes": 11128,
+          "downloads": 367317,
+          "handle": "inclusionAI",
+          "url": "https://huggingface.co/api/models?author=inclusionAI&limit=1000"
+        },
+        "bilibili": {
+          "value": 771265,
+          "numResults": 1000,
+          "sumTop20Plays": 771265,
+          "handle": "蚂蚁集团",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=%E8%9A%82%E8%9A%81%E9%9B%86%E5%9B%A2"
+        }
+      }
+    },
+    {
+      "key": "xai",
+      "title": "xAI",
+      "group": "vendor",
+      "rank": 26,
+      "score": 0.300696,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "npm"
+      ],
+      "sources": {
+        "github": {
+          "value": 13792,
+          "handle": "xai-org",
+          "url": "https://api.github.com/orgs/xai-org"
+        },
+        "wikipedia": {
+          "value": 14934,
+          "handle": "en:XAI | zh:XAI",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/XAI/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "XAI",
+              "views": 3083
+            },
+            "zh": {
+              "title": "XAI",
+              "views": 11851
+            }
+          }
+        },
+        "huggingface": {
+          "value": 13494,
+          "likes": 3691,
+          "downloads": 9803,
+          "handle": "xai-org",
+          "url": "https://huggingface.co/api/models?author=xai-org&limit=1000"
+        },
+        "bilibili": {
+          "value": 579309,
+          "numResults": 1000,
+          "sumTop20Plays": 579309,
+          "handle": "xAI",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=xAI"
+        }
+      }
+    },
+    {
+      "key": "typesafe",
+      "title": "TypeSafe",
+      "group": "vendor",
+      "rank": 27,
+      "score": 0.2258,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "npm",
+        "wikipedia",
+        "huggingface"
+      ],
+      "sources": {
+        "github": {
+          "value": 1738,
+          "handle": "typesafe-ai",
+          "url": "https://api.github.com/orgs/typesafe-ai"
+        },
+        "bilibili": {
+          "value": 59459,
+          "numResults": 1000,
+          "sumTop20Plays": 59459,
+          "handle": "TypeSafe AI",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=TypeSafe%20AI"
+        }
+      }
+    },
+    {
+      "key": "cerebras",
+      "title": "Cerebras",
+      "group": "vendor",
+      "rank": 28,
+      "score": 0.222027,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [],
+      "sources": {
+        "github": {
+          "value": 1146,
+          "handle": "Cerebras",
+          "url": "https://api.github.com/orgs/Cerebras"
+        },
+        "npm": {
+          "value": 181468,
+          "handle": "@cerebras/cerebras_cloud_sdk",
+          "url": "https://api.npmjs.org/downloads/point/last-week/%40cerebras%2Fcerebras_cloud_sdk"
+        },
+        "wikipedia": {
+          "value": 56670,
+          "handle": "en:Cerebras",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Cerebras/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Cerebras",
+              "views": 56670
+            }
+          }
+        },
+        "huggingface": {
+          "value": 6959,
+          "likes": 959,
+          "downloads": 6000,
+          "handle": "cerebras",
+          "url": "https://huggingface.co/api/models?author=cerebras&limit=1000"
+        },
+        "bilibili": {
+          "value": 254720,
+          "numResults": 1000,
+          "sumTop20Plays": 254720,
+          "handle": "Cerebras",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=Cerebras"
+        }
+      }
+    },
+    {
+      "key": "together",
+      "title": "Together AI",
+      "group": "vendor",
+      "rank": 29,
+      "score": 0.157864,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "wikipedia"
+      ],
+      "sources": {
+        "github": {
+          "value": 1171,
+          "handle": "togethercomputer",
+          "url": "https://api.github.com/orgs/togethercomputer"
+        },
+        "npm": {
+          "value": 96692,
+          "handle": "together-ai",
+          "url": "https://api.npmjs.org/downloads/point/last-week/together-ai"
+        },
+        "huggingface": {
+          "value": 34443,
+          "likes": 3153,
+          "downloads": 31290,
+          "handle": "togethercomputer",
+          "url": "https://huggingface.co/api/models?author=togethercomputer&limit=1000"
+        },
+        "bilibili": {
+          "value": 32801,
+          "numResults": 1000,
+          "sumTop20Plays": 32801,
+          "handle": "Together AI",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=Together%20AI"
+        }
+      }
+    },
+    {
+      "key": "fireworks",
+      "title": "Fireworks",
+      "group": "vendor",
+      "rank": 30,
+      "score": 0.108566,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "npm"
+      ],
+      "sources": {
+        "github": {
+          "value": 9,
+          "handle": "fireworks-ai",
+          "url": "https://api.github.com/orgs/fireworks-ai"
+        },
+        "wikipedia": {
+          "value": 7859,
+          "handle": "en:Fireworks_AI",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Fireworks_AI/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Fireworks_AI",
+              "views": 7859
+            }
+          }
+        },
+        "huggingface": {
+          "value": 860,
+          "likes": 357,
+          "downloads": 503,
+          "handle": "fireworks-ai",
+          "url": "https://huggingface.co/api/models?author=fireworks-ai&limit=1000"
+        },
+        "bilibili": {
+          "value": 147071,
+          "numResults": 1000,
+          "sumTop20Plays": 147071,
+          "handle": "Fireworks AI",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=Fireworks%20AI"
+        }
+      }
+    },
+    {
+      "key": "baseten",
+      "title": "Baseten",
+      "group": "vendor",
+      "rank": 31,
+      "score": 0.091438,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "npm",
+        "wikipedia"
+      ],
+      "sources": {
+        "github": {
+          "value": 472,
+          "handle": "basetenlabs",
+          "url": "https://api.github.com/orgs/basetenlabs"
+        },
+        "huggingface": {
+          "value": 28035,
+          "likes": 175,
+          "downloads": 27860,
+          "handle": "baseten",
+          "url": "https://huggingface.co/api/models?author=baseten&limit=1000"
+        },
+        "bilibili": {
+          "value": 19409,
+          "numResults": 1000,
+          "sumTop20Plays": 19409,
+          "handle": "Baseten",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=Baseten"
+        }
+      }
+    },
+    {
+      "key": "radius",
+      "title": "Radius",
+      "group": "vendor",
+      "rank": 32,
+      "score": 0.299107,
+      "lowConfidence": true,
+      "inherited": [],
+      "missing": [
+        "github",
+        "npm",
+        "wikipedia",
+        "huggingface"
+      ],
+      "sources": {
+        "bilibili": {
+          "value": 76006,
+          "numResults": 1000,
+          "sumTop20Plays": 76006,
+          "handle": "Radius AI",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=Radius%20AI"
+        }
+      }
+    },
+    {
+      "key": "gpt",
+      "title": "GPT",
+      "group": "model",
+      "rank": 1,
+      "score": 0.848637,
+      "lowConfidence": false,
+      "inherited": [
+        "github",
+        "npm"
+      ],
+      "missing": [],
+      "sources": {
+        "github": {
+          "value": 141942,
+          "handle": "openai",
+          "url": "https://api.github.com/orgs/openai",
+          "inheritedFrom": "openai"
+        },
+        "npm": {
+          "value": 55854658,
+          "handle": "openai",
+          "url": "https://api.npmjs.org/downloads/point/last-week/openai",
+          "inheritedFrom": "openai"
+        },
+        "wikipedia": {
+          "value": 14004937,
+          "handle": "en:ChatGPT | zh:ChatGPT",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/ChatGPT/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "ChatGPT",
+              "views": 13790236
+            },
+            "zh": {
+              "title": "ChatGPT",
+              "views": 214701
+            }
+          }
+        },
+        "huggingface": {
+          "value": 8446161,
+          "likes": 11168,
+          "downloads": 8434993,
+          "handle": "openai (search: gpt)",
+          "url": "https://huggingface.co/api/models?author=openai&limit=1000&search=gpt"
+        },
+        "bilibili": {
+          "value": 2677578,
+          "numResults": 1000,
+          "sumTop20Plays": 2677578,
+          "handle": "ChatGPT",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=ChatGPT"
+        }
+      }
+    },
+    {
+      "key": "claude",
+      "title": "Claude",
+      "group": "model",
+      "rank": 2,
+      "score": 0.838814,
+      "lowConfidence": false,
+      "inherited": [
+        "github",
+        "npm"
+      ],
+      "missing": [
+        "huggingface"
+      ],
+      "sources": {
+        "github": {
+          "value": 95395,
+          "handle": "anthropics",
+          "url": "https://api.github.com/orgs/anthropics",
+          "inheritedFrom": "anthropic"
+        },
+        "npm": {
+          "value": 65073320,
+          "handle": "@anthropic-ai/sdk",
+          "url": "https://api.npmjs.org/downloads/point/last-week/%40anthropic-ai%2Fsdk",
+          "inheritedFrom": "anthropic"
+        },
+        "wikipedia": {
+          "value": 583745,
+          "handle": "en:Claude_(language_model) | zh:Claude_(语言模型)",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Claude_(language_model)/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Claude_(language_model)",
+              "views": 494085
+            },
+            "zh": {
+              "title": "Claude_(语言模型)",
+              "views": 89660
+            }
+          }
+        },
+        "bilibili": {
+          "value": 1066668,
+          "numResults": 1000,
+          "sumTop20Plays": 1066668,
+          "handle": "Claude AI",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=Claude%20AI"
+        }
+      }
+    },
+    {
+      "key": "deepseek",
+      "title": "DeepSeek",
+      "group": "model",
+      "rank": 3,
+      "score": 0.830947,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "npm"
+      ],
+      "sources": {
+        "github": {
+          "value": 113800,
+          "handle": "deepseek-ai",
+          "url": "https://api.github.com/orgs/deepseek-ai"
+        },
+        "wikipedia": {
+          "value": 491064,
+          "handle": "en:DeepSeek | zh:深度求索",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/DeepSeek/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "DeepSeek",
+              "views": 447291
+            },
+            "zh": {
+              "title": "深度求索",
+              "views": 43773
+            }
+          }
+        },
+        "huggingface": {
+          "value": 23622052,
+          "likes": 87845,
+          "downloads": 23534207,
+          "handle": "deepseek-ai (search: deepseek)",
+          "url": "https://huggingface.co/api/models?author=deepseek-ai&limit=1000&search=deepseek"
+        },
+        "bilibili": {
+          "value": 6889136,
+          "numResults": 1000,
+          "sumTop20Plays": 6889136,
+          "handle": "DeepSeek",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=DeepSeek"
+        }
+      }
+    },
+    {
+      "key": "gemini",
+      "title": "Gemini",
+      "group": "model",
+      "rank": 4,
+      "score": 0.735361,
+      "lowConfidence": false,
+      "inherited": [
+        "github",
+        "huggingface",
+        "npm"
+      ],
+      "missing": [],
+      "sources": {
+        "github": {
+          "value": 81532,
+          "handle": "google",
+          "url": "https://api.github.com/orgs/google",
+          "inheritedFrom": "google"
+        },
+        "npm": {
+          "value": 30787253,
+          "handle": "@google/genai",
+          "url": "https://api.npmjs.org/downloads/point/last-week/%40google%2Fgenai",
+          "inheritedFrom": "google"
+        },
+        "wikipedia": {
+          "value": 199672,
+          "handle": "en:Gemini_(language_model) | zh:Gemini_(语言模型)",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Gemini_(language_model)/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Gemini_(language_model)",
+              "views": 181508
+            },
+            "zh": {
+              "title": "Gemini_(语言模型)",
+              "views": 18164
+            }
+          }
+        },
+        "huggingface": {
+          "value": 82263748,
+          "likes": 77019,
+          "downloads": 82186729,
+          "handle": "google",
+          "url": "https://huggingface.co/api/models?author=google&limit=1000",
+          "inheritedFrom": "google"
+        },
+        "bilibili": {
+          "value": 632386,
+          "numResults": 1000,
+          "sumTop20Plays": 632386,
+          "handle": "Gemini AI",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=Gemini%20AI"
+        }
+      }
+    },
+    {
+      "key": "qwen",
+      "title": "Qwen",
+      "group": "model",
+      "rank": 5,
+      "score": 0.629922,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [],
+      "sources": {
+        "github": {
+          "value": 20322,
+          "handle": "QwenLM",
+          "url": "https://api.github.com/orgs/QwenLM"
+        },
+        "npm": {
+          "value": 141102,
+          "handle": "@qwen-code/qwen-code",
+          "url": "https://api.npmjs.org/downloads/point/last-week/%40qwen-code%2Fqwen-code"
+        },
+        "wikipedia": {
+          "value": 243738,
+          "handle": "en:Qwen | zh:通义千问",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Qwen/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Qwen",
+              "views": 221728
+            },
+            "zh": {
+              "title": "通义千问",
+              "views": 22010
+            }
+          }
+        },
+        "huggingface": {
+          "value": 247308671,
+          "likes": 152205,
+          "downloads": 247156466,
+          "handle": "Qwen (search: qwen)",
+          "url": "https://huggingface.co/api/models?author=Qwen&limit=1000&search=qwen"
+        },
+        "bilibili": {
+          "value": 1285771,
+          "numResults": 1000,
+          "sumTop20Plays": 1285771,
+          "handle": "通义千问",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=%E9%80%9A%E4%B9%89%E5%8D%83%E9%97%AE"
+        }
+      }
+    },
+    {
+      "key": "mistral",
+      "title": "Mistral",
+      "group": "model",
+      "rank": 6,
+      "score": 0.570543,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [],
+      "sources": {
+        "github": {
+          "value": 9343,
+          "handle": "mistralai",
+          "url": "https://api.github.com/orgs/mistralai"
+        },
+        "npm": {
+          "value": 6439597,
+          "handle": "@mistralai/mistralai",
+          "url": "https://api.npmjs.org/downloads/point/last-week/%40mistralai%2Fmistralai"
+        },
+        "wikipedia": {
+          "value": 227370,
+          "handle": "en:Mistral_AI | zh:Mistral_AI",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Mistral_AI/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Mistral_AI",
+              "views": 218450
+            },
+            "zh": {
+              "title": "Mistral_AI",
+              "views": 8920
+            }
+          }
+        },
+        "huggingface": {
+          "value": 8386260,
+          "likes": 47079,
+          "downloads": 8339181,
+          "handle": "mistralai (search: mistral)",
+          "url": "https://huggingface.co/api/models?author=mistralai&limit=1000&search=mistral"
+        },
+        "bilibili": {
+          "value": 578296,
+          "numResults": 1000,
+          "sumTop20Plays": 578296,
+          "handle": "Mistral AI",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=Mistral%20AI"
+        }
+      }
+    },
+    {
+      "key": "llama",
+      "title": "Llama",
+      "group": "model",
+      "rank": 7,
+      "score": 0.541827,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "npm"
+      ],
+      "sources": {
+        "github": {
+          "value": 11413,
+          "handle": "meta-llama",
+          "url": "https://api.github.com/orgs/meta-llama"
+        },
+        "wikipedia": {
+          "value": 103769,
+          "handle": "en:Llama_(language_model) | zh:Llama",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Llama_(language_model)/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Llama_(language_model)",
+              "views": 103662
+            },
+            "zh": {
+              "title": "Llama",
+              "views": 107
+            }
+          }
+        },
+        "huggingface": {
+          "value": 13357974,
+          "likes": 69282,
+          "downloads": 13288692,
+          "handle": "meta-llama (search: llama)",
+          "url": "https://huggingface.co/api/models?author=meta-llama&limit=1000&search=llama"
+        },
+        "bilibili": {
+          "value": 243996,
+          "numResults": 1000,
+          "sumTop20Plays": 243996,
+          "handle": "Llama 模型",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=Llama%20%E6%A8%A1%E5%9E%8B"
+        }
+      }
+    },
+    {
+      "key": "grok",
+      "title": "Grok",
+      "group": "model",
+      "rank": 8,
+      "score": 0.522838,
+      "lowConfidence": false,
+      "inherited": [
+        "github"
+      ],
+      "missing": [
+        "npm"
+      ],
+      "sources": {
+        "github": {
+          "value": 13792,
+          "handle": "xai-org",
+          "url": "https://api.github.com/orgs/xai-org",
+          "inheritedFrom": "xai"
+        },
+        "wikipedia": {
+          "value": 378945,
+          "handle": "en:Grok_(chatbot) | zh:Grok",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Grok_(chatbot)/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Grok_(chatbot)",
+              "views": 340601
+            },
+            "zh": {
+              "title": "Grok",
+              "views": 38344
+            }
+          }
+        },
+        "huggingface": {
+          "value": 13494,
+          "likes": 3691,
+          "downloads": 9803,
+          "handle": "xai-org (search: grok)",
+          "url": "https://huggingface.co/api/models?author=xai-org&limit=1000&search=grok"
+        },
+        "bilibili": {
+          "value": 3675092,
+          "numResults": 1000,
+          "sumTop20Plays": 3675092,
+          "handle": "Grok AI",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=Grok%20AI"
+        }
+      }
+    },
+    {
+      "key": "doubao",
+      "title": "Doubao",
+      "group": "model",
+      "rank": 9,
+      "score": 0.502106,
+      "lowConfidence": false,
+      "inherited": [
+        "github",
+        "huggingface"
+      ],
+      "missing": [
+        "npm"
+      ],
+      "sources": {
+        "github": {
+          "value": 19297,
+          "handle": "bytedance",
+          "url": "https://api.github.com/orgs/bytedance",
+          "inheritedFrom": "bytedance"
+        },
+        "wikipedia": {
+          "value": 52496,
+          "handle": "en:Doubao | zh:豆包",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Doubao/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Doubao",
+              "views": 49536
+            },
+            "zh": {
+              "title": "豆包",
+              "views": 2960
+            }
+          }
+        },
+        "huggingface": {
+          "value": 1185813,
+          "likes": 8652,
+          "downloads": 1177161,
+          "handle": "ByteDance",
+          "url": "https://huggingface.co/api/models?author=ByteDance&limit=1000",
+          "inheritedFrom": "bytedance"
+        },
+        "bilibili": {
+          "value": 6106660,
+          "numResults": 1000,
+          "sumTop20Plays": 6106660,
+          "handle": "豆包",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=%E8%B1%86%E5%8C%85"
+        }
+      }
+    },
+    {
+      "key": "kimi",
+      "title": "Kimi",
+      "group": "model",
+      "rank": 10,
+      "score": 0.48472,
+      "lowConfidence": false,
+      "inherited": [
+        "github"
+      ],
+      "missing": [
+        "npm"
+      ],
+      "sources": {
+        "github": {
+          "value": 10076,
+          "handle": "MoonshotAI",
+          "url": "https://api.github.com/orgs/MoonshotAI",
+          "inheritedFrom": "moonshot"
+        },
+        "wikipedia": {
+          "value": 115259,
+          "handle": "en:Kimi_(chatbot) | zh:Kimi",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Kimi_(chatbot)/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Kimi_(chatbot)",
+              "views": 114195
+            },
+            "zh": {
+              "title": "Kimi",
+              "views": 1064
+            }
+          }
+        },
+        "huggingface": {
+          "value": 2094893,
+          "likes": 27031,
+          "downloads": 2067862,
+          "handle": "moonshotai (search: kimi)",
+          "url": "https://huggingface.co/api/models?author=moonshotai&limit=1000&search=kimi"
+        },
+        "bilibili": {
+          "value": 251605,
+          "numResults": 1000,
+          "sumTop20Plays": 251605,
+          "handle": "Kimi AI",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=Kimi%20AI"
+        }
+      }
+    },
+    {
+      "key": "nemotron",
+      "title": "Nemotron",
+      "group": "model",
+      "rank": 11,
+      "score": 0.481977,
+      "lowConfidence": false,
+      "inherited": [
+        "github"
+      ],
+      "missing": [
+        "npm"
+      ],
+      "sources": {
+        "github": {
+          "value": 32404,
+          "handle": "nvidia",
+          "url": "https://api.github.com/orgs/nvidia",
+          "inheritedFrom": "nvidia"
+        },
+        "wikipedia": {
+          "value": 13373,
+          "handle": "en:Nemotron",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Nemotron/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Nemotron",
+              "views": 13373
+            }
+          }
+        },
+        "huggingface": {
+          "value": 14573524,
+          "likes": 27583,
+          "downloads": 14545941,
+          "handle": "nvidia (search: nemotron)",
+          "url": "https://huggingface.co/api/models?author=nvidia&limit=1000&search=nemotron"
+        },
+        "bilibili": {
+          "value": 120646,
+          "numResults": 1000,
+          "sumTop20Plays": 120646,
+          "handle": "Nemotron",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=Nemotron"
+        }
+      }
+    },
+    {
+      "key": "phi",
+      "title": "Phi",
+      "group": "model",
+      "rank": 12,
+      "score": 0.475344,
+      "lowConfidence": false,
+      "inherited": [
+        "github",
+        "npm"
+      ],
+      "missing": [],
+      "sources": {
+        "github": {
+          "value": 133236,
+          "handle": "microsoft",
+          "url": "https://api.github.com/orgs/microsoft",
+          "inheritedFrom": "microsoft"
+        },
+        "npm": {
+          "value": 653024,
+          "handle": "botbuilder",
+          "url": "https://api.npmjs.org/downloads/point/last-week/botbuilder",
+          "inheritedFrom": "microsoft"
+        },
+        "wikipedia": {
+          "value": 5631,
+          "handle": "en:Phi_(language_model)",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Phi_(language_model)/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Phi_(language_model)",
+              "views": 5631
+            }
+          }
+        },
+        "huggingface": {
+          "value": 2588133,
+          "likes": 20976,
+          "downloads": 2567157,
+          "handle": "microsoft (search: phi)",
+          "url": "https://huggingface.co/api/models?author=microsoft&limit=1000&search=phi"
+        },
+        "bilibili": {
+          "value": 997533,
+          "numResults": 1000,
+          "sumTop20Plays": 997533,
+          "handle": "Phi 模型",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=Phi%20%E6%A8%A1%E5%9E%8B"
+        }
+      }
+    },
+    {
+      "key": "minimax",
+      "title": "MiniMax",
+      "group": "model",
+      "rank": 13,
+      "score": 0.43378,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "npm"
+      ],
+      "sources": {
+        "github": {
+          "value": 8108,
+          "handle": "MiniMax-AI",
+          "url": "https://api.github.com/orgs/MiniMax-AI"
+        },
+        "wikipedia": {
+          "value": 36625,
+          "handle": "en:MiniMax_(company) | zh:MiniMax",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/MiniMax_(company)/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "MiniMax_(company)",
+              "views": 10454
+            },
+            "zh": {
+              "title": "MiniMax",
+              "views": 26171
+            }
+          }
+        },
+        "huggingface": {
+          "value": 8448851,
+          "likes": 17956,
+          "downloads": 8430895,
+          "handle": "MiniMaxAI (search: minimax)",
+          "url": "https://huggingface.co/api/models?author=MiniMaxAI&limit=1000&search=minimax"
+        },
+        "bilibili": {
+          "value": 282650,
+          "numResults": 1000,
+          "sumTop20Plays": 282650,
+          "handle": "MiniMax AI",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=MiniMax%20AI"
+        }
+      }
+    },
+    {
+      "key": "nova",
+      "title": "Nova",
+      "group": "model",
+      "rank": 14,
+      "score": 0.419668,
+      "lowConfidence": false,
+      "inherited": [
+        "github",
+        "huggingface",
+        "npm"
+      ],
+      "missing": [],
+      "sources": {
+        "github": {
+          "value": 17349,
+          "handle": "aws",
+          "url": "https://api.github.com/orgs/aws",
+          "inheritedFrom": "aws"
+        },
+        "npm": {
+          "value": 21687534,
+          "handle": "@aws-sdk/client-bedrock-runtime",
+          "url": "https://api.npmjs.org/downloads/point/last-week/%40aws-sdk%2Fclient-bedrock-runtime",
+          "inheritedFrom": "aws"
+        },
+        "wikipedia": {
+          "value": 802,
+          "handle": "en:Amazon_Nova",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Amazon_Nova/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Amazon_Nova",
+              "views": 802
+            }
+          }
+        },
+        "huggingface": {
+          "value": 21259833,
+          "likes": 2181,
+          "downloads": 21257652,
+          "handle": "amazon",
+          "url": "https://huggingface.co/api/models?author=amazon&limit=1000",
+          "inheritedFrom": "aws"
+        },
+        "bilibili": {
+          "value": 159184,
+          "numResults": 1000,
+          "sumTop20Plays": 159184,
+          "handle": "Amazon Nova",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=Amazon%20Nova"
+        }
+      }
+    },
+    {
+      "key": "perplexity",
+      "title": "Perplexity",
+      "group": "model",
+      "rank": 15,
+      "score": 0.418636,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "npm"
+      ],
+      "sources": {
+        "github": {
+          "value": 2677,
+          "handle": "perplexityai",
+          "url": "https://api.github.com/orgs/perplexityai"
+        },
+        "wikipedia": {
+          "value": 466786,
+          "handle": "en:Perplexity_AI",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Perplexity_AI/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Perplexity_AI",
+              "views": 466786
+            }
+          }
+        },
+        "huggingface": {
+          "value": 405764,
+          "likes": 1288,
+          "downloads": 404476,
+          "handle": "perplexity-ai",
+          "url": "https://huggingface.co/api/models?author=perplexity-ai&limit=1000"
+        },
+        "bilibili": {
+          "value": 127809,
+          "numResults": 1000,
+          "sumTop20Plays": 127809,
+          "handle": "Perplexity AI",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=Perplexity%20AI"
+        }
+      }
+    },
+    {
+      "key": "glm",
+      "title": "GLM",
+      "group": "model",
+      "rank": 16,
+      "score": 0.406811,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "npm"
+      ],
+      "sources": {
+        "github": {
+          "value": 6503,
+          "handle": "zai-org",
+          "url": "https://api.github.com/orgs/zai-org"
+        },
+        "wikipedia": {
+          "value": 7657,
+          "handle": "en:ChatGLM | zh:智谱清言",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/ChatGLM/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "ChatGLM",
+              "views": 391
+            },
+            "zh": {
+              "title": "智谱清言",
+              "views": 7266
+            }
+          }
+        },
+        "huggingface": {
+          "value": 16270196,
+          "likes": 33610,
+          "downloads": 16236586,
+          "handle": "zai-org (search: glm)",
+          "url": "https://huggingface.co/api/models?author=zai-org&limit=1000&search=glm"
+        },
+        "bilibili": {
+          "value": 683247,
+          "numResults": 1000,
+          "sumTop20Plays": 683247,
+          "handle": "智谱GLM",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=%E6%99%BA%E8%B0%B1GLM"
+        }
+      }
+    },
+    {
+      "key": "stepfun",
+      "title": "StepFun",
+      "group": "model",
+      "rank": 17,
+      "score": 0.358615,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "npm"
+      ],
+      "sources": {
+        "github": {
+          "value": 1837,
+          "handle": "stepfun-ai",
+          "url": "https://api.github.com/orgs/stepfun-ai"
+        },
+        "wikipedia": {
+          "value": 29910,
+          "handle": "en:StepFun | zh:阶跃星辰",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/StepFun/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "StepFun",
+              "views": 20190
+            },
+            "zh": {
+              "title": "阶跃星辰",
+              "views": 9720
+            }
+          }
+        },
+        "huggingface": {
+          "value": 532688,
+          "likes": 7855,
+          "downloads": 524833,
+          "handle": "stepfun-ai (search: step)",
+          "url": "https://huggingface.co/api/models?author=stepfun-ai&limit=1000&search=step"
+        },
+        "bilibili": {
+          "value": 3795027,
+          "numResults": 1000,
+          "sumTop20Plays": 3795027,
+          "handle": "阶跃星辰",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=%E9%98%B6%E8%B7%83%E6%98%9F%E8%BE%B0"
+        }
+      }
+    },
+    {
+      "key": "hailuo",
+      "title": "Hailuo",
+      "group": "model",
+      "rank": 18,
+      "score": 0.356342,
+      "lowConfidence": false,
+      "inherited": [
+        "github",
+        "huggingface"
+      ],
+      "missing": [
+        "npm"
+      ],
+      "sources": {
+        "github": {
+          "value": 8108,
+          "handle": "MiniMax-AI",
+          "url": "https://api.github.com/orgs/MiniMax-AI",
+          "inheritedFrom": "minimax"
+        },
+        "wikipedia": {
+          "value": 367,
+          "handle": "en:Hailuo_AI",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Hailuo_AI/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Hailuo_AI",
+              "views": 367
+            }
+          }
+        },
+        "huggingface": {
+          "value": 8448851,
+          "likes": 17956,
+          "downloads": 8430895,
+          "handle": "MiniMaxAI (search: minimax)",
+          "url": "https://huggingface.co/api/models?author=MiniMaxAI&limit=1000&search=minimax",
+          "inheritedFrom": "minimax"
+        },
+        "bilibili": {
+          "value": 540501,
+          "numResults": 1000,
+          "sumTop20Plays": 540501,
+          "handle": "海螺AI",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=%E6%B5%B7%E8%9E%BAAI"
+        }
+      }
+    },
+    {
+      "key": "hunyuan",
+      "title": "Hunyuan",
+      "group": "model",
+      "rank": 19,
+      "score": 0.305621,
+      "lowConfidence": false,
+      "inherited": [
+        "github",
+        "npm"
+      ],
+      "missing": [],
+      "sources": {
+        "github": {
+          "value": 15072,
+          "handle": "Tencent",
+          "url": "https://api.github.com/orgs/Tencent",
+          "inheritedFrom": "tencent"
+        },
+        "npm": {
+          "value": 47629,
+          "handle": "tencentcloud-sdk-nodejs",
+          "url": "https://api.npmjs.org/downloads/point/last-week/tencentcloud-sdk-nodejs",
+          "inheritedFrom": "tencent"
+        },
+        "wikipedia": {
+          "value": 2073,
+          "handle": "en:Hunyuan | zh:腾讯混元",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Hunyuan/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Hunyuan",
+              "views": 511
+            },
+            "zh": {
+              "title": "腾讯混元",
+              "views": 1562
+            }
+          }
+        },
+        "huggingface": {
+          "value": 1322734,
+          "likes": 18821,
+          "downloads": 1303913,
+          "handle": "tencent (search: hunyuan)",
+          "url": "https://huggingface.co/api/models?author=tencent&limit=1000&search=hunyuan"
+        },
+        "bilibili": {
+          "value": 293405,
+          "numResults": 1000,
+          "sumTop20Plays": 293405,
+          "handle": "腾讯混元",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=%E8%85%BE%E8%AE%AF%E6%B7%B7%E5%85%83"
+        }
+      }
+    },
+    {
+      "key": "command",
+      "title": "Command",
+      "group": "model",
+      "rank": 20,
+      "score": 0.298462,
+      "lowConfidence": false,
+      "inherited": [
+        "github",
+        "npm",
+        "wikipedia"
+      ],
+      "missing": [],
+      "sources": {
+        "github": {
+          "value": 1490,
+          "handle": "cohere-ai",
+          "url": "https://api.github.com/orgs/cohere-ai",
+          "inheritedFrom": "cohere"
+        },
+        "npm": {
+          "value": 674523,
+          "handle": "cohere-ai",
+          "url": "https://api.npmjs.org/downloads/point/last-week/cohere-ai",
+          "inheritedFrom": "cohere"
+        },
+        "wikipedia": {
+          "value": 88897,
+          "handle": "en:Cohere",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Cohere/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Cohere",
+              "views": 88897
+            }
+          },
+          "inheritedFrom": "cohere"
+        },
+        "huggingface": {
+          "value": 96596,
+          "likes": 5611,
+          "downloads": 90985,
+          "handle": "CohereLabs (search: command)",
+          "url": "https://huggingface.co/api/models?author=CohereLabs&limit=1000&search=command"
+        },
+        "bilibili": {
+          "value": 62003,
+          "numResults": 1000,
+          "sumTop20Plays": 62003,
+          "handle": "Command R",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=Command%20R"
+        }
+      }
+    },
+    {
+      "key": "xiaomimimo",
+      "title": "Xiaomi MiMo",
+      "group": "model",
+      "rank": 21,
+      "score": 0.29776,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "npm"
+      ],
+      "sources": {
+        "github": {
+          "value": 2422,
+          "handle": "XiaomiMiMo",
+          "url": "https://api.github.com/orgs/XiaomiMiMo"
+        },
+        "wikipedia": {
+          "value": 20274,
+          "handle": "en:Xiaomi_MiMo | zh:小米MiMo",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Xiaomi_MiMo/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Xiaomi_MiMo",
+              "views": 14785
+            },
+            "zh": {
+              "title": "小米MiMo",
+              "views": 5489
+            }
+          }
+        },
+        "huggingface": {
+          "value": 375985,
+          "likes": 5857,
+          "downloads": 370128,
+          "handle": "XiaomiMiMo (search: mimo)",
+          "url": "https://huggingface.co/api/models?author=XiaomiMiMo&limit=1000&search=mimo"
+        },
+        "bilibili": {
+          "value": 666471,
+          "numResults": 1000,
+          "sumTop20Plays": 666471,
+          "handle": "小米MiMo",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=%E5%B0%8F%E7%B1%B3MiMo"
+        }
+      }
+    },
+    {
+      "key": "ernie",
+      "title": "ERNIE",
+      "group": "model",
+      "rank": 22,
+      "score": 0.247722,
+      "lowConfidence": false,
+      "inherited": [
+        "github",
+        "npm"
+      ],
+      "missing": [],
+      "sources": {
+        "github": {
+          "value": 3259,
+          "handle": "baidu",
+          "url": "https://api.github.com/orgs/baidu",
+          "inheritedFrom": "baidu"
+        },
+        "npm": {
+          "value": 977,
+          "handle": "baidu-aip-sdk",
+          "url": "https://api.npmjs.org/downloads/point/last-week/baidu-aip-sdk",
+          "inheritedFrom": "baidu"
+        },
+        "wikipedia": {
+          "value": 21442,
+          "handle": "en:Ernie_Bot | zh:文心一言",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Ernie_Bot/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Ernie_Bot",
+              "views": 12242
+            },
+            "zh": {
+              "title": "文心一言",
+              "views": 9200
+            }
+          }
+        },
+        "huggingface": {
+          "value": 121076,
+          "likes": 3627,
+          "downloads": 117449,
+          "handle": "baidu (search: ernie)",
+          "url": "https://huggingface.co/api/models?author=baidu&limit=1000&search=ernie"
+        },
+        "bilibili": {
+          "value": 1185944,
+          "numResults": 1000,
+          "sumTop20Plays": 1185944,
+          "handle": "文心一言",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=%E6%96%87%E5%BF%83%E4%B8%80%E8%A8%80"
+        }
+      }
+    },
+    {
+      "key": "yi",
+      "title": "Yi",
+      "group": "model",
+      "rank": 23,
+      "score": 0.214292,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "npm"
+      ],
+      "sources": {
+        "github": {
+          "value": 1244,
+          "handle": "01-ai",
+          "url": "https://api.github.com/orgs/01-ai"
+        },
+        "wikipedia": {
+          "value": 16119,
+          "handle": "en:01.AI",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/01.AI/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "01.AI",
+              "views": 16119
+            }
+          }
+        },
+        "huggingface": {
+          "value": 255942,
+          "likes": 4445,
+          "downloads": 251497,
+          "handle": "01-ai (search: yi)",
+          "url": "https://huggingface.co/api/models?author=01-ai&limit=1000&search=yi"
+        },
+        "bilibili": {
+          "value": 79781,
+          "numResults": 1000,
+          "sumTop20Plays": 79781,
+          "handle": "零一万物",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=%E9%9B%B6%E4%B8%80%E4%B8%87%E7%89%A9"
+        }
+      }
+    },
+    {
+      "key": "antling",
+      "title": "Ant Ling",
+      "group": "model",
+      "rank": 24,
+      "score": 0.157843,
+      "lowConfidence": false,
+      "inherited": [
+        "github"
+      ],
+      "missing": [
+        "npm"
+      ],
+      "sources": {
+        "github": {
+          "value": 863,
+          "handle": "antgroup",
+          "url": "https://api.github.com/orgs/antgroup",
+          "inheritedFrom": "antgroup"
+        },
+        "wikipedia": {
+          "value": 1,
+          "handle": "zh:灵波",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/zh.wikipedia/all-access/user/%E7%81%B5%E6%B3%A2/monthly/20260501/20261031",
+          "detail": {
+            "zh": {
+              "title": "灵波",
+              "views": 1
+            }
+          }
+        },
+        "huggingface": {
+          "value": 120674,
+          "likes": 4814,
+          "downloads": 115860,
+          "handle": "inclusionAI (search: Ling)",
+          "url": "https://huggingface.co/api/models?author=inclusionAI&limit=1000&search=Ling"
+        },
+        "bilibili": {
+          "value": 336070,
+          "numResults": 1000,
+          "sumTop20Plays": 336070,
+          "handle": "蚂蚁灵波",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=%E8%9A%82%E8%9A%81%E7%81%B5%E6%B3%A2"
+        }
+      }
+    }
+  ]
+}

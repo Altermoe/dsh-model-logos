@@ -203,9 +203,13 @@ export const DSHML_UI_CSS: string = `
   color: var(--dsw-alias-label-tertiary, #8b93a3);
 }
 
+.dshml-picker-grid + .dshml-picker-group-title {
+  margin-top: 16px;
+}
+
 .dshml-picker-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
   gap: 6px;
 }
 

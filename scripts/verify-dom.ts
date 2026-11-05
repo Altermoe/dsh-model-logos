@@ -871,6 +871,14 @@ async function browserDriver(config: DriverConfig): Promise<void> {
     return node.closest<HTMLElement>('button, [role="option"], [role="menuitem"], [role="menuitemradio"], li') || node;
   }
 
+  /** Write a controlled React input the way a real keystroke would. */
+  function setInputValue(input: HTMLInputElement, value: string): void {
+    const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+    if (descriptor?.set) descriptor.set.call(input, value);
+    else input.value = value;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
   /** The icon picker modal root is `[data-dshml-picker]` (portaled into body). */
   function findPicker(): HTMLElement | null {
     const direct = qa('[data-dshml-picker]').filter(visible)[0] ?? null;
@@ -884,6 +892,30 @@ async function browserDriver(config: DriverConfig): Promise<void> {
   function pickerTitle(picker: Element | null): string {
     const title = picker ? q('.dshml-picker-title', picker) : null;
     return title ? text(title) : '';
+  }
+
+  /** The two section headings, in DOM order (vendor first, model second). */
+  function pickerGroupTitles(picker: Element | null): string[] {
+    return picker ? qa('.dshml-picker-group-title', picker).map((node) => text(node)) : [];
+  }
+
+  /** The two option grids, in DOM order (vendor first, model second). */
+  function pickerGroupGrids(picker: Element | null): HTMLElement[] {
+    return picker ? qa('.dshml-picker-grid', picker) : [];
+  }
+
+  /** Option buttons inside one group grid. */
+  function pickerOptionsInGrid(grid: Element | null): HTMLElement[] {
+    return grid ? qa('.dshml-picker-option', grid) : [];
+  }
+
+  function pickerOptionLabel(node: HTMLElement | null): string {
+    if (!node) return '';
+    return (node.getAttribute('aria-label') || node.getAttribute('title') || text(node)).trim();
+  }
+
+  function pickerGroupHas(grid: Element | null, label: string): boolean {
+    return pickerOptionsInGrid(grid).some((node) => pickerOptionLabel(node) === label);
   }
 
   function findPickerOption(picker: Element | null, label: string): HTMLElement | null {
@@ -1393,6 +1425,63 @@ async function browserDriver(config: DriverConfig): Promise<void> {
     let write: unknown[] | null = null;
     if (picker !== null) {
       const pickerNode = picker;
+      const groupTitles = pickerGroupTitles(pickerNode);
+      const grids = pickerGroupGrids(pickerNode);
+      const vendorTitle = groupTitles[0] ?? '';
+      const modelTitle = groupTitles[1] ?? '';
+      add(
+        'picker splits vendor marks above model marks',
+        true,
+        groupTitles.length === 2 &&
+          grids.length === 2 &&
+          (vendorTitle === '厂商图标' || vendorTitle === 'Vendor icons') &&
+          (modelTitle === '模型图标' || modelTitle === 'Model icons'),
+        'groups=' + JSON.stringify(groupTitles) + ' grids=' + grids.length,
+      );
+      add(
+        'vendor group contains Alibaba/Anthropic/Google/OpenAI',
+        true,
+        pickerGroupHas(grids[0] ?? null, 'Alibaba') &&
+          pickerGroupHas(grids[0] ?? null, 'Anthropic') &&
+          pickerGroupHas(grids[0] ?? null, 'Google') &&
+          pickerGroupHas(grids[0] ?? null, 'OpenAI'),
+        'vendor=' +
+          pickerOptionsInGrid(grids[0] ?? null)
+            .map(pickerOptionLabel)
+            .join(','),
+      );
+      add(
+        'model group contains Qwen/Claude/Gemini/GPT/DeepSeek',
+        true,
+        pickerGroupHas(grids[1] ?? null, 'Qwen') &&
+          pickerGroupHas(grids[1] ?? null, 'Claude') &&
+          pickerGroupHas(grids[1] ?? null, 'Gemini') &&
+          pickerGroupHas(grids[1] ?? null, 'GPT') &&
+          pickerGroupHas(grids[1] ?? null, 'DeepSeek'),
+        'model=' +
+          pickerOptionsInGrid(grids[1] ?? null)
+            .map(pickerOptionLabel)
+            .join(','),
+      );
+
+      const search = q<HTMLInputElement>('.dshml-picker-search', pickerNode);
+      if (search) {
+        setInputValue(search, 'qwen');
+        await waitFor(() => pickerGroupTitles(pickerNode).length === 1, 2000);
+        const filteredTitles = pickerGroupTitles(pickerNode);
+        const filteredGrids = pickerGroupGrids(pickerNode);
+        add(
+          'picker search keeps only the matching group',
+          true,
+          filteredTitles.length === 1 && pickerGroupHas(filteredGrids[0] ?? null, 'Qwen'),
+          'titles=' + JSON.stringify(filteredTitles),
+        );
+        setInputValue(search, '');
+        await waitFor(() => pickerGroupTitles(pickerNode).length === 2, 2000);
+      } else {
+        add('picker search keeps only the matching group', true, false, 'no search input');
+      }
+
       const brandOption = findPickerOption(pickerNode, 'OpenAI');
       add(
         'picker offers brand options',

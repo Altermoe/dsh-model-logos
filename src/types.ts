@@ -27,8 +27,22 @@ export interface Logo {
   readonly svg: string;
 }
 
-/** A named artwork collection (`src/logos/intl.ts` and friends). */
-export type LogoSet = Readonly<Record<string, Logo>>;
+/** The picker group a brand mark belongs to. */
+export type LogoGroup = 'vendor' | 'model';
+
+/**
+ * One brand mark in the merged artwork set.
+ *
+ * Every brand belongs to exactly one picker group: `vendor` marks identify a
+ * company or channel, `model` marks identify a model product. Generated letter
+ * tiles are plain {@link Logo}s and carry no group.
+ */
+export interface BrandLogo extends Logo {
+  readonly group: LogoGroup;
+}
+
+/** A named artwork collection (`src/logos/official.generated.ts` and friends). */
+export type LogoSet = Readonly<Record<string, BrandLogo>>;
 
 /** Logo key the matcher can return; each one needs artwork. */
 export type LogoKey = string;

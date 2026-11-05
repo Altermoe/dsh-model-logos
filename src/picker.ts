@@ -13,10 +13,12 @@
  */
 import type { ChangeEvent, ReactElement } from 'react';
 import { h, React, getCreateRoot } from './runtime';
-import type { IconState, Logo } from './types';
+import type { BrandLogo, IconState } from './types';
 import { dshmlT } from './i18n';
 import { letterTile } from './artwork';
-import { LOGOS } from './logos';
+import { LOGOS, filterLogoGroups, groupLogoEntries } from './logos';
+import { LOGO_RANKS } from './logos/ranking';
+import type { GroupedLogoEntry, LogoGroups } from './logos/groups';
 import {
   dshmlClearModelIcon,
   dshmlIconState,
@@ -49,12 +51,8 @@ let dshmlPickerSerial = 0;
 /** The currently mounted picker's close function, or null. */
 let dshmlPickerOpenClose: (() => void) | null = null;
 
-/** One validated brand option: artwork key plus its title. */
-export interface DshmlUiLogoEntry {
-  key: string;
-  title: string;
-  svg: string;
-}
+/** One validated brand option: artwork key, title, group and prominence rank. */
+export type DshmlUiLogoEntry = GroupedLogoEntry;
 
 /** Normalized resolution shape the picker and the settings section render. */
 export interface DshmlUiResolution {
@@ -70,8 +68,8 @@ export interface DshmlUiLetterTile {
   svg: string;
 }
 
-/** Lazily built, sorted brand option list (LOGOS never changes after load). */
-let dshmlUiBrandCache: DshmlUiLogoEntry[] | null = null;
+/** Lazily built, grouped and ranked brand option lists (LOGOS never changes). */
+let dshmlUiBrandCache: LogoGroups | null = null;
 
 /**
  * `dshmlT` lookup that degrades to an English fallback instead of showing a raw
@@ -147,36 +145,28 @@ export function dshmlUiOverrideValue(overrides: unknown, providerId: string, mod
 export function dshmlUiLogo(key: unknown): DshmlUiLogoEntry | null {
   if (typeof key !== 'string' || key === '') return null;
   try {
-    const entry: Logo | undefined = LOGOS[key];
+    const entry: BrandLogo | undefined = LOGOS[key];
     if (entry === undefined || typeof entry !== 'object') return null;
     if (typeof entry.svg !== 'string' || entry.svg === '') return null;
+    const rawRank = LOGO_RANKS[key];
+    const rank = typeof rawRank === 'number' && Number.isFinite(rawRank) ? rawRank : Number.MAX_SAFE_INTEGER;
     return {
       key: key,
       title: typeof entry.title === 'string' && entry.title !== '' ? entry.title : key,
       svg: entry.svg,
+      group: entry.group,
+      rank: rank,
     };
   } catch {
     return null;
   }
 }
 
-/** All selectable brand marks, sorted by title, built once. */
-function dshmlUiBrandOptions(): DshmlUiLogoEntry[] {
+/** All selectable brand marks, grouped and sorted by measured prominence. */
+function dshmlUiBrandGroups(): LogoGroups {
   if (dshmlUiBrandCache !== null) return dshmlUiBrandCache;
-  const options: DshmlUiLogoEntry[] = [];
-  try {
-    for (const key of Object.keys(LOGOS)) {
-      const entry = dshmlUiLogo(key);
-      if (entry !== null) options.push(entry);
-    }
-  } catch {
-    /* keep whatever was collected */
-  }
-  options.sort(function byTitle(a, b) {
-    return a.title.localeCompare(b.title) || a.key.localeCompare(b.key);
-  });
-  dshmlUiBrandCache = options;
-  return options;
+  dshmlUiBrandCache = groupLogoEntries(LOGOS, LOGO_RANKS);
+  return dshmlUiBrandCache;
 }
 
 /**
@@ -385,17 +375,10 @@ function DshmlIconPickerApp(props: DshmlIconPickerAppProps): ReactElement {
   }
   const letterSvg = letterTileEntry !== null ? letterTileEntry.svg : DSHML_PICKER_AUTO_SVG;
 
-  const allBrands = dshmlUiBrandOptions();
-  const normalizedQuery = query.trim().toLowerCase();
-  const brands =
-    normalizedQuery === ''
-      ? allBrands
-      : allBrands.filter(function matchesBrand(entry) {
-          return (
-            entry.key.toLowerCase().indexOf(normalizedQuery) !== -1 ||
-            entry.title.toLowerCase().indexOf(normalizedQuery) !== -1
-          );
-        });
+  const allGroups = dshmlUiBrandGroups();
+  const filteredGroups = filterLogoGroups(allGroups, query);
+  const vendorBrands = filteredGroups.vendor;
+  const modelBrands = filteredGroups.model;
 
   function explainWriteFailure(): string {
     const message = dshmlUiCurrentError();
@@ -517,7 +500,7 @@ function DshmlIconPickerApp(props: DshmlIconPickerAppProps): ReactElement {
     }),
   ];
 
-  const brandCells = brands.map(function toCell(entry) {
+  function toBrandCell(entry: DshmlUiLogoEntry): ReactElement {
     return h(DshmlPickerOption, {
       key: 'brand-' + entry.key,
       optionKey: entry.key,
@@ -531,7 +514,13 @@ function DshmlIconPickerApp(props: DshmlIconPickerAppProps): ReactElement {
         selectIcon('brand', entry.key);
       },
     });
-  });
+  }
+
+  const vendorCells = vendorBrands.map(toBrandCell);
+  const modelCells = modelBrands.map(toBrandCell);
+  const vendorTitle = dshmlUiCopy('picker.vendors', 'Vendor icons');
+  const modelTitle = dshmlUiCopy('picker.models', 'Model icons');
+  const hasBrandMatches = vendorCells.length > 0 || modelCells.length > 0;
 
   return h(
     'div',
@@ -569,18 +558,43 @@ function DshmlIconPickerApp(props: DshmlIconPickerAppProps): ReactElement {
       ]),
       h('div', { key: 'body', className: 'dshml-picker-body' }, [
         h('div', { key: 'specials', className: 'dshml-picker-specials' }, specialOptions),
-        h(
-          'h3',
-          { key: 'brand-title', className: 'dshml-picker-group-title' },
-          dshmlUiCopy('picker.brands', 'Brand marks'),
-        ),
-        brandCells.length > 0
-          ? h('div', { key: 'brands', className: 'dshml-picker-grid' }, brandCells)
-          : h(
+        vendorCells.length > 0
+          ? h('h3', { key: 'vendor-title', className: 'dshml-picker-group-title' }, vendorTitle)
+          : null,
+        vendorCells.length > 0
+          ? h(
+              'div',
+              {
+                key: 'vendors',
+                className: 'dshml-picker-grid',
+                role: 'group',
+                'aria-label': vendorTitle,
+              },
+              vendorCells,
+            )
+          : null,
+        modelCells.length > 0
+          ? h('h3', { key: 'model-title', className: 'dshml-picker-group-title' }, modelTitle)
+          : null,
+        modelCells.length > 0
+          ? h(
+              'div',
+              {
+                key: 'models',
+                className: 'dshml-picker-grid',
+                role: 'group',
+                'aria-label': modelTitle,
+              },
+              modelCells,
+            )
+          : null,
+        hasBrandMatches === false
+          ? h(
               'p',
               { key: 'no-brand', className: 'dshml-picker-empty' },
               dshmlUiCopy('picker.noMatch', 'No matching icons'),
-            ),
+            )
+          : null,
       ]),
     ],
   );

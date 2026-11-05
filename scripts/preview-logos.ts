@@ -20,12 +20,10 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { letterTile } from '../src/artwork';
-import { LOGOS as CN } from '../src/logos/cn';
-import { LOGOS as INTL } from '../src/logos/intl';
-import { LOGOS as VENDORS } from '../src/logos/vendors';
+import { LOGOS, groupLogoEntries } from '../src/logos';
+import { LOGO_RANKS } from '../src/logos/ranking';
 import { LOGO_KEYS } from '../src/match';
 import { DSHML_NAV_ICON_SVG } from '../src/nav-icon';
-import type { LogoSet } from '../src/types';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const PREVIEW = join(ROOT, '.preview');
@@ -51,49 +49,51 @@ const scale = numeric('--scale') ?? (only ? 2 : 1);
 const forcedWidth = numeric('--width');
 const forcedHeight = numeric('--height');
 
-const SETS = { intl: INTL, cn: CN, vendors: VENDORS };
-type SetName = keyof typeof SETS;
-const isSetName = (value: string): value is SetName => Object.prototype.hasOwnProperty.call(SETS, value);
-if (rawOnlySet !== null && !isSetName(rawOnlySet)) {
-  console.error(`error: unknown --only-set "${rawOnlySet}" (expected: ${Object.keys(SETS).join(', ')})`);
+const GROUPS = groupLogoEntries(LOGOS, LOGO_RANKS);
+const GROUP_KEYS: Readonly<Record<'vendor' | 'model', readonly string[]>> = {
+  vendor: GROUPS.vendor.map((entry) => entry.key),
+  model: GROUPS.model.map((entry) => entry.key),
+};
+const isGroupName = (value: string): value is 'vendor' | 'model' => value === 'vendor' || value === 'model';
+// Keep the historical `vendors` spelling used by the docs.
+const normalizedOnlySet = rawOnlySet === 'vendors' ? 'vendor' : rawOnlySet;
+if (normalizedOnlySet !== null && !isGroupName(normalizedOnlySet)) {
+  console.error(`error: unknown --only-set "${rawOnlySet}" (expected: vendor, model)`);
   process.exit(1);
 }
-const onlySet: SetName | null = rawOnlySet !== null && isSetName(rawOnlySet) ? rawOnlySet : null;
+const onlySet: 'vendor' | 'model' | null =
+  normalizedOnlySet !== null && isGroupName(normalizedOnlySet) ? normalizedOnlySet : null;
 
-const LOGOS: LogoSet = { ...INTL, ...CN, ...VENDORS };
 const allKeys = Object.keys(LOGOS).sort();
-const keys = onlySet !== null ? Object.keys(SETS[onlySet]).sort() : allKeys;
-// Vendor marks are expected even before src/match.ts lists their keys yet.
-const expected = new Set([...LOGO_KEYS, ...Object.keys(VENDORS)]);
+const keys = onlySet !== null ? [...GROUP_KEYS[onlySet]] : allKeys;
 const missing = LOGO_KEYS.filter((key) => !(key in LOGOS));
-const unused = allKeys.filter((key) => !expected.has(key));
+const unused = allKeys.filter((key) => !LOGO_KEYS.includes(key));
 
 if (missing.length > 0) console.warn('warning: matcher keys without artwork: ' + missing.join(', '));
 if (unused.length > 0) console.warn('warning: artwork keys the matcher never returns: ' + unused.join(', '));
 
 const SAMPLES: ReadonlyArray<readonly [string, string]> = [
   ['deepseek', 'DeepSeek-V4.1-Flash'],
-  ['deepseek', 'deepseek-chat'],
-  ['openai', 'GPT-5.2'],
+  ['gpt', 'GPT-5.2'],
   ['claude', 'Claude Sonnet 4.5'],
   ['gemini', 'Gemini 3 Pro'],
   ['qwen', 'Qwen3-Max'],
-  ['zhipu', 'GLM-5.3-Flash'],
+  ['glm', 'GLM-5.3-Flash'],
   ['kimi', 'Kimi K2 Thinking'],
-  ['meta', 'Llama 4 Maverick'],
+  ['llama', 'Llama 4 Maverick'],
   ['mistral', 'Mistral Large 3'],
-  ['xai', 'Grok 4.1'],
+  ['grok', 'Grok 4.1'],
   ['doubao', 'Doubao-Seed-1.8'],
-  ['baidu', 'ERNIE 5.0'],
-  ['tencent', 'Hunyuan-T1'],
+  ['ernie', 'ERNIE 5.0'],
+  ['hunyuan', 'Hunyuan-T1'],
   ['minimax', 'MiniMax-M2'],
   ['stepfun', 'Step-3'],
   ['yi', 'Yi-Large'],
-  ['cohere', 'Command R+'],
+  ['command', 'Command R+'],
   ['perplexity', 'Sonar Pro'],
-  ['nvidia', 'Nemotron-4'],
-  ['microsoft', 'Phi-4'],
-  ['aws', 'Nova Pro'],
+  ['nemotron', 'Nemotron-4'],
+  ['phi', 'Phi-4'],
+  ['nova', 'Nova Pro'],
   ['huggingface', 'HF Inference'],
   ['ollama', 'Ollama'],
   ['groq', 'Groq'],
@@ -112,7 +112,7 @@ const PROVIDERS: ReadonlyArray<readonly [string, string]> = [
   ['vercel', 'Vercel AI Gateway'],
   ['baseten', 'Baseten'],
   ['azure', 'Microsoft Azure'],
-  ['antling', 'Ant Ling'],
+  ['antgroup', 'Ant Ling'],
   ['radius', 'Radius'],
   ['typesafe', 'TypeSafe'],
 ];
@@ -219,6 +219,8 @@ const letterMock = (): string => {
 
 const artworkCard = (key: string): string => {
   const entry = LOGOS[key];
+  const rank = LOGO_RANKS[key];
+  const meta = entry === undefined ? 'MISSING' : `${entry.group} #${rank ?? '?'}`;
   return `
   <figure class="card">
     <div class="sizes">
@@ -229,7 +231,7 @@ const artworkCard = (key: string): string => {
       ${[48, 24, 16, 14].map((size) => `<span class="on-light">${mark(key, size)}</span>`).join('')}
       ${[24, 16, 14].map((size) => `<span class="on-dark">${mark(key, size)}</span>`).join('')}
     </div>
-    <figcaption><b>${escape(key)}</b><span>${escape(entry ? entry.title : 'MISSING')}</span></figcaption>
+    <figcaption><b>${escape(key)}</b><span>${escape(entry ? entry.title : 'MISSING')}</span><span>${escape(meta)}</span></figcaption>
   </figure>`;
 };
 
@@ -238,10 +240,10 @@ const sheetTitle =
 
 const body = only
   ? `
-${onlySet === 'vendors' ? providerMock('light') + providerMock('dark') + letterMock() : composerMock('light') + composerMock('dark') + navMock('light') + navMock('dark')}
+${onlySet === 'vendor' ? providerMock('light') + providerMock('dark') + letterMock() : composerMock('light') + composerMock('dark') + navMock('light') + navMock('dark')}
 <section class="sheet"><h2>${escape(only)}</h2>${artworkCard(only)}</section>`
   : `
-${onlySet === 'vendors' ? providerMock('light') + providerMock('dark') + letterMock() : composerMock('light') + composerMock('dark') + navMock('light') + navMock('dark')}
+${onlySet === 'vendor' ? providerMock('light') + providerMock('dark') + letterMock() : composerMock('light') + composerMock('dark') + navMock('light') + navMock('dark')}
 <section class="sheet"><h2>${sheetTitle}</h2><div class="grid">${keys.map(artworkCard).join('')}</div></section>`;
 
 const html = `<!doctype html>

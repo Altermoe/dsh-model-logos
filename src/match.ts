@@ -22,47 +22,88 @@
  */
 import type { ModelLabelInput } from './types';
 
-/** Logo keys the matcher can return; each one needs a mark in `src/logos/*.ts`. */
+/**
+ * Logo keys the matcher or the picker can return; each one needs a mark in
+ * `src/logos/`. Model marks and vendor marks are separate groups: a company
+ * mark (Anthropic, Google, Alibaba) is not the same graphic as its model mark
+ * (Claude, Gemini, Qwen), so the two tables below name both when they differ.
+ */
 export const LOGO_KEYS: readonly string[] = Object.freeze([
+  // Model marks.
   'deepseek',
-  'openai',
+  'gpt',
   'claude',
   'gemini',
   'qwen',
-  'zhipu',
+  'glm',
   'kimi',
   'minimax',
   'mistral',
-  'meta',
-  'xai',
+  'llama',
+  'grok',
   'doubao',
-  'baidu',
-  'tencent',
-  'cohere',
+  'ernie',
+  'hunyuan',
+  'command',
   'perplexity',
-  'microsoft',
-  'nvidia',
-  'aws',
-  'huggingface',
-  'ollama',
-  'groq',
-  'openrouter',
+  'phi',
+  'nemotron',
+  'nova',
   'stepfun',
   'yi',
-  // Vendor-only marks (official channels that do not match a model family).
+  'xiaomimimo',
+  'antling',
+  'hailuo',
+  // Vendor / channel marks.
+  'alibaba',
+  'anthropic',
+  'antgroup',
+  'aws',
   'azure',
+  'baidu',
   'baseten',
+  'bytedance',
   'cerebras',
   'cloudflare',
+  'cohere',
   'fireworks',
   'github',
+  'google',
+  'groq',
+  'huggingface',
+  'meta',
+  'microsoft',
+  'moonshot',
+  'nvidia',
+  'ollama',
+  'openai',
   'opencode',
+  'openrouter',
   'radius',
+  'tencent',
   'together',
   'typesafe',
   'vercel',
+  'xai',
   'xiaomi',
-  'antling',
+  'zhipu',
+]);
+
+/**
+ * Vendor marks that only exist in the picker.
+ *
+ * Some companies own a model family but have no shipped DSH provider route of
+ * their own (ByteDance/Doubao, Baidu/ERNIE, Tencent/Hunyuan, Cohere/Command,
+ * Microsoft/Phi). Their company mark is still real and belongs in the picker's
+ * vendor group; no channel rule may return it because a custom provider should
+ * never be decorated with a vendor mark it did not declare.
+ */
+export const PICKER_ONLY_KEYS: readonly string[] = Object.freeze([
+  'baidu',
+  'bytedance',
+  'cohere',
+  'microsoft',
+  'tencent',
 ]);
 
 /** Token boundary shared by the word-like rules. */
@@ -72,67 +113,73 @@ const E = '(?:$|[\\s/._:·-])';
 
 /**
  * Model-identity rules, in priority order: the first hit wins.
+ *
+ * The returned key is always a model mark (`gpt`, not `openai`; `llama`, not
+ * `meta`) so the composer and the model rows show the model's own brand even
+ * when the provider is the company channel.
  */
 export const MODEL_RULES: ReadonlyArray<readonly [string, RegExp]> = Object.freeze([
   ['deepseek', /deepseek|deep[-\s]?seek/],
   ['claude', /claude|anthropic/],
-  ['openai', new RegExp(`${B}(?:gpt|chatgpt|codex|sora|whisper|davinci|o[1-9])(?:${E}|[-.\\d])`)],
+  ['gpt', new RegExp(`${B}(?:gpt|chatgpt|codex|sora|whisper|davinci|o[1-9])(?:${E}|[-.\\d])`)],
   ['gemini', new RegExp(`gemini|gemma|${B}palm${E}`)],
   ['qwen', /qwen|qwq|qvq|tongyi|通义/],
-  ['zhipu', new RegExp(`${B}(?:glm|chatglm|zhipu|z\\.ai)${E}|智谱`)],
+  ['glm', new RegExp(`${B}(?:glm|chatglm|zhipu|z\\.ai)${E}|智谱`)],
   ['kimi', /kimi|moonshot|月之暗面/],
-  ['minimax', /minimax|abab|hailuo|海螺/],
+  ['hailuo', /hailuo|海螺/],
+  ['minimax', /minimax|abab/],
   ['mistral', /mistral|mixtral|codestral|magistral|devstral/],
-  ['meta', new RegExp(`llama|${B}meta${E}`)],
-  ['xai', new RegExp(`${B}(?:grok|xai|x-ai)${E}`)],
+  ['llama', new RegExp(`llama|${B}meta${E}`)],
+  ['grok', new RegExp(`${B}(?:grok|xai|x-ai)${E}`)],
   ['doubao', new RegExp(`doubao|豆包|bytedance|skylark|${B}seed${E}`)],
-  ['baidu', /ernie|wenxin|文心|baidu/],
-  ['tencent', /hunyuan|混元|tencent/],
-  ['cohere', new RegExp(`cohere|${B}command[\\s-]?r${E}`)],
+  ['ernie', /ernie|wenxin|文心|baidu/],
+  ['hunyuan', /hunyuan|混元|tencent/],
+  ['command', new RegExp(`cohere|${B}command[\\s-]?r${E}`)],
   ['perplexity', /perplexity|sonar/],
-  ['microsoft', new RegExp(`microsoft|azure|${B}phi[\\s-]?\\d`)],
-  ['nvidia', /nvidia|nemotron/],
-  ['aws', new RegExp(`amazon|bedrock|${B}(?:nova|titan)${E}`)],
+  ['phi', new RegExp(`microsoft|azure|${B}phi[\\s-]?\\d`)],
+  ['nemotron', /nvidia|nemotron/],
+  ['nova', new RegExp(`amazon|bedrock|${B}(?:nova|titan)${E}`)],
   ['huggingface', new RegExp(`hugging\\s?face|${B}hf${E}`)],
   ['ollama', /ollama/],
   ['groq', /groq/],
   ['openrouter', /openrouter/],
   ['stepfun', new RegExp(`stepfun|step[-\\s]?fun|阶跃|${B}step[-\\s]?\\d`)],
   ['yi', new RegExp(`${B}(?:yi|01\\.?ai|lingyi)${E}|零一`)],
-  ['xiaomi', /mimo|小米|xiaomi/],
-  ['antling', new RegExp(`${B}ling[-\\s]?(?:mini|flash|plus|pro)${E}|ant[-\\s]?ling|蚂蚁灵光`)],
+  ['xiaomimimo', /mimo|小米|xiaomi/],
+  ['antling', new RegExp(`${B}ling[-\\s]?(?:mini|flash|plus|pro)${E}|ant[-\\s]?ling|蚂蚁灵[光波]`)],
 ]);
 
 /**
- * Provider-identity rules, used only when no model rule matched.
+ * Provider-identity rules, used only when no model rule matched. These return
+ * model marks as well: an opaque model served by Anthropic should still show
+ * Claude, while the provider row itself shows the Anthropic company mark.
  */
 export const PROVIDER_RULES: ReadonlyArray<readonly [string, RegExp]> = Object.freeze([
   ['deepseek', /deepseek/],
   ['claude', /anthropic|claude/],
-  ['openai', /openai/],
+  ['gpt', /openai/],
   ['gemini', /google|gemini|vertex/],
-  ['zhipu', /zai|zhipu|glm|bigmodel|智谱/],
+  ['glm', /zai|zhipu|glm|bigmodel|智谱/],
   ['kimi', /moonshot|kimi/],
   ['minimax', /minimax/],
   ['qwen', /qwen|dashscope|aliyun|alibaba|bailian|通义/],
   ['mistral', /mistral/],
-  ['meta', /meta|llama/],
-  ['xai', /xai|x-ai|grok/],
+  ['llama', /meta|llama/],
+  ['grok', /xai|x-ai|grok/],
   ['doubao', /doubao|bytedance|volc|火山/],
-  ['baidu', /baidu|ernie|qianfan|千帆/],
-  ['tencent', /tencent|hunyuan|腾讯/],
-  ['cohere', /cohere/],
+  ['ernie', /baidu|ernie|qianfan|千帆/],
+  ['hunyuan', /tencent|hunyuan|腾讯/],
+  ['command', /cohere/],
   ['perplexity', /perplexity/],
-  ['microsoft', /microsoft|azure/],
-  ['nvidia', /nvidia/],
-  ['aws', /amazon|aws|bedrock/],
+  ['phi', /microsoft|azure/],
+  ['nemotron', /nvidia/],
+  ['nova', /amazon|aws|bedrock/],
   ['huggingface', new RegExp(`hugging\\s?face|${B}hf${E}`)],
   ['ollama', /ollama/],
   ['groq', /groq/],
   ['openrouter', /openrouter/],
   ['stepfun', /stepfun|阶跃/],
   ['yi', /01\.?ai|lingyi|零一/],
-  ['azure', /azure/],
   ['baseten', /baseten/],
   ['cerebras', /cerebras/],
   ['cloudflare', /cloudflare/],
@@ -143,8 +190,8 @@ export const PROVIDER_RULES: ReadonlyArray<readonly [string, RegExp]> = Object.f
   ['together', /together/],
   ['typesafe', /typesafe/],
   ['vercel', /vercel/],
-  ['xiaomi', /xiaomi|mimo|小米/],
-  ['antling', /ant[-\s]?ling|蚂蚁灵光/],
+  ['xiaomimimo', /xiaomi|mimo|小米/],
+  ['antling', /ant[-\s]?ling|蚂蚁灵[光波]/],
 ]);
 
 /**
@@ -158,8 +205,8 @@ export const PROVIDER_RULES: ReadonlyArray<readonly [string, RegExp]> = Object.f
  */
 export const VENDOR_CHANNELS: Readonly<Record<string, string>> = Object.freeze({
   'amazon-bedrock': 'aws',
-  'ant-ling': 'antling',
-  anthropic: 'claude',
+  'ant-ling': 'antgroup',
+  anthropic: 'anthropic',
   azure: 'azure',
   baseten: 'baseten',
   cerebras: 'cerebras',
@@ -170,26 +217,26 @@ export const VENDOR_CHANNELS: Readonly<Record<string, string>> = Object.freeze({
   'deepseek-official': 'deepseek',
   fireworks: 'fireworks',
   'github-copilot': 'github',
-  google: 'gemini',
-  'google-vertex': 'gemini',
+  google: 'google',
+  'google-vertex': 'google',
   groq: 'groq',
   huggingface: 'huggingface',
-  'kimi-coding': 'kimi',
+  'kimi-coding': 'moonshot',
   meta: 'meta',
   minimax: 'minimax',
   'minimax-cn': 'minimax',
   mistral: 'mistral',
-  moonshotai: 'kimi',
-  'moonshotai-cn': 'kimi',
+  moonshotai: 'moonshot',
+  'moonshotai-cn': 'moonshot',
   nvidia: 'nvidia',
   openai: 'openai',
   'openai-codex': 'openai',
   opencode: 'opencode',
   'opencode-go': 'opencode',
   openrouter: 'openrouter',
-  'qwen-token-plan': 'qwen',
-  'qwen-token-plan-cn': 'qwen',
-  'qwen-token-plan-individual': 'qwen',
+  'qwen-token-plan': 'alibaba',
+  'qwen-token-plan-cn': 'alibaba',
+  'qwen-token-plan-individual': 'alibaba',
   radius: 'radius',
   together: 'together',
   typesafe: 'typesafe',
@@ -211,12 +258,12 @@ export const VENDOR_CHANNELS: Readonly<Record<string, string>> = Object.freeze({
 export const VENDOR_RULES: ReadonlyArray<readonly [string, RegExp]> = Object.freeze([
   ['deepseek', /^(?:deepseek(?:-account|-official)?|llm-deepseek)$/],
   ['openai', /^openai(?:-codex)?$/],
-  ['claude', /^anthropic$/],
-  ['gemini', /^(?:google|google-vertex)$/],
+  ['anthropic', /^anthropic$/],
+  ['google', /^(?:google|google-vertex)$/],
   ['zhipu', /^z(?:ai|ai-coding-cn)$/],
-  ['kimi', /^(?:moonshotai|moonshotai-cn|kimi-coding)$/],
+  ['moonshot', /^(?:moonshotai|moonshotai-cn|kimi-coding)$/],
   ['minimax', /^minimax(?:-cn)?$/],
-  ['qwen', /^qwen-token-plan(?:-cn|-individual)?$/],
+  ['alibaba', /^qwen-token-plan(?:-cn|-individual)?$/],
   ['xiaomi', /^xiaomi(?:-token-plan-(?:ams|cn|sgp))?$/],
   ['mistral', /^mistral$/],
   ['meta', /^meta$/],
@@ -234,7 +281,7 @@ export const VENDOR_RULES: ReadonlyArray<readonly [string, RegExp]> = Object.fre
   ['together', /^together$/],
   ['typesafe', /^typesafe$/],
   ['vercel', /^vercel-ai-gateway$/],
-  ['antling', /^ant-ling$/],
+  ['antgroup', /^ant-ling$/],
 ]);
 
 /** Lowercase and normalize separators so both id and display name are searchable. */
