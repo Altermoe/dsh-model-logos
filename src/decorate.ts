@@ -129,25 +129,32 @@ interface DecorState {
   lastRoot: Element | null;
 }
 
-/** Build one mark element from inline SVG. */
-function dshmlMarkNode(kind: string, svg: string, label: string | null): HTMLSpanElement {
-  const node = document.createElement('span');
-  node.className = 'dshml-insert dshml-' + kind;
-  node.dataset.dshmlOwner = '1';
-  node.dataset.dshmlKind = kind;
-  node.setAttribute('aria-hidden', label === null ? 'true' : 'false');
-  if (label !== null) node.setAttribute('title', label);
-  dshmlWriteMarkup(node, svg);
-  return node;
+/**
+ * Write one model mark into a row's icon button.
+ *
+ * A `null` mark (or a mark with `svg === null`) keeps the button — and therefore
+ * the 22 px grid column — in place and draws the dashed "choose an icon" seat
+ * instead. That is what makes the seat stable: it is inserted from the first
+ * decoration pass even while the provider catalogue cannot name the row yet, so
+ * the row's text never shifts when the real mark arrives.
+ * @param button - the row's icon button.
+ * @param mark - resolved mark, or null while the row's identity is unknown.
+ */
+function dshmlWriteModelMark(button: HTMLButtonElement, mark: ModelMark | null): void {
+  let span = button.querySelector<HTMLElement>('.dshml-model-mark');
+  if (span === null) {
+    span = document.createElement('span');
+    span.className = 'dshml-insert dshml-model-mark';
+    button.appendChild(span);
+  }
+  dshmlWriteMarkup(span, mark !== null && mark.svg !== null ? mark.svg : DSHML_PLACEHOLDER_SVG);
+  span.classList.toggle('dshml-model-placeholder', mark === null || mark.svg === null);
+  button.classList.toggle('dshml-model-icon-disabled', mark !== null && mark.resolved.disabled);
+  button.classList.toggle('dshml-model-icon-custom', mark !== null && mark.resolved.source === 'override');
 }
 
 /** Build the model-row icon button (brand mark, letter tile, placeholder, or none). */
-function dshmlModelButton(
-  provider: RowIdentity,
-  model: RowIdentity,
-  mark: ModelMark,
-  onClick: (provider: RowIdentity, model: RowIdentity, anchor: HTMLButtonElement) => void,
-): HTMLButtonElement {
+function dshmlModelButton(mark: ModelMark | null, onClick: (button: HTMLButtonElement) => void): HTMLButtonElement {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'dshml-model-icon-btn';
@@ -156,35 +163,24 @@ function dshmlModelButton(
   const accessible = dshmlT('section.change');
   button.setAttribute('aria-label', accessible);
   button.setAttribute('title', accessible);
-  if (mark.svg !== null) {
-    const span = document.createElement('span');
-    span.className = 'dshml-insert dshml-model-mark';
-    dshmlWriteMarkup(span, mark.svg);
-    button.appendChild(span);
-  } else {
-    const span = document.createElement('span');
-    span.className = 'dshml-insert dshml-model-mark dshml-model-placeholder';
-    dshmlWriteMarkup(span, DSHML_PLACEHOLDER_SVG);
-    button.appendChild(span);
-  }
-  if (mark.resolved.disabled) button.classList.add('dshml-model-icon-disabled');
-  if (mark.resolved.source === 'override') button.classList.add('dshml-model-icon-custom');
+  dshmlWriteModelMark(button, mark);
   button.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
-    onClick(provider, model, button);
+    onClick(button);
   });
   return button;
 }
 
-/** Replace a button's mark content in place (keeps the click handler). */
-function dshmlUpdateModelButton(button: HTMLButtonElement, mark: ModelMark): void {
-  const existing = button.querySelector<HTMLElement>('.dshml-model-mark');
-  if (existing === null) return;
-  dshmlWriteMarkup(existing, mark.svg !== null ? mark.svg : DSHML_PLACEHOLDER_SVG);
-  existing.classList.toggle('dshml-model-placeholder', mark.svg === null);
-  button.classList.toggle('dshml-model-icon-disabled', mark.resolved.disabled);
-  button.classList.toggle('dshml-model-icon-custom', mark.resolved.source === 'override');
+/** Current provider directory (re-read on click instead of reusing a pass snapshot). */
+function dshmlCatalogProvidersNow(): readonly CatalogProvider[] {
+  const catalog = dshmlCatalogState();
+  return Array.isArray(catalog.providers) ? catalog.providers : [];
+}
+
+/** Current provider route ids, for re-resolving a row identity on click. */
+function dshmlCatalogProviderIdsNow(): ReadonlySet<string> {
+  return new Set(dshmlCatalogProvidersNow().map((entry) => entry.providerId));
 }
 
 /** Localized display names the shipped Models page substitutes for some routes. */
@@ -217,23 +213,100 @@ function dshmlIsOfficial(entry: CatalogProvider | null): boolean {
   return entry !== null && entry.official === true && entry.declared !== true;
 }
 
-/** Insert (or refresh) a vendor mark before `target`. */
-function dshmlDecorateVendorMark(target: Element, entry: CatalogProvider): void {
-  const mark = dshmlVendorMark(entry.providerId, entry.displayName, true);
-  if (mark.svg === null) return;
-  const parent = target.parentElement;
-  if (parent === null) return;
-  const existing = parent.querySelector<HTMLElement>(':scope > [data-dshml-vendor]');
-  if (existing !== null) {
-    if (existing.dataset.dshmlVendor === entry.providerId) {
-      dshmlWriteMarkup(existing, mark.svg);
-      return;
-    }
-    existing.remove();
+/** `data-dshml-seat` marks the 22px slot this module reserves before a name. */
+const DSHML_SEAT_ATTR = 'data-dshml-seat';
+
+/** Set (or clear) a dataset field only when it differs — an idle pass must not write. */
+function dshmlSetDataset(node: HTMLElement, key: string, value: string | null): void {
+  const current = node.dataset[key];
+  if (value === null) {
+    if (current !== undefined) delete node.dataset[key];
+    return;
   }
-  const node = dshmlMarkNode('vendor', mark.svg, dshmlT('badge.provider') + ' · ' + entry.displayName);
-  node.dataset.dshmlVendor = entry.providerId;
-  parent.insertBefore(node, target);
+  if (current !== value) node.dataset[key] = value;
+}
+
+/** Set (or clear) an attribute only when it differs — an idle pass must not write. */
+function dshmlSetAttribute(node: Element, name: string, value: string | null): void {
+  if (value === null) {
+    if (node.hasAttribute(name)) node.removeAttribute(name);
+    return;
+  }
+  if (node.getAttribute(name) !== value) node.setAttribute(name, value);
+}
+
+/**
+ * The 22px mark seat this module owns immediately before `target`, if any.
+ *
+ * The seat is a plain span that stays in place whether or not a vendor mark is
+ * known, so a provider name never moves when its mark renders. It is inserted
+ * from the first decoration pass, before the catalog can decide official vs
+ * hand-declared, and stays put in both cases (official → mark, declared → the
+ * empty reserved width).
+ */
+function dshmlSeatBefore(target: Element): HTMLSpanElement | null {
+  const previous = target.previousElementSibling;
+  if (previous === null) return null;
+  if (previous.getAttribute(DSHML_SEAT_ATTR) === '1') return previous as HTMLSpanElement;
+  // Adopt a vendor mark inserted by an earlier build of this module (hot reload):
+  // it already sits in the seat position and only needs the seat marker.
+  if (previous.getAttribute('data-dshml-owner') === '1' && previous.classList.contains('dshml-vendor')) {
+    previous.setAttribute(DSHML_SEAT_ATTR, '1');
+    return previous as HTMLSpanElement;
+  }
+  return null;
+}
+
+/** Ensure the 22px mark seat immediately before a provider row name / editor title. */
+function dshmlEnsureSeat(target: Element): HTMLSpanElement | null {
+  const existing = dshmlSeatBefore(target);
+  if (existing !== null) return existing;
+  const parent = target.parentElement;
+  if (parent === null) return null;
+  const seat = document.createElement('span');
+  seat.className = 'dshml-insert dshml-vendor';
+  seat.dataset.dshmlOwner = '1';
+  seat.setAttribute(DSHML_SEAT_ATTR, '1');
+  seat.setAttribute('aria-hidden', 'true');
+  parent.insertBefore(seat, target);
+  return seat;
+}
+
+/** Draw the official vendor mark into a seat, or leave it as the reserved width. */
+function dshmlPaintSeat(seat: HTMLSpanElement, entry: CatalogProvider | null): void {
+  const mark =
+    entry !== null && dshmlIsOfficial(entry) ? dshmlVendorMark(entry.providerId, entry.displayName, true) : null;
+  if (mark !== null && mark.svg !== null && entry !== null) {
+    dshmlWriteMarkup(seat, mark.svg);
+    dshmlSetDataset(seat, 'dshmlVendor', entry.providerId);
+    dshmlSetAttribute(seat, 'title', dshmlT('badge.provider') + ' · ' + entry.displayName);
+    dshmlSetAttribute(seat, 'aria-hidden', 'false');
+    return;
+  }
+  dshmlWriteMarkup(seat, '');
+  dshmlSetDataset(seat, 'dshmlVendor', null);
+  dshmlSetAttribute(seat, 'title', null);
+  dshmlSetAttribute(seat, 'aria-hidden', 'true');
+}
+
+/**
+ * Reserve (or refresh) the 22px mark seat before a provider name.
+ *
+ * Official channels fill it with the vendor mark; hand-declared providers keep
+ * the empty seat, so the name sits at the same x for both and does not jump when
+ * a mark resolves.
+ * @param target - provider row name or editor title span.
+ * @param entry - matching catalog entry, or null while the directory loads.
+ */
+function dshmlDecorateVendorSeat(target: Element, entry: CatalogProvider | null): void {
+  const seat = dshmlEnsureSeat(target);
+  if (seat !== null) dshmlPaintSeat(seat, entry);
+}
+
+/** Drop a seat this module inserted before `target` (it is no longer a name seat). */
+function dshmlRemoveSeatBefore(target: Element): void {
+  const seat = dshmlSeatBefore(target);
+  if (seat !== null) seat.remove();
 }
 
 /** Whether a text element is a provider row name (has row action buttons beside it). */
@@ -253,7 +326,14 @@ function dshmlIsEditorTitle(element: Element): boolean {
   const header = element.parentElement;
   if (header === null) return false;
   if (header.querySelector('button[aria-label]') !== null) return false;
-  return header.childElementCount <= 2 && element.tagName === 'SPAN';
+  // Count the page's own children only: the 22px mark seat inserted before the
+  // title must not make the header look like a different kind of block on the
+  // next pass (that would stop the seat from being refreshed).
+  let pageChildren = 0;
+  for (const child of header.children) {
+    if (child.getAttribute('data-dshml-owner') !== '1') pageChildren += 1;
+  }
+  return pageChildren <= 2 && element.tagName === 'SPAN';
 }
 
 /** Locate a provider <select> anywhere inside `node` (used while climbing a model row). */
@@ -355,25 +435,40 @@ function dshmlDecorateModelRows(
     }
     const identity = dshmlModelIdentity(row, providers, providerIds);
     let button = row.querySelector<HTMLButtonElement>(':scope > [data-dshml-kind="model"]');
-    if (identity === null) {
-      if (button !== null) button.remove();
-      continue;
-    }
-    const mark = dshmlModelMark(identity.provider, identity.model);
     if (button === null) {
-      button = dshmlModelButton(identity.provider, identity.model, mark, (provider, model, anchor) => {
-        dshmlOpenIconPicker({ providerId: provider.id, modelId: model.id, displayName: model.name, anchor });
+      button = dshmlModelButton(null, function onOpenPicker(anchor) {
+        // Resolve on click: the catalogue may have arrived after this seat was
+        // inserted, and the row's inputs may have changed since the last pass.
+        const current = dshmlModelIdentity(row, dshmlCatalogProvidersNow(), dshmlCatalogProviderIdsNow());
+        if (current === null) return;
+        dshmlOpenIconPicker({
+          providerId: current.provider.id,
+          modelId: current.model.id,
+          displayName: current.model.name,
+          anchor: anchor,
+        });
       });
       row.insertBefore(button, row.firstChild);
-    } else {
-      dshmlUpdateModelButton(button, mark);
-      if (row.firstElementChild !== button) row.insertBefore(button, row.firstChild);
     }
+    // Keep the seat — and the 22px grid column it occupies — whether or not the
+    // row can be resolved yet; the dashed placeholder is the icon skeleton.
+    dshmlWriteModelMark(button, identity === null ? null : dshmlModelMark(identity.provider, identity.model));
+    if (row.firstElementChild !== button) row.insertBefore(button, row.firstChild);
   }
 }
 
-/** Update provider-row and editor-title vendor marks. */
+/**
+ * Reserve and fill the 22px mark seat before provider-row names and editor titles.
+ *
+ * Runs on every decoration pass: the seat is created before the catalog can name
+ * the provider (a saved row is recognisable from its Edit/Delete actions), filled
+ * when the directory resolves an official channel, and left as empty reserved
+ * width for hand-declared providers — so a name never moves when a mark appears.
+ * @param root - the settings dialog root.
+ * @param providers - current provider directory.
+ */
 function dshmlDecorateProviderNames(root: Element, providers: readonly CatalogProvider[]): void {
+  const loading = dshmlCatalogState().status === 'loading';
   // Dedupe by parent element: a row's name span and an editor title span can
   // carry the same text (catalog display names equal route ids in practice), and
   // they live under different parents — text-keyed dedupe would skip the second.
@@ -384,13 +479,29 @@ function dshmlDecorateProviderNames(root: Element, providers: readonly CatalogPr
     if (span.closest('[data-dshml-owner="1"]') !== null) continue;
     const text = dshmlTextOf(span);
     if (text === '') continue;
-    const entry = dshmlProviderForText(providers, text);
-    if (entry === null || !dshmlIsOfficial(entry)) continue;
-    if (!dshmlIsRowName(span) && !dshmlIsEditorTitle(span)) continue;
+    const isRowName = dshmlIsRowName(span);
+    const isEditorTitle = dshmlIsEditorTitle(span);
+    if (!isRowName && !isEditorTitle) continue;
     const parent = span.parentElement;
     if (parent === null || seenParents.has(parent)) continue;
-    seenParents.add(parent);
-    dshmlDecorateVendorMark(span, entry);
+    const entry = dshmlProviderForText(providers, text);
+    if (entry !== null) {
+      // Official channels fill the seat; declared providers keep it empty.
+      seenParents.add(parent);
+      dshmlDecorateVendorSeat(span, entry);
+      continue;
+    }
+    if (loading === true && isRowName) {
+      // Directory not resolved yet: reserve the seat now so the saved provider
+      // row's name cannot jump when its mark arrives. Editor titles are not
+      // guessed structurally — before the directory names the provider, a
+      // two-child header block is indistinguishable from a field label.
+      seenParents.add(parent);
+      dshmlDecorateVendorSeat(span, null);
+      continue;
+    }
+    // A stale seat can only be left by a name element that changed role.
+    dshmlRemoveSeatBefore(span);
   }
 }
 

@@ -1045,6 +1045,28 @@ async function browserDriver(config: DriverConfig): Promise<void> {
       restoredMarker !== null ? 'restored ' + describeNode(restoredMarker) : 'the removed marker did not come back',
     );
 
+    // The model-row icon seat is what reserves the 22px column: if page state
+    // removes it, the decorator has to put it back, otherwise the row's inputs
+    // jump sideways the next time an icon renders.
+    const seatRow = q<HTMLElement>('[data-dshml-model-row="1"]', root);
+    const seatButton = seatRow ? q<HTMLButtonElement>('.dshml-model-icon-btn', seatRow) : null;
+    seatButton?.remove();
+    const restoredSeat = seatRow
+      ? await waitFor(() => q<HTMLButtonElement>('.dshml-model-icon-btn', seatRow), 3000)
+      : null;
+    const restoredSeatBox = restoredSeat ? restoredSeat.getBoundingClientRect() : null;
+    add(
+      'the 22px model-row icon seat is re-inserted when page state drops it',
+      true,
+      restoredSeat !== null &&
+        restoredSeatBox !== null &&
+        Math.round(restoredSeatBox.width) === 22 &&
+        Math.round(restoredSeatBox.height) === 22,
+      restoredSeatBox !== null
+        ? 'restored ' + describeNode(restoredSeat) + ' seat ' + Math.round(restoredSeatBox.width) + 'px'
+        : 'the removed icon seat did not come back',
+    );
+
     // Settings navigation: the shell picks a glyph from a hard-coded section-id
     // switch and falls back to the gear for every id it does not know, so this
     // plugin's row (`model-logos`) shows the gear until the decorator marks it.
@@ -1162,9 +1184,9 @@ async function browserDriver(config: DriverConfig): Promise<void> {
     if (rowMarker) {
       const box = rowMarker.getBoundingClientRect();
       add(
-        'vendor logo is sized to the 14px row text',
+        'vendor mark is drawn at the shared 22px base',
         false,
-        box.height >= 10 && box.height <= 22 && box.width >= 10 && box.width <= 22,
+        Math.round(box.width) === 22 && Math.round(box.height) === 22,
         'marker box ' + Math.round(box.width) + '×' + Math.round(box.height) + 'px',
       );
     }
@@ -1195,6 +1217,25 @@ async function browserDriver(config: DriverConfig): Promise<void> {
       customRow
         ? 'markers inside custom row=' + qa('[data-dshml-vendor]', customRow).length
         : 'custom provider row not found',
+    );
+    // The name seat is not a logo: a declared provider keeps the reserved 22px
+    // width (so names line up) but never gets an invented vendor mark.
+    const customSeat = customRow ? q<HTMLElement>('[data-dshml-seat="1"]', customRow) : null;
+    const customSeatBox = customSeat ? customSeat.getBoundingClientRect() : null;
+    add(
+      'hand-declared provider keeps the empty 22px name seat (reserved width, no logo)',
+      true,
+      customSeat !== null &&
+        customSeat.getAttribute('data-dshml-vendor') === null &&
+        q('svg', customSeat) === null &&
+        customSeatBox !== null &&
+        Math.round(customSeatBox.width) === 22,
+      customSeatBox !== null
+        ? 'seat ' +
+            Math.round(customSeatBox.width) +
+            'px, vendor attr=' +
+            String(customSeat?.getAttribute('data-dshml-vendor'))
+        : 'no [data-dshml-seat] inside the custom provider row',
     );
 
     const select = q<HTMLSelectElement>('.jrmgQW_addPanel select', root);
@@ -1262,6 +1303,17 @@ async function browserDriver(config: DriverConfig): Promise<void> {
       JSON.stringify(
         rowStates.map((state) => ({ row: state.index + 1, svg: state.hasSvg, placeholder: state.placeholder })),
       ),
+    );
+    const seatBoxes = rowStates.map((state) => {
+      if (state.button === null) return 'missing';
+      const box = state.button.getBoundingClientRect();
+      return Math.round(box.width) + '×' + Math.round(box.height);
+    });
+    add(
+      'each model row reserves a 22px icon seat (the mark never moves the text)',
+      true,
+      rowStates.length === config.modelRows && seatBoxes.every((value) => value === '22×22'),
+      'seat boxes=' + JSON.stringify(seatBoxes),
     );
     const gridTrackCounts = qa('.jrmgQW_modelEntry .jrmgQW_modelRow', root).map((row) => {
       const value = getComputedStyle(row).gridTemplateColumns;
@@ -1419,6 +1471,19 @@ async function browserDriver(config: DriverConfig): Promise<void> {
       );
     } else {
       add('clicking a model-row logo opens the icon picker modal', true, false, 'skipped: no picker button');
+    }
+
+    if (picker !== null) {
+      const pickerMark = picker.querySelector('.dshml-picker-option-mark');
+      const pickerMarkBox = pickerMark ? pickerMark.getBoundingClientRect() : null;
+      add(
+        'picker option marks render at the 36px preview size',
+        true,
+        pickerMarkBox !== null && Math.round(pickerMarkBox.width) === 36 && Math.round(pickerMarkBox.height) === 36,
+        pickerMarkBox !== null
+          ? 'first option mark ' + Math.round(pickerMarkBox.width) + '×' + Math.round(pickerMarkBox.height) + 'px'
+          : 'no .dshml-picker-option-mark inside the picker',
+      );
     }
 
     // Picking a brand writes the nested override through configForms.mutate.

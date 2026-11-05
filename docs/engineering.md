@@ -187,15 +187,18 @@ that recorded them, not from the current build.
   sentinels, the shipped release badge), the settings-section registration, and
   that `apply()` disposers remove the stylesheet, listeners and observer.
 - `scripts/verify-dom.ts` drives the faithful Settings fixture in headless Edge:
-  **48 assertions pass** — vendor logos on official rows/editor titles (including
-  the localized DeepSeek account row), none on the declared custom provider,
-  model-row buttons and the 5-track grid, the hidden native select, the custom
-  combobox (option marks, write-back, bubbling `change`, face re-sync), the picker
-  groups (vendor before model, both populated, search keeps only the matching
-  group), the picker write path into `configForms.mutate`, the composer label
-  override/`none` rendering, the plugin's own settings-nav row (marked by label,
-  shipped gear hidden, 16 px `currentColor` mask glyph painted, no other row
-  marked), full disposal reversibility and observer disconnection.
+  **52 assertions pass** — vendor logos on official rows/editor titles (including
+  the localized DeepSeek account row), none on the declared custom provider but its
+  empty 22px name seat, the reserved **22px mark base** for provider-name seats and
+  the model-row icon seat (dropping either seat re-inserts it on the next pass, so
+  the row's text never moves), the **36px picker preview**, model-row buttons and
+  the 5-track grid, the hidden native select, the custom combobox (option marks,
+  write-back, bubbling `change`, face re-sync), the picker groups (vendor before
+  model, both populated, search keeps only the matching group), the picker write
+  path into `configForms.mutate`, the composer label override/`none` rendering, the
+  plugin's own settings-nav row (marked by label, shipped gear hidden, 16 px
+  `currentColor` mask glyph painted, no other row marked), full disposal
+  reversibility and observer disconnection.
 - **Settings decoration is write-idempotent.** The decorator re-runs on a
   `MutationObserver` over `document.body`, and re-writing identical markup into its
   own inserted marks (`innerHTML` always replaces children) used to feed that
@@ -209,7 +212,7 @@ that recorded them, not from the current build.
   mutations** on the decorated page, while removing an inserted vendor mark (what a
   React re-render does) still wakes the decorator and the mark is re-inserted on the
   next pass.
-- Visual check of every mark at 14/16/24/48/96 px: `docs/preview.png`; the vendor
+- Visual check of every mark at 22/36/96 px: `docs/preview.png`; the vendor
   marks: `docs/preview-vendors.png`; before/after of Claude, Ollama and Doubao:
   `docs/preview-corrected-marks.png`. The design sheet also renders the plugin's
   16 px settings-navigation glyph next to shipped nav icons on light and dark
@@ -221,8 +224,8 @@ that recorded them, not from the current build.
   invariants.
 - Live bundle check with `scripts/verify-live.ts` against the running Web GUI:
   `/plugins/??dsh-model-logos/client.js&rev=<current>` returned the freshly built
-  artifact (199,658 bytes served, 56 artwork entries), proving the client HMR
+  artifact (201,576 bytes served, 56 artwork entries), proving the client HMR
   transport published this exact build without an app restart.
-- `pnpm run verify` on the final 0.5.0 tree: typecheck, lint (0 errors; warnings are
-  the pre-existing `verify-dom.ts` style notes), fmt:check, 64 unit/bundle tests,
+- `pnpm run verify` on the final tree: typecheck, lint (0 errors; warnings are the
+  pre-existing `verify-dom.ts` style notes), fmt:check, 65 unit/bundle tests,
   `logo:check`, `rank:check`, build and artifact freshness all pass.

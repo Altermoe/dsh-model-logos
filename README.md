@@ -35,9 +35,11 @@ plugin is careful never to pass one off as the other.
 
 ## What it looks like
 
-Settings → Models, with the plugin loaded: the vendor mark sits on every official
-provider row and editor title, every model row begins with its mark or a one-click
-placeholder, and the plugin's own entry sits in the Settings nav.
+Settings → Models, with the plugin loaded: every official provider row and editor
+title reserves a 22px mark seat (filled with the vendor mark; left as empty width
+for hand-declared providers), every model row begins with a reserved 22px icon
+seat (its mark, or a one-click dashed placeholder), and the plugin's own entry
+sits in the Settings nav.
 
 ![Settings → Models in the running GUI](docs/preview-live-settings.png)
 
@@ -54,11 +56,12 @@ markup by the verification harness — channels are chosen by logo, not by route
   selector. The label itself is redrawn rather than wrapped — the slot holds only one
   label per place — so its component reproduces the model name and the release badge
   the built-in label shows. That is the plugin's one replacement.
-- **Settings → Models** — a vendor logo on every official provider row and provider
-  editor title, a model icon at the start of every model row (a dashed placeholder
-  when there is no guess yet), and a logo-bearing combobox in place of the native
-  add-provider `<select>` (the native select stays underneath as the source of
-  truth).
+- **Settings → Models** — every provider row and provider editor title keeps a
+  reserved 22px mark seat: the vendor logo on official channels, empty width on
+  hand-declared ones. Every model row begins with a model icon in its reserved 22px
+  seat (the seat shows a dashed placeholder until an icon is resolved), and a
+  logo-bearing combobox replaces the native add-provider `<select>` (the native
+  select stays underneath as the source of truth).
 - **A Model icons page** — the plugin's own Settings entry lists the models from
   your providers, with their current mark and a way to change it.
 - **A picker you can always reach** — clicking a model's icon in Settings → Models
@@ -104,10 +107,12 @@ in localStorage, and with no network request involved.
 
 - **Vendor logos only exist for official channels.** A relay, a self-hosted server
   or a local URL has no vendor brand behind it, so it gets no vendor logo — an
-  invented one would be a lie. Every official channel still has a mark, falling back
-  to a deterministic letter tile for the obscure ones.
-- **A model with no confident match is not left blank.** The Settings row shows a
-  dashed placeholder that is always one click away from the picker.
+  invented one would be a lie. The name seat is still reserved (empty) so rows line
+  up, and every official channel has a mark, falling back to a deterministic letter
+  tile for the obscure ones.
+- **A model with no confident match is not left blank.** The Settings row keeps a
+  22px icon seat in place and shows a dashed placeholder in it, always one click
+  away from the picker — the name never jumps when the real mark arrives.
 - **Names never disappear.** Every button and menu row still carries its name, so the
   interface stays usable even if you do not recognise a mark.
 
@@ -134,9 +139,9 @@ Then refresh the Web GUI page. The plugin appears in Plugins as **Model Logos** 
 ## About the artwork
 
 Every mark is a self-contained 24×24 SVG tile — a brand-coloured rounded square with
-a glyph that stays legible at the sizes it is actually used (14–16 px beside UI
-text). Nothing is fetched at runtime, so the artwork needs no network and no external
-asset.
+a glyph that stays legible at the 22px size it ships beside UI text (36px in the
+icon picker preview). Nothing is fetched at runtime, so the artwork needs no
+network and no external asset.
 
 The shapes are not redrawn by eye. They come from a pinned official vector set —
 [`@lobehub/icons-static-svg`](https://github.com/lobehub/lobe-icons) 1.102.0 (MIT),
@@ -145,7 +150,7 @@ end — and a checked-in import script fits them into the shared tile. A build c
 compares the generated path data with the committed upstream files, so a mark can
 only change by changing its source. A few exceptions are marked in the source: Radius
 has no official mark, AWS keeps its official smile symbol because the full wordmark
-is unreadable at 14 px, and Xiaomi keeps the Simple Icons "mi".
+is unreadable at icon sizes, and Xiaomi keeps the Simple Icons "mi".
 
 The marks that used to be most wrong were fixed at the source: Claude's irregular
 solid burst, Ollama's front-facing llama and Doubao's official female figure replace

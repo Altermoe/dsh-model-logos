@@ -233,8 +233,14 @@ private primitives internals.
   1. explicit override in `modelIcons[providerId][modelId]` (`'none'` → no icon);
   2. heuristic (`matchModelLogo`) — this is only the _initial_ icon;
   3. none.
-- Icons are inline SVG tiles; in Settings surfaces sized `1em` relative to the
-  14px UI text (so they match the text), in the composer keep 14/16px.
+- Icons are inline SVG tiles. Every conversation and Settings mark renders on one
+  shared 22px base; the icon picker preview is the single enlarged surface at 36px.
+  Settings → Models reserves that 22px in two places from the first decoration pass:
+  a mark seat in front of every provider row name / editor title (the vendor mark
+  on official channels, empty width on hand-declared providers) and the icon seat at
+  the start of every model row (the mark, or the dashed placeholder). Both seats are
+  inserted before the async catalog can resolve them, so a mark that renders late
+  never moves the row's text.
 - The picker offers: auto (heuristic), none, a "letter tile" option generated from
   the model name, and the shipped marks split into **vendor icons** (the company or
   channel) and **model icons** (the model product). Company and model marks are
@@ -420,17 +426,21 @@ above.
    state), and every mark/text write is compared against the last value written to
    that node, so a no-op pass performs no DOM write at all — otherwise each pass
    would schedule the next forever and the marks would flash under inspection.
-2. **Provider rows**: for each directory entry `{ provider, displayName,
-   declared }` with `declared !== true`, find a leaf element whose trimmed text
-   equals `displayName` and:
-   - its closest `li` contains a button whose `aria-label` matches
-     `/^(?:Edit|Delete|编辑|删除)\s/` → saved provider row; insert vendor logo
-     span **before** that text element (as a sibling; never wrap/rewrite React
-     text nodes). Mark inserted nodes `data-dshml-vendor="<providerId>"`.
-   - else, if its parent chain contains an `editorHeader` (element whose text
-     also appears in the row actions of the same card) → editor title; insert
-     before the title span.
-     Idempotent: skip when the same marker already precedes the element.
+2. **Provider rows / editor titles**: find the provider identity for a leaf element
+   whose trimmed text equals a directory `displayName` (plus the documented
+   localized aliases), and:
+   - its closest `li` exposes `Edit`/`Delete` row actions → saved provider row;
+     else, if its parent chain contains an `editorHeader` (element whose text also
+     appears in the row actions of the same card) → editor title. Ensure the 22px
+     mark seat immediately **before** that text element (a sibling; never
+     wrap/rewrite React text nodes).
+   - Official channels fill the seat with the vendor mark (set
+     `data-dshml-vendor="<providerId>"` on the seat); hand-declared providers get
+     no invented mark but keep the empty seat, so rows line up.
+   - While the directory is still loading, a saved row name (recognisable from its
+     row actions) gets the provisional empty seat, so the name cannot jump when
+     the mark arrives.
+     Idempotent: a pass reconciles the seat in place and writes only on change.
 3. **Model rows**: `input` in the modal whose `aria-label` matches
    `/^(?:Model ID|模型 ?ID|Display name|显示名称)\s+\d+$/` (model id input,
    first column). For its `input.parentElement` (the grid row):
@@ -438,10 +448,13 @@ above.
    - resolve `providerId` from: the enclosing add-card's provider `<select>` value,
      else the enclosing `li`'s provider-name text mapped through the directory,
      else the enclosing setup/editor card title mapped through the directory;
-   - insert a model-logo button (`type=button`) as the first child of the grid row,
-     add `data-dshml-model-row` + CSS grid-template override with an extra
-     `auto` column;
-   - click → `dshmlOpenIconPicker({ providerId, modelId, ... })`;
+   - insert the model-logo seat (`type=button`) as the first child of the grid row
+     from the first decoration pass — even while the provider identity is still
+     unresolved, in which case it shows the dashed placeholder. Add
+     `data-dshml-model-row` + the CSS grid-template override with an extra `auto`
+     column so the seat's 22px is reserved for as long as the row exists;
+   - click → re-resolve the identity, then `dshmlOpenIconPicker({ providerId,
+     modelId, ... })`;
    - refresh logo when the id input changes (capture `input` listener).
      Idempotent per row; empty model id → no icon.
 4. **Custom provider select**: a `<select>` inside the modal whose `option`

@@ -36,24 +36,24 @@ import { DshmlModelIconsSection } from './section';
 const LABEL_STYLE_ID = 'dsh-model-logos/label.css';
 
 const LABEL_CSS = `
-/* Composer model label. */
+/* Composer model label. The mark base size is 22px on every conversation and
+   Settings surface; only the icon picker preview enlarges it (36px). */
 .dshml-root { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; vertical-align: baseline; }
-.dshml-mark { flex: none; width: 14px; height: 14px; display: inline-block; line-height: 0; }
+.dshml-mark { flex: none; width: 22px; height: 22px; display: inline-block; line-height: 0; }
 .dshml-mark > svg { display: block; width: 100%; height: 100%; }
 .dshml-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dshml-menu { gap: 5px; }
 .dshml-option { gap: 6px; }
-.dshml-option .dshml-mark { width: 16px; height: 16px; }
 .dshml-badge { flex: none; margin-left: 1px; padding: 0 5px; border-radius: 5px; font-size: 10px; font-weight: 600; line-height: 16px; letter-spacing: .01em; background: rgba(86, 134, 254, .16); color: var(--dsw-alias-state-business-primary, #5686FE); }
 
 /* Settings → Models: inserted vendor / model marks. */
 .dshml-insert { display: inline-flex; align-items: center; justify-content: center; flex: none; line-height: 0; }
-.dshml-vendor { width: 1em; height: 1em; font-size: 14px; }
+.dshml-vendor { width: 22px; height: 22px; }
 .dshml-vendor > svg, .dshml-model-mark > svg { display: block; width: 100%; height: 100%; }
-.dshml-model-icon-btn { box-sizing: border-box; flex: none; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 3px; border: 0; border-radius: 6px; background: transparent; color: var(--dsw-alias-label-tertiary, #8a90a0); cursor: pointer; line-height: 0; }
+.dshml-model-icon-btn { box-sizing: border-box; flex: none; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--dsw-alias-label-tertiary, #8a90a0); cursor: pointer; line-height: 0; }
 .dshml-model-icon-btn:hover { background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, .06)); }
 .dshml-model-icon-btn:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary, #5686FE); outline-offset: 1px; }
-.dshml-model-icon-btn .dshml-model-mark { width: 16px; height: 16px; display: inline-flex; }
+.dshml-model-icon-btn .dshml-model-mark { width: 22px; height: 22px; display: inline-flex; }
 .dshml-model-placeholder { opacity: .55; }
 .dshml-model-icon-disabled .dshml-model-mark { opacity: .35; }
 [data-dshml-model-row="1"] { grid-template-columns: auto minmax(0, 1.4fr) minmax(0, 1fr) auto auto !important; }
@@ -63,7 +63,7 @@ const LABEL_CSS = `
 .dshml-combo-button { box-sizing: border-box; display: flex; align-items: center; gap: 8px; width: 100%; height: 32px; padding: 0 10px; border: .5px solid var(--dsw-alias-border-l4, #d9dbe1); border-radius: var(--dsw-radius-md, 8px); background: var(--dsw-alias-bg-layer-1, #fff); color: var(--dsw-alias-label-primary, #1b1f27); font: inherit; font-size: 14px; line-height: 22px; text-align: left; cursor: pointer; }
 .dshml-combo-button:hover { border-color: var(--dsw-alias-border-l3, #c9ccd4); }
 .dshml-combo-button:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary, #5686FE); outline-offset: 1px; }
-.dshml-combo-mark { flex: none; display: inline-flex; width: 16px; height: 16px; line-height: 0; }
+.dshml-combo-mark { flex: none; display: inline-flex; width: 22px; height: 22px; line-height: 0; }
 .dshml-combo-mark > svg { display: block; width: 100%; height: 100%; }
 .dshml-combo-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dshml-combo-chevron { flex: none; display: inline-flex; width: 14px; height: 14px; opacity: .6; color: var(--dsw-alias-menu-icon, currentColor); }

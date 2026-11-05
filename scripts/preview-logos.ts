@@ -2,10 +2,11 @@
  * Render the logo set into a static HTML page and capture it with headless Edge.
  *
  * This is a design-iteration aid, not part of the shipped plugin: it imports the
- * artwork modules directly and screenshots them at shipped sizes (14/16px) plus
- * larger reference sizes, on light and dark surfaces, next to a mock of the
- * composer trigger and model menu (`--only-set vendors` swaps those for a mock
- * of the Settings → Models provider rows, where vendor marks actually appear).
+ * artwork modules directly and screenshots them at shipped sizes (22px on the
+ * conversation and Settings surfaces, 36px in the picker preview) plus larger
+ * reference sizes, on light and dark surfaces, next to a mock of the composer
+ * trigger and model menu (`--only-set vendors` swaps those for a mock of the
+ * Settings → Models provider rows, where vendor marks actually appear).
  *
  * Usage:
  *   pnpm exec tsx scripts/preview-logos.ts                          # full sheet -> .preview/logos.png
@@ -131,26 +132,26 @@ const mark = (key: string, size: number): string => {
 
 const composerMock = (theme: 'light' | 'dark'): string => `
 <section class="mock mock-${theme}">
-  <h3>${theme === 'light' ? 'Light surface' : 'Dark surface'} — composer trigger (13px text, 14px mark)</h3>
+  <h3>${theme === 'light' ? 'Light surface' : 'Dark surface'} — composer trigger (13px text, 22px mark)</h3>
   <div class="trigger-row">
     ${SAMPLES.slice(0, 6)
       .map(
         ([key, name]) => `
       <span class="trigger">
-        ${mark(key, 14)}
+        ${mark(key, 22)}
         <span class="trigger-label">${escape(name)}</span>
         <svg class="chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </span>`,
       )
       .join('')}
   </div>
-  <h3>Model menu rows (13px text, 16px mark)</h3>
+  <h3>Model menu rows (13px text, 22px mark)</h3>
   <div class="menu">
     ${SAMPLES.slice(2, 12)
       .map(
         ([key, name], index) => `
       <div class="option">
-        <span class="option-copy">${mark(key, 16)}<span class="option-name">${escape(name)}</span></span>
+        <span class="option-copy">${mark(key, 22)}<span class="option-name">${escape(name)}</span></span>
         <span class="check">${index === 1 ? '✓' : ''}</span>
       </div>`,
       )
@@ -160,12 +161,12 @@ const composerMock = (theme: 'light' | 'dark'): string => `
 
 const providerMock = (theme: 'light' | 'dark'): string => `
 <section class="mock mock-${theme}">
-  <h3>${theme === 'light' ? 'Light surface' : 'Dark surface'} — Settings → Models provider rows (14px text, 16px vendor mark)</h3>
+  <h3>${theme === 'light' ? 'Light surface' : 'Dark surface'} — Settings → Models provider rows (14px text, 22px vendor mark)</h3>
   <div class="providers">
     ${PROVIDERS.map(
       ([key, name]) => `
     <div class="provider-row">
-      ${mark(key, 16)}
+      ${mark(key, 22)}
       <span class="provider-name">${escape(name)}</span>
     </div>`,
     ).join('')}
@@ -205,14 +206,14 @@ const letterMock = (): string => {
     const svg = entry.svg;
     return `
     <div class="letter-row">
-      <span class="mark" style="width:24px;height:24px">${svg}</span>
-      <span class="mark" style="width:16px;height:16px">${svg}</span>
+      <span class="mark" style="width:36px;height:36px">${svg}</span>
+      <span class="mark" style="width:22px;height:22px">${svg}</span>
       <span class="letter-label">${escape(name || '(empty)')} → “${escape(entry.title)}”</span>
     </div>`;
   }).join('');
   return `
 <section class="mock mock-light">
-  <h3>Deterministic letter-tile fallback (src/artwork.ts) — 24px + 16px</h3>
+  <h3>Deterministic letter-tile fallback (src/artwork.ts) — 36px + 22px</h3>
   <div class="letters">${rows}</div>
 </section>`;
 };
@@ -228,8 +229,8 @@ const artworkCard = (key: string): string => {
       <span class="on-dark">${mark(key, 96)}</span>
     </div>
     <div class="small">
-      ${[48, 24, 16, 14].map((size) => `<span class="on-light">${mark(key, size)}</span>`).join('')}
-      ${[24, 16, 14].map((size) => `<span class="on-dark">${mark(key, size)}</span>`).join('')}
+      ${[36, 22, 16].map((size) => `<span class="on-light">${mark(key, size)}</span>`).join('')}
+      ${[36, 22].map((size) => `<span class="on-dark">${mark(key, size)}</span>`).join('')}
     </div>
     <figcaption><b>${escape(key)}</b><span>${escape(entry ? entry.title : 'MISSING')}</span><span>${escape(meta)}</span></figcaption>
   </figure>`;
@@ -297,16 +298,16 @@ const html = `<!doctype html>
   .on-light { background: #fff; }
   .on-dark { background: #1b1f27; }
   .sizes .on-light { border: 1px solid #eceef2; }
-  .small { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+  .small { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
   .small .on-light, .small .on-dark { display: inline-flex; align-items: center; justify-content: center;
-    width: 34px; height: 34px; border-radius: 8px; }
+    width: 40px; height: 40px; border-radius: 8px; }
   figcaption { display: flex; align-items: baseline; gap: 8px; margin-top: 10px; font-size: 12px; }
   figcaption b { font-size: 12px; }
   figcaption span { color: #7a8290; }
   .missing { color: #d64545; font-weight: 700; }
 </style></head>
 <body>${body}
-<p style="font-size:11px;color:#8b93a1;margin-top:24px">Static preview of src/logos/*.ts — shipped sizes are 14px (trigger/menu/settings text) and 16px (options).</p>
+<p style="font-size:11px;color:#8b93a1;margin-top:24px">Static preview of src/logos/*.ts — shipped sizes are 22px (composer, Settings → Models and Model icons page) and 36px (icon picker preview).</p>
 </body></html>`;
 
 const suffix = only ? only : onlySet !== null ? `logos-${onlySet}` : 'logos';

@@ -508,6 +508,32 @@ describe('generated client bundle', () => {
     expect(sectionLabel().trim() !== '', 'the section nav label must not be empty').toBeTruthy();
   });
 
+  it('sizes the marks on the shared 22px base and the picker preview at 36px', () => {
+    const { doc } = loadClient();
+    const style = expectPresent(doc.styleTags[0], 'the plugin stylesheet must be mounted');
+    /** The declaration block of one exact selector in the mounted stylesheet. */
+    const rule = (selector: string): string => {
+      const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const match = new RegExp(escaped + '\\s*\\{([^}]*)\\}').exec(style.textContent);
+      return match?.[1] ?? '';
+    };
+    /** Whether one rule declares both the width and the height. */
+    const sized = (selector: string, px: number): boolean => {
+      const block = rule(selector);
+      return new RegExp('width:\\s*' + px + 'px').test(block) && new RegExp('height:\\s*' + px + 'px').test(block);
+    };
+    // The composer label, the Settings → Models marks and the Model icons page
+    // share one 22px base, so a mark never renders at a different scale.
+    expect(sized('.dshml-mark', 22), 'composer trigger/menu mark').toBe(true);
+    expect(sized('.dshml-vendor', 22), 'Settings vendor mark').toBe(true);
+    expect(sized('.dshml-model-icon-btn', 22), 'Settings model-row icon seat').toBe(true);
+    expect(sized('.dshml-model-icon-btn .dshml-model-mark', 22), 'Settings model-row mark').toBe(true);
+    expect(sized('.dshml-combo-mark', 22), 'provider combobox mark').toBe(true);
+    expect(sized('.dshml-section-mark', 22), 'Model icons page mark seat').toBe(true);
+    // The picker preview is the one enlarged surface: 36px.
+    expect(sized('.dshml-picker-option-mark', 36), 'picker option mark').toBe(true);
+  });
+
   it('draws the brand mark before the catalog name', () => {
     const { registrations } = loadClient();
     const component = labelRegistration(registrations).component;

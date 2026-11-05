@@ -256,13 +256,14 @@ export const DSHML_UI_CSS: string = `
   font-weight: 600;
 }
 
+/* The picker preview is the one enlarged surface: 36px base marks. */
 .dshml-picker-option-mark {
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 36px;
+  height: 36px;
   line-height: 0;
 }
 
@@ -460,14 +461,15 @@ export const DSHML_UI_CSS: string = `
   border-top: 0.5px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.08));
 }
 
+/* The mark seat is always rendered (a dash when empty), so a row's name never
+   moves when its icon arrives. Keep the seat on the shared 22px base. */
 .dshml-section-mark {
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1em;
-  height: 1em;
-  font-size: 14px;
+  width: 22px;
+  height: 22px;
   line-height: 0;
 }
 
