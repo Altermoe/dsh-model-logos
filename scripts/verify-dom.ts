@@ -969,6 +969,50 @@ async function browserDriver(config: DriverConfig): Promise<void> {
     await waitFor(() => vendorMarkers().length > 0, 6000);
     await sleep(150);
 
+    // The decorator re-runs on a MutationObserver over document.body, and writing
+    // into its inserted nodes is a mutation as well. An unconditional re-write
+    // would feed the observer and re-decorate forever: the marks flash in devtools
+    // and a timer runs ~25 times a second for as long as the page is open. A
+    // settled page must stay quiet.
+    const settleProbe = await (async (): Promise<{ inserted: number; other: number }> => {
+      let inserted = 0;
+      let other = 0;
+      const probe = new MutationObserver((records) => {
+        for (const record of records) {
+          const target = record.target;
+          if (target instanceof Element && target.closest('[data-dshml-owner="1"]') !== null) inserted += 1;
+          else other += 1;
+        }
+      });
+      probe.observe(document.body, { childList: true, subtree: true });
+      await sleep(500);
+      probe.disconnect();
+      return { inserted, other };
+    })();
+    add(
+      'decoration settles: no inserted mark is rewritten while the page is idle',
+      true,
+      settleProbe.inserted === 0,
+      'self-writes=' + settleProbe.inserted + ', other mutations=' + settleProbe.other + ' in 500ms',
+    );
+
+    // Ignoring the decorator's own records must not swallow page mutations: when
+    // React removes an inserted mark it has to come back on the next pass.
+    const lostMarker = vendorMarkers()[0] ?? null;
+    const lostParent = lostMarker !== null ? lostMarker.parentElement : null;
+    const lostProvider = lostMarker !== null ? lostMarker.getAttribute('data-dshml-vendor') : null;
+    lostMarker?.remove();
+    const restoredMarker =
+      lostParent !== null && lostProvider !== null
+        ? await waitFor(() => q('[data-dshml-vendor="' + lostProvider + '"]', lostParent), 3000)
+        : null;
+    add(
+      'a page mutation still wakes the decorator (removed vendor mark is re-inserted)',
+      true,
+      restoredMarker !== null,
+      restoredMarker !== null ? 'restored ' + describeNode(restoredMarker) : 'the removed marker did not come back',
+    );
+
     // Settings navigation: the shell picks a glyph from a hard-coded section-id
     // switch and falls back to the gear for every id it does not know, so this
     // plugin's row (`model-logos`) shows the gear until the decorator marks it.

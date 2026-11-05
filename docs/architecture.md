@@ -402,7 +402,12 @@ above.
 1. **Root**: `document.querySelector('[data-shortcut-modal="settings"]')`. Absent
    → nothing happens. MutationObserver on `document.body` (childList+subtree) and
    a debounced `input`/`change` capture listener keep decorations fresh. The
-   observer also disconnects when the plugin disposes.
+   observer also disconnects when the plugin disposes. Two invariants keep it from
+   observing itself: records whose target sits inside an inserted
+   `[data-dshml-owner="1"]` node are ignored (our own writes are output, not page
+   state), and every mark/text write is compared against the last value written to
+   that node, so a no-op pass performs no DOM write at all — otherwise each pass
+   would schedule the next forever and the marks would flash under inspection.
 2. **Provider rows**: for each directory entry `{ provider, displayName,
    declared }` with `declared !== true`, find a leaf element whose trimmed text
    equals `displayName` and:

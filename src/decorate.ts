@@ -41,6 +41,47 @@ const DSHML_CHEVRON_SVG =
 /** The settings dialog root. */
 const DSHML_SETTINGS_ROOT = '[data-shortcut-modal="settings"]';
 
+/**
+ * Last markup this module wrote into each inserted element.
+ *
+ * The decoration is driven by a MutationObserver over `document.body`, and
+ * writing into the nodes it inserted is itself a mutation. Re-writing identical
+ * markup (with `innerHTML`, which always replaces the children) would therefore
+ * feed the observer, schedule the next pass, and loop for as long as the page is
+ * open — the marks flash in the devtools inspector while a timer runs ~25 times
+ * a second. Comparing against what was last written turns every no-op pass into
+ * a pure read.
+ */
+const dshmlWrittenMarkup = new WeakMap<Element, string>();
+
+/** Replace an element's markup only when it differs from the last markup written. */
+function dshmlWriteMarkup(node: Element, markup: string): void {
+  if (dshmlWrittenMarkup.get(node) === markup) return;
+  node.innerHTML = markup;
+  dshmlWrittenMarkup.set(node, markup);
+}
+
+/** Last text this module wrote into each inserted element (the combobox face). */
+const dshmlWrittenText = new WeakMap<Element, string>();
+
+/** Replace an element's text only when it differs from the last text written. */
+function dshmlWriteText(node: Element, value: string): void {
+  if (dshmlWrittenText.get(node) === value) return;
+  node.textContent = value;
+  dshmlWrittenText.set(node, value);
+}
+
+/**
+ * Whether a mutation record is a write into this module's own inserted nodes
+ * (marks, model buttons, the combobox). Those are decoration output, not page
+ * state: observing them back would make every pass schedule the next one.
+ */
+function dshmlIsSelfMutation(record: MutationRecord): boolean {
+  const target = record.target;
+  const element = target instanceof Element ? target : target.parentElement;
+  return element !== null && element.closest('[data-dshml-owner="1"]') !== null;
+}
+
 /** Localized aria-label prefixes the shipped Models page writes on its rows. */
 const DSHML_ACTION_LABEL = /^(?:Edit|Delete|编辑|删除)\s/i;
 const DSHML_MODEL_ID_LABEL = /^(?:Model ID|模型\s*ID|模型ID)\s+\d+$/i;
@@ -96,7 +137,7 @@ function dshmlMarkNode(kind: string, svg: string, label: string | null): HTMLSpa
   node.dataset.dshmlKind = kind;
   node.setAttribute('aria-hidden', label === null ? 'true' : 'false');
   if (label !== null) node.setAttribute('title', label);
-  node.innerHTML = svg;
+  dshmlWriteMarkup(node, svg);
   return node;
 }
 
@@ -118,12 +159,12 @@ function dshmlModelButton(
   if (mark.svg !== null) {
     const span = document.createElement('span');
     span.className = 'dshml-insert dshml-model-mark';
-    span.innerHTML = mark.svg;
+    dshmlWriteMarkup(span, mark.svg);
     button.appendChild(span);
   } else {
     const span = document.createElement('span');
     span.className = 'dshml-insert dshml-model-mark dshml-model-placeholder';
-    span.innerHTML = DSHML_PLACEHOLDER_SVG;
+    dshmlWriteMarkup(span, DSHML_PLACEHOLDER_SVG);
     button.appendChild(span);
   }
   if (mark.resolved.disabled) button.classList.add('dshml-model-icon-disabled');
@@ -140,7 +181,7 @@ function dshmlModelButton(
 function dshmlUpdateModelButton(button: HTMLButtonElement, mark: ModelMark): void {
   const existing = button.querySelector<HTMLElement>('.dshml-model-mark');
   if (existing === null) return;
-  existing.innerHTML = mark.svg !== null ? mark.svg : DSHML_PLACEHOLDER_SVG;
+  dshmlWriteMarkup(existing, mark.svg !== null ? mark.svg : DSHML_PLACEHOLDER_SVG);
   existing.classList.toggle('dshml-model-placeholder', mark.svg === null);
   button.classList.toggle('dshml-model-icon-disabled', mark.resolved.disabled);
   button.classList.toggle('dshml-model-icon-custom', mark.resolved.source === 'override');
@@ -185,7 +226,7 @@ function dshmlDecorateVendorMark(target: Element, entry: CatalogProvider): void 
   const existing = parent.querySelector<HTMLElement>(':scope > [data-dshml-vendor]');
   if (existing !== null) {
     if (existing.dataset.dshmlVendor === entry.providerId) {
-      existing.innerHTML = mark.svg;
+      dshmlWriteMarkup(existing, mark.svg);
       return;
     }
     existing.remove();
@@ -400,15 +441,12 @@ function dshmlBuildCombo(
       entry !== null && dshmlIsOfficial(entry)
         ? dshmlVendorMark(value, entry.displayName, true)
         : dshmlVendorMark(value, selected !== undefined ? selected.textContent : value, true);
-    label.textContent = selected !== undefined ? String(selected.textContent ?? '') : '';
-    if (vendor.svg !== null) {
-      mark.innerHTML = vendor.svg;
-      mark.hidden = false;
-    } else {
-      mark.innerHTML = '';
-      mark.hidden = true;
-    }
-    button.setAttribute('aria-label', dshmlT('section.provider') + ': ' + (label.textContent ?? ''));
+    const labelText = selected !== undefined ? String(selected.textContent ?? '') : '';
+    dshmlWriteText(label, labelText);
+    dshmlWriteMarkup(mark, vendor.svg !== null ? vendor.svg : '');
+    if (mark.hidden !== (vendor.svg === null)) mark.hidden = vendor.svg === null;
+    const aria = dshmlT('section.provider') + ': ' + labelText;
+    if (button.getAttribute('aria-label') !== aria) button.setAttribute('aria-label', aria);
   };
 
   const combo: ProviderCombo = {
@@ -696,7 +734,16 @@ export function dshmlMountSettingsDecorator(_ctx: DshContext): () => void {
   };
   dshmlActiveDecorState = state;
   const schedule = (): void => dshmlScheduleDecorate(state);
-  const observer = new MutationObserver(() => schedule());
+  const observer = new MutationObserver((records) => {
+    // Our own passes write into the nodes they inserted; re-scheduling on those
+    // records would loop forever. Only page (React-owned) mutations matter.
+    for (const record of records) {
+      if (!dshmlIsSelfMutation(record)) {
+        schedule();
+        return;
+      }
+    }
+  });
   observer.observe(document.body, { childList: true, subtree: true });
   const onInput = (): void => schedule();
   const onChange = (): void => schedule();

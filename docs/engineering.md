@@ -167,7 +167,7 @@ that recorded them, not from the current build.
   sentinels, the shipped release badge), the settings-section registration, and
   that `apply()` disposers remove the stylesheet, listeners and observer.
 - `scripts/verify-dom.ts` drives the faithful Settings fixture in headless Edge and
-  screenshots the decorated page: **42 assertions pass** — vendor logos on official
+  screenshots the decorated page: **44 assertions pass** — vendor logos on official
   rows/editor titles (including the localized DeepSeek account row), none on the
   declared custom provider, model-row buttons and the 5-track grid, the hidden
   native select, the custom combobox (option marks, write-back, bubbling `change`,
@@ -176,6 +176,19 @@ that recorded them, not from the current build.
   shipped gear hidden, 16 px `currentColor` mask glyph painted, no other row
   marked), full disposal reversibility (including the nav marker) and observer
   disconnection.
+- **Settings decoration is write-idempotent.** The decorator re-runs on a
+  `MutationObserver` over `document.body`, and re-writing identical markup into its
+  own inserted marks (`innerHTML` always replaces children) used to feed that
+  observer: every pass scheduled the next, and the vendor/model marks of
+  Settings → Models were rewritten ~25 times a second — visibly flashing in the
+  devtools inspector and burning a timer for as long as the page stayed open. The
+  observer now ignores records that target its own `[data-dshml-owner="1"]` nodes,
+  and every mark/text write is compared against the last value written (WeakMap
+  bookkeeping), so a no-op pass touches nothing. `verify:dom` pins it: after the
+  page settles, a 500 ms quiet window records **0 self-writes and 0 other
+  mutations** on the decorated page, while removing an inserted vendor mark (what a
+  React re-render does) still wakes the decorator and the mark is re-inserted on the
+  next pass.
 - Live verification against a real `dsh web` instance from this bundle (fresh
   profile, seeded providers, headless Edge over CDP): **15/15 assertions pass** — the
   settings dialog and both navigation entries, vendor logos before the DeepSeek
