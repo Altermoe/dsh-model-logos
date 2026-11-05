@@ -4,7 +4,7 @@
 
 为你真正在用的模型配上品牌标记 —— 一个为 DeepSeek Harness（DSH）Web 界面写的小插件。
 
-![图标选择器：自动识别、不使用图标、首字母图标，或任意内置品牌 —— 可搜索](docs/preview-live-picker.png)
+![图标选择器：自动识别、不使用图标、首字母图标，下面是厂商图标与模型图标 —— 可搜索](docs/preview-live-picker.png)
 
 ## 为什么需要图标？
 
@@ -18,7 +18,7 @@
 
 ## 它长什么样
 
-「设置 → 模型」，运行中的界面：厂商标记出现在每一行官方提供商和每个编辑器标题旁，每个模型行以模型标记或一键可点的占位开头，插件自己的入口也在设置导航里。
+「设置 → 模型」，加载插件后：厂商标记出现在每一行官方提供商和每个编辑器标题旁，每个模型行以模型标记或一键可点的占位开头，插件自己的入口也在设置导航里。
 
 ![运行中的「设置 → 模型」](docs/preview-live-settings.png)
 
@@ -42,7 +42,12 @@
 - **自动识别** —— 回到自动匹配的结果；
 - **不使用图标** —— 这个模型不显示品牌标记；
 - **首字母图标** —— 用名称生成一个确定性的色块，适合那些既不想冒充品牌、又希望看起来像有意为之的本地或小众模型；
-- **任意内置品牌标记**，可搜索。
+- **厂商图标** —— 公司或渠道的标记（Anthropic、Google、Alibaba、ByteDance、OpenRouter 等）；
+- **模型图标** —— 模型产品的标记（Claude、Gemini、Qwen、豆包、Kimi 等）。
+
+选择器把两组上下排布，并同时搜索两组。有些公司和模型共用一枚图形（DeepSeek、Mistral、MiniMax），这些标记放在模型组，官方渠道行复用同一枚 artwork；当两者确实不同时 —— Anthropic≠Claude、Google≠Gemini、Alibaba≠Qwen、ByteDance≠豆包 —— 选择器会同时提供两枚标记，而不是让其中一枚冒充另一枚。
+
+组内按可量化的网络知名度排序，而不是按字母：一份可复现的快照综合 GitHub、npm、Wikipedia、Hugging Face 与 B 站信号，让真正会被找的标记排在前面。方法与原始数据见 [`docs/rankings.md`](docs/rankings.md)。
 
 覆盖项绑定在 `provider + model` 这一对上，所以两个提供商服务同名模型时可以显示不同标记。它们保存在 DSH 用户设置文档里（配置档的 `cordis.patch.yml`），和其他偏好放在一起 —— 不用 localStorage，也不产生任何网络请求。
 
@@ -74,7 +79,9 @@ plugin_manager action=install_bundle target=<指向本目录的绝对路径>
 
 每一枚标记都是自包含的 24×24 SVG 方块 —— 品牌色的圆角方块，加上在实际使用尺寸（界面文字旁的 14–16 px）下仍然清晰可辨的图形。运行时不拉取任何东西，所以这些图标不需要网络，也不依赖外部资源。
 
-DeepSeek 的鲸鱼是 DeepSeek 的官方标志，取自本应用自己的 Web 前端。多数模型标记是简化的矢量重绘；厂商标记是官方单色矢量素材（MIT / CC0 授权），统一收进同样的方块里，少数图形 —— Microsoft、AWS、Hugging Face、Together AI、Baseten —— 保留了品牌色。两枚最容易画错的标记被特意校正过：MiniMax 2025 年的标记是波形，不是字母「M」；Mistral 的像素方块 M 保留了阶梯状的肩部。品牌 Logo 是其所有者的商标，在此仅用于标识实际使用的提供商或模型。
+图形不是靠肉眼重画的，而是来自固定版本的官方矢量集 —— [`@lobehub/icons-static-svg`](https://github.com/lobehub/lobe-icons) 1.102.0（MIT），加上 Simple Icons（CC0）的 Xiaomi，以及取自本应用 Web 前端的 DeepSeek 官方鲸鱼 —— 由入库的导入脚本统一收进同样的方块。构建检查会把生成的路径数据与已提交的上游文件逐条比对，所以想改一枚标记，只能改它的来源。少数例外在源码里注明：Radius 没有官方图形；AWS 保留官方 smile 符号，因为完整字标在 14 px 下不可读；Xiaomi 保留 Simple Icons 的「mi」。
+
+原先偏差最明显的标记从来源层修正：Claude 换成官方不规则实心放射状、Ollama 换成正面看镜头的羊驼、豆包换成官方女性形象，替换掉旧的齿轮、侧脸剪影和聊天气泡。MiniMax 2025 年的波形与 Mistral 的像素方块 M 保留此前校正过的形状。品牌 Logo 是其所有者的商标，在此仅用于标识实际使用的提供商或模型。
 
 ![所有内置标记在真实尺寸下的样子，浅色与深色背景](docs/preview.png)
 
@@ -85,9 +92,11 @@ DeepSeek 的鲸鱼是 DeepSeek 的官方标志，取自本应用自己的 Web �
 ```sh
 pnpm install          # 安装依赖；prepare 脚本同时构建两个产物
 pnpm run build        # 修改 src/** 后重新生成 client.js + index.js
-pnpm run verify       # 完整门禁：类型检查、lint、格式化、测试、构建、产物一致性
+pnpm run verify       # 完整门禁：类型检查、lint、格式化、测试、图标/排序校验、构建、产物一致性
 pnpm run verify:dom   # 在无头 Edge 中用真实 bundle 驱动 Settings 测试页面
 pnpm run preview      # 生成图标设计总览到 .preview/
+pnpm run logo:check   # 校验入库图标与固定版本官方矢量一致
+pnpm run rank:check   # 校验选择器顺序与提交的热度快照一致
 ```
 
 模块图、贡献规则与验证日志在 [`docs/engineering.md`](docs/engineering.md)；运行时契约与设计决策在 [`docs/architecture.md`](docs/architecture.md)。

@@ -104,13 +104,12 @@ so it is ecosystem-normal, not novel.
   trademark paragraph is the right kind of notice; if lobe-icons assets are
   bundled, also carry its MIT text and say so in a NOTICE.
 - **Engineering:** the icons are the commodity part. Reusing lobe-icons removes
-  alias churn (`gpt-4o`, `claude-sonnet-4.5`, `qwen3…`) and 38 hand-maintained
-  reconstructions, at the cost of a build-time vendoring step and a different look
-  than the current uniform 24×24 tile.
-- **Decision for the maintainer:** keep the hand-drawn tile style as a deliberate
-  visual identity, or vendor lobe-icons static SVGs and keep the tile frame.
-  Either way, do not market the artwork as the innovation — the override UI and
-  Settings coverage are.
+  alias churn (`gpt-4o`, `claude-sonnet-4.5`, `qwen3…`) and the old hand-maintained
+  reconstructions, at the cost of a build-time vendoring step.
+- **Decision taken:** vendor the pinned lobe-icons static SVGs into the existing
+  24×24 tile frame, keep the import script and provenance note, and keep only the
+  few documented manual exceptions. Do not market the artwork as the innovation —
+  the override UI and Settings coverage are.
 
 ## Before pushing
 

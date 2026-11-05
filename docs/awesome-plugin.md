@@ -7,8 +7,9 @@ fetched 2026-11-04 (local copy: `.preview/contributing.md`).
 
 Submission target: **`Altermoe/dsh-model-logos`**, public since 2026-11-04 (GitHub
 `created_at` 2026-11-04T07:51:14Z) and carrying the `dsh-plugin` topic. Audited tree: the
-0.4.0 changes (settings-navigation glyph, `assets/icon-180.png`, `screenshots.json`, version
-0.4.0) plus the listing metadata, `LICENSE` and README install section recorded in §3.
+0.5.0 changes (vendor/model picker groups, pinned official-vector artwork, ranked icon
+order, `assets/icon-180.png`, `screenshots.json`, version 0.5.0) plus the listing metadata,
+`LICENSE` and README install section recorded in §3.
 
 Submission pull request: **#11938**, opened 2026-11-04 on
 [`awesome-dsh-plugin/awesome-dsh-plugin`](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/11938).

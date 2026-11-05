@@ -5,7 +5,7 @@
 Brand marks for the models you actually use — a small plugin for the DeepSeek
 Harness (DSH) Web GUI.
 
-![The icon picker: auto, no icon, a letter tile, or any included brand — searchable](docs/preview-live-picker.png)
+![The icon picker: auto, no icon, a letter tile, then vendor and model marks — searchable](docs/preview-live-picker.png)
 
 ## Why icons?
 
@@ -35,7 +35,7 @@ plugin is careful never to pass one off as the other.
 
 ## What it looks like
 
-Settings → Models, in the running GUI: the vendor mark sits on every official
+Settings → Models, with the plugin loaded: the vendor mark sits on every official
 provider row and editor title, every model row begins with its mark or a one-click
 placeholder, and the plugin's own entry sits in the Settings nav.
 
@@ -78,7 +78,22 @@ model can be overridden:
 - **No icon** — show no brand mark for that model;
 - **Letter icon** — a deterministic colour tile made from the name, for local or
   exotic models that should look intentional rather than pretend to be a brand;
-- **any included brand mark**, searchable.
+- **Vendor icons** — the company or channel mark (Anthropic, Google, Alibaba,
+  ByteDance, OpenRouter, …);
+- **Model icons** — the model product mark (Claude, Gemini, Qwen, Doubao, Kimi, …).
+
+The picker shows the two groups one below the other and searches both at once. Some
+companies and their models share one graphic (DeepSeek, Mistral, MiniMax); those
+marks appear in the model group and the vendor channel rows reuse the same artwork.
+Where the two really differ — Anthropic vs Claude, Google vs Gemini, Alibaba vs
+Qwen, ByteDance vs Doubao — the picker offers both marks instead of passing one off
+as the other.
+
+Within each group, marks are ordered by measured online prominence rather than
+alphabetically: a small, reproducible snapshot combines GitHub, npm, Wikipedia,
+Hugging Face and Bilibili signals, so the marks people actually look for come
+first. The method and raw numbers are in
+[`docs/rankings.md`](docs/rankings.md).
 
 Overrides are pinned to a `provider + model` pair, so two providers serving a
 same-named model can show different marks. They live in the DSH user settings
@@ -123,14 +138,20 @@ a glyph that stays legible at the sizes it is actually used (14–16 px beside U
 text). Nothing is fetched at runtime, so the artwork needs no network and no external
 asset.
 
-The DeepSeek whale is DeepSeek's official mark, taken from the app's own Web front
-end. Most of the model marks are simplified vector reconstructions; the vendor marks
-are official single-colour vectorisations (MIT / CC0 artwork) fitted into the same
-tile, and a few glyphs — Microsoft, AWS, Hugging Face, Together AI, Baseten — keep
-their brand colours. The two easiest to get wrong were corrected on purpose:
-MiniMax's 2025 mark is a waveform, not an "M", and Mistral's pixel-block M keeps its
-stepped shoulders. Brand logos are trademarks of their owners and appear here only to
-identify the provider or model in use.
+The shapes are not redrawn by eye. They come from a pinned official vector set —
+[`@lobehub/icons-static-svg`](https://github.com/lobehub/lobe-icons) 1.102.0 (MIT),
+plus Simple Icons (CC0) for Xiaomi and DeepSeek's own whale from this app's Web front
+end — and a checked-in import script fits them into the shared tile. A build check
+compares the generated path data with the committed upstream files, so a mark can
+only change by changing its source. A few exceptions are marked in the source: Radius
+has no official mark, AWS keeps its official smile symbol because the full wordmark
+is unreadable at 14 px, and Xiaomi keeps the Simple Icons "mi".
+
+The marks that used to be most wrong were fixed at the source: Claude's irregular
+solid burst, Ollama's front-facing llama and Doubao's official female figure replace
+the old gear, left-facing silhouette and chat bubble. MiniMax's 2025 waveform and
+Mistral's pixel-block M keep their corrected shapes. Brand logos are trademarks of
+their owners and appear here only to identify the provider or model in use.
 
 ![All the included marks at real sizes, on light and dark surfaces](docs/preview.png)
 
@@ -143,9 +164,11 @@ them by hand.
 ```sh
 pnpm install          # dependencies; the prepare script also builds both artifacts
 pnpm run build        # regenerate client.js + index.js after editing src/**
-pnpm run verify       # full gate: types, lint, format, tests, build, artifact check
+pnpm run verify       # full gate: types, lint, format, tests, artwork/rank checks, build, artifact check
 pnpm run verify:dom   # drive the real bundle against the Settings fixture in headless Edge
 pnpm run preview      # render the artwork design sheet into .preview/
+pnpm run logo:check   # prove the checked-in marks match the pinned official vectors
+pnpm run rank:check   # prove the picker order matches the committed ranking snapshot
 ```
 
 The module map, contribution rules and the verification log are in

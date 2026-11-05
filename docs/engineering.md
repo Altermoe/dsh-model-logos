@@ -33,9 +33,12 @@ pnpm test             # vitest run
 pnpm run test:coverage
 pnpm run build        # generate client.js + index.js (also runs on pnpm install)
 pnpm run check        # assert both generated artifacts match their sources
+pnpm run logo:check   # offline: re-run the official-artwork importer and compare
+pnpm run rank         # refresh the visibility snapshot (network; optional proxy)
+pnpm run rank:check   # offline: recompute the snapshot and compare the ranks
 pnpm run verify:dom   # headless-Edge DOM fixture harness (needs Edge)
 pnpm run verify:live  # assert the running GUI serves this exact client.js
-pnpm run verify       # typecheck + lint + fmt:check + test + build + check (CI gate)
+pnpm run verify       # typecheck + lint + fmt:check + test + logo:check + rank:check + build + check
 ```
 
 `client.js` and `index.js` are **generated, never committed**. They are written
@@ -87,8 +90,13 @@ src/match.ts        LOGO_KEYS, MODEL_RULES, PROVIDER_RULES, VENDOR_CHANNELS,
 src/artwork.ts      escapeXml, escapeHtml, letterTile
 src/resolve.ts      overrideIcon, withOverride, withoutOverride, flattenOverrides,
                     isKnownLogoKey, letterTextFor, resolveModelIcon
-src/logos/{intl,cn,vendors}.ts   LOGOS artwork sets (validated by the build)
-src/logos/index.ts  LOGOS — the merged set every renderer reads
+src/logos/official.generated.ts   LOGOS — marks imported from the pinned Lobe Icons set
+src/logos/manual.ts               LOGOS — DeepSeek, Xiaomi, AWS, Radius exceptions
+src/logos/groups.ts               groupLogoEntries, filterLogoGroups, SHARED_VENDOR_MARKS
+src/logos/ranking.ts              LOGO_RANKS, RANKING_DATE — generated snapshot summary
+src/logos/index.ts                LOGOS — the merged set every renderer reads
+scripts/import-logos.ts           offline importer/checker for the official artwork
+scripts/rank-logos.ts             --collect/--check for reference/rankings.json
 ```
 
 Browser modules (import the modules above; no globals):
@@ -148,34 +156,46 @@ Dependency direction (no cycles): `types` ← `runtime` ← everything;
 
 ## 6. Verification log
 
-This record moved here from the README when the README was rewritten for a general
-audience. It describes the 0.4.0 tree; byte sizes and revision ids are from the run
+This record describes the 0.5.0 tree; byte sizes and revision ids are from the run
 that recorded them, not from the current build.
 
 - Build validation rejects malformed artwork (missing title, non-`<svg>` string,
   `id` attributes, scripts, event handlers, external references), duplicate keys,
-  and artwork keys no rule can reach.
+  missing vendor/model groups, missing or non-contiguous prominence ranks, vendor
+  channels that point at a model-only mark, and artwork keys no rule can reach
+  (except the documented picker-only vendor marks).
+- `pnpm run logo:check` re-runs the offline importer against the committed
+  `reference/official/` files and fails on a path/title/tile drift; the manifest
+  pins each upstream file's sha256 and the Lobe Icons version/license.
+- `pnpm run rank:check` recomputes the snapshot from `reference/rankings.json`
+  offline and verifies key/group coverage, contiguous unique ranks per group,
+  source flags, and exact agreement with `src/logos/ranking.ts` and
+  `docs/rankings.md`.
 - Matcher tests pin the configured providers, aggregator rows, provider fallbacks,
-  the no-match case, all 44 official channel ids, and the closed
-  `LOGO_KEYS`/artwork invariants.
+  the no-match case, all 44 official channel ids, the vendor/model key split, the
+  legacy override keys, and the closed `LOGO_KEYS`/artwork invariants.
 - Artwork tests pin the letter-tile generator (determinism, safe SVG, CJK text,
   escaping) and the brand marks' inlining rules.
+- Grouping tests pin the exact 32 vendor / 24 model key sets, the absence of
+  overlaps, search filtering across both groups, the alias glyphs
+  (`gpt/openai`, `llama/meta`, `phi/microsoft`, `nemotron/nvidia`, `nova/aws`,
+  `ernie/baidu`), and the ranking sanity relations.
 - Resolver tests pin override precedence (`brand` / `none` / `letter` / stale
   value), immutability, and per-provider keys.
 - Bundle tests load the generated `client.js` in a DOM/React stand-in and check the
   label contribution (slot, priority −1, override rendering, letter and none
   sentinels, the shipped release badge), the settings-section registration, and
   that `apply()` disposers remove the stylesheet, listeners and observer.
-- `scripts/verify-dom.ts` drives the faithful Settings fixture in headless Edge and
-  screenshots the decorated page: **44 assertions pass** — vendor logos on official
-  rows/editor titles (including the localized DeepSeek account row), none on the
-  declared custom provider, model-row buttons and the 5-track grid, the hidden
-  native select, the custom combobox (option marks, write-back, bubbling `change`,
-  face re-sync), the picker write path into `configForms.mutate`, the composer label
+- `scripts/verify-dom.ts` drives the faithful Settings fixture in headless Edge:
+  **48 assertions pass** — vendor logos on official rows/editor titles (including
+  the localized DeepSeek account row), none on the declared custom provider,
+  model-row buttons and the 5-track grid, the hidden native select, the custom
+  combobox (option marks, write-back, bubbling `change`, face re-sync), the picker
+  groups (vendor before model, both populated, search keeps only the matching
+  group), the picker write path into `configForms.mutate`, the composer label
   override/`none` rendering, the plugin's own settings-nav row (marked by label,
   shipped gear hidden, 16 px `currentColor` mask glyph painted, no other row
-  marked), full disposal reversibility (including the nav marker) and observer
-  disconnection.
+  marked), full disposal reversibility and observer disconnection.
 - **Settings decoration is write-idempotent.** The decorator re-runs on a
   `MutationObserver` over `document.body`, and re-writing identical markup into its
   own inserted marks (`innerHTML` always replaces children) used to feed that
@@ -189,21 +209,8 @@ that recorded them, not from the current build.
   mutations** on the decorated page, while removing an inserted vendor mark (what a
   React re-render does) still wakes the decorator and the mark is re-inserted on the
   next pass.
-- Live verification against a real `dsh web` instance from this bundle (fresh
-  profile, seeded providers, headless Edge over CDP): **15/15 assertions pass** — the
-  settings dialog and both navigation entries, vendor logos before the DeepSeek
-  account (localized label), DeepSeek and a configured `anthropic` row at 14 px,
-  model icons on the model rows (`claude-sonnet-4.5`, `my-local-qwen`), the
-  add-provider combobox hiding the native select and listing every official channel
-  with exactly one mark (write-back → `google`), the picker opening with 41 options
-  (auto / none / letter + all 38 brands) and a search box, the picked override
-  persisted into the profile's `cordis.patch.yml` (`modelIcons: anthropic →
-  claude-sonnet-4.5 → openai`), the row refreshing to the override, the Model-icons
-  settings section listing the configured models, and no uncaught page errors.
-  Screenshots: `docs/preview-live-settings.png`, `docs/preview-live-picker.png`.
-- Visual check of every mark at 14/16/24/48/96 px, including the corrected MiniMax
-  waveform and Mistral pixel-block M: `docs/preview.png`; the vendor marks:
-  `docs/preview-vendors.png`; before/after of the two corrected marks:
+- Visual check of every mark at 14/16/24/48/96 px: `docs/preview.png`; the vendor
+  marks: `docs/preview-vendors.png`; before/after of Claude, Ollama and Doubao:
   `docs/preview-corrected-marks.png`. The design sheet also renders the plugin's
   16 px settings-navigation glyph next to shipped nav icons on light and dark
   surfaces.
@@ -213,6 +220,9 @@ that recorded them, not from the current build.
   `scripts/build.ts` refuses a glyph or a stylesheet rule that breaks those
   invariants.
 - Live bundle check with `scripts/verify-live.ts` against the running Web GUI:
-  `/plugins/??dsh-model-logos/client.js&rev=cee18b707e67` returned the freshly built
-  artifact (170,170 bytes served, 38 artwork entries), proving the client HMR
+  `/plugins/??dsh-model-logos/client.js&rev=<current>` returned the freshly built
+  artifact (199,658 bytes served, 56 artwork entries), proving the client HMR
   transport published this exact build without an app restart.
+- `pnpm run verify` on the final 0.5.0 tree: typecheck, lint (0 errors; warnings are
+  the pre-existing `verify-dom.ts` style notes), fmt:check, 64 unit/bundle tests,
+  `logo:check`, `rank:check`, build and artifact freshness all pass.
