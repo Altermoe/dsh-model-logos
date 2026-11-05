@@ -235,7 +235,11 @@ private primitives internals.
   3. none.
 - Icons are inline SVG tiles. Every conversation and Settings mark renders on one
   shared 22px base; the icon picker preview is the single enlarged surface at 36px.
-  Settings → Models reserves that 22px in two places from the first decoration pass:
+  The composer label's mark is optically nudged 2px down (`position: relative;
+  top: 2px`, paint-only): a 13px/20px line's glyphs sit below the centre of its 22px
+  mark box, so without the nudge the mark reads high in the 28px composer trigger and
+  the model menu instead of on the name's line. Settings → Models reserves that 22px
+  in two places from the first decoration pass:
   a mark seat in front of every provider row name / editor title (the vendor mark
   on official channels, empty width on hand-declared providers) and the icon seat at
   the start of every model row (the mark, or the dashed placeholder). Both seats are

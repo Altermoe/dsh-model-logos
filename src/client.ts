@@ -39,7 +39,14 @@ const LABEL_CSS = `
 /* Composer model label. The mark base size is 22px on every conversation and
    Settings surface; only the icon picker preview enlarges it (36px). */
 .dshml-root { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; vertical-align: baseline; }
-.dshml-mark { flex: none; width: 22px; height: 22px; display: inline-block; line-height: 0; }
+/* Optical centring of the mark. The row centres the 22px mark box on the label
+   line, but a 13px UI line's glyphs sit about 2px below that box's centre (cap
+   height and descender are not symmetric around the content box), so the mark
+   read high in the 28px composer trigger and in the model menu. One shared 2px
+   nudge puts its centre on the name's optical line and in the vertical centre of
+   the trigger's hit area. The offset is paint-only: the mark stays a 22px layout
+   box, so the host's row heights, clipping and hit areas are untouched. */
+.dshml-mark { flex: none; width: 22px; height: 22px; display: inline-block; line-height: 0; position: relative; top: 2px; }
 .dshml-mark > svg { display: block; width: 100%; height: 100%; }
 .dshml-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dshml-menu { gap: 5px; }

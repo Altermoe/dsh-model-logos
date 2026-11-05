@@ -485,6 +485,13 @@ function expectElement(result: RenderResult, message: string): FakeElement {
   return result;
 }
 
+/** The declaration block of one exact selector in a mounted stylesheet. */
+function cssRule(style: FakeStyleTag, selector: string): string {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = new RegExp(escaped + '\\s*\\{([^}]*)\\}').exec(style.textContent);
+  return match?.[1] ?? '';
+}
+
 describe('generated client bundle', () => {
   it('registers the label (priority -1) and the Model-icons settings section', () => {
     const { moduleExports, registrations, injectedSlots } = loadClient();
@@ -511,15 +518,9 @@ describe('generated client bundle', () => {
   it('sizes the marks on the shared 22px base and the picker preview at 36px', () => {
     const { doc } = loadClient();
     const style = expectPresent(doc.styleTags[0], 'the plugin stylesheet must be mounted');
-    /** The declaration block of one exact selector in the mounted stylesheet. */
-    const rule = (selector: string): string => {
-      const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const match = new RegExp(escaped + '\\s*\\{([^}]*)\\}').exec(style.textContent);
-      return match?.[1] ?? '';
-    };
     /** Whether one rule declares both the width and the height. */
     const sized = (selector: string, px: number): boolean => {
-      const block = rule(selector);
+      const block = cssRule(style, selector);
       return new RegExp('width:\\s*' + px + 'px').test(block) && new RegExp('height:\\s*' + px + 'px').test(block);
     };
     // The composer label, the Settings → Models marks and the Model icons page
@@ -532,6 +533,35 @@ describe('generated client bundle', () => {
     expect(sized('.dshml-section-mark', 22), 'Model icons page mark seat').toBe(true);
     // The picker preview is the one enlarged surface: 36px.
     expect(sized('.dshml-picker-option-mark', 36), 'picker option mark').toBe(true);
+  });
+
+  it('optically centres the composer mark on the label line', () => {
+    // The composer label is a 13px/20px line. Its glyphs sit about 2px below the
+    // centre of the 22px mark box, and the row's baseline alignment used to leave
+    // the mark high in the 28px trigger hit area and high against the model name.
+    // One 2px paint-only nudge covers the optical difference. The mark keeps its
+    // 22px layout box, so the host's row heights, clipping boxes and hit areas do
+    // not move. Settings marks and the picker preview are already centred by their
+    // own grid/flex rows and must not take the nudge.
+    const { doc } = loadClient();
+    const style = expectPresent(doc.styleTags[0], 'the plugin stylesheet must be mounted');
+    const root = cssRule(style, '.dshml-root');
+    expect(root, 'the row centres the 22px mark box and the name').toMatch(/align-items:\s*center/);
+    expect(root, 'the label keeps the host line baseline').toMatch(/vertical-align:\s*baseline/);
+    const mark = cssRule(style, '.dshml-mark');
+    expect(mark, 'the optical nudge must not change the 22px layout box').toMatch(/position:\s*relative/);
+    expect(mark, 'a 13px line needs a 2px optical nudge').toMatch(/top:\s*2px/);
+    expect(mark, 'the composer mark stays on the shared 22px base').toMatch(/width:\s*22px/);
+    expect(mark).toMatch(/height:\s*22px/);
+    for (const seat of [
+      '.dshml-vendor',
+      '.dshml-model-icon-btn',
+      '.dshml-combo-mark',
+      '.dshml-section-mark',
+      '.dshml-picker-option-mark',
+    ]) {
+      expect(cssRule(style, seat), seat + ' keeps its own row centring').not.toMatch(/top:\s*2px/);
+    }
   });
 
   it('draws the brand mark before the catalog name', () => {

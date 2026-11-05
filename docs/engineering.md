@@ -184,10 +184,12 @@ that recorded them, not from the current build.
   value), immutability, and per-provider keys.
 - Bundle tests load the generated `client.js` in a DOM/React stand-in and check the
   label contribution (slot, priority −1, override rendering, letter and none
-  sentinels, the shipped release badge), the settings-section registration, and
+  sentinels, the shipped release badge), the label stylesheet (the shared 22px mark
+  base, the 36px picker preview, and the paint-only 2px optical nudge that keeps the
+  composer mark off the Settings seats), the settings-section registration, and
   that `apply()` disposers remove the stylesheet, listeners and observer.
 - `scripts/verify-dom.ts` drives the faithful Settings fixture in headless Edge:
-  **52 assertions pass** — vendor logos on official rows/editor titles (including
+  **54 assertions pass** — vendor logos on official rows/editor titles (including
   the localized DeepSeek account row), none on the declared custom provider but its
   empty 22px name seat, the reserved **22px mark base** for provider-name seats and
   the model-row icon seat (dropping either seat re-inserts it on the next pass, so
@@ -196,9 +198,22 @@ that recorded them, not from the current build.
   write-back, bubbling `change`, face re-sync), the picker groups (vendor before
   model, both populated, search keeps only the matching group), the picker write
   path into `configForms.mutate`, the composer label override/`none` rendering, the
-  plugin's own settings-nav row (marked by label, shipped gear hidden, 16 px
-  `currentColor` mask glyph painted, no other row marked), full disposal
-  reversibility and observer disconnection.
+  composer mark's geometry in a rebuilt shipped trigger (centre on the 28px hit
+  area, paint box inside the label line box), the plugin's own settings-nav row
+  (marked by label, shipped gear hidden, 16 px `currentColor` mask glyph painted, no
+  other row marked), full disposal reversibility and observer disconnection.
+- **The composer mark sits on the text's optical line, not on its box centre.** A
+  composer label is a 13px/20px line, and the glyphs of that line sit about 2px
+  below the centre of the 22px mark box the row centres: the baseline-aligned
+  `inline-flex` label therefore drew the mark too high in the 28px composer trigger
+  and in the model menu (2px above the hit area's vertical centre, with 1px of top
+  padding against 5px below). The mark carries a paint-only `position: relative;
+  top: 2px` nudge, so its centre lands on the name's optical line and on the
+  trigger's hit-area centre while its 22px layout box — and with it the host's row
+  heights, clipping boxes and hit areas — stays exactly as it was. `verify:dom`
+  pins the geometry against a rebuilt shipped trigger (centre within 0.5px, paint
+  box inside the label line box); the bundle test pins the paint-only rule and that
+  the Settings marks and picker preview keep their own row centring.
 - **Settings decoration is write-idempotent.** The decorator re-runs on a
   `MutationObserver` over `document.body`, and re-writing identical markup into its
   own inserted marks (`innerHTML` always replaces children) used to feed that
@@ -224,8 +239,8 @@ that recorded them, not from the current build.
   invariants.
 - Live bundle check with `scripts/verify-live.ts` against the running Web GUI:
   `/plugins/??dsh-model-logos/client.js&rev=<current>` returned the freshly built
-  artifact (201,576 bytes served, 56 artwork entries), proving the client HMR
+  artifact (202,165 bytes served, 56 artwork entries), proving the client HMR
   transport published this exact build without an app restart.
 - `pnpm run verify` on the final tree: typecheck, lint (0 errors; warnings are the
-  pre-existing `verify-dom.ts` style notes), fmt:check, 65 unit/bundle tests,
+  pre-existing `verify-dom.ts` style notes), fmt:check, 66 unit/bundle tests,
   `logo:check`, `rank:check`, build and artifact freshness all pass.

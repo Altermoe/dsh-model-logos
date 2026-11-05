@@ -1693,6 +1693,91 @@ async function browserDriver(config: DriverConfig): Promise<void> {
       }
     }
 
+    // Composer trigger geometry. The composer model seat is not part of the Settings
+    // fixture, so this probe rebuilds its shipped shell: the declarations below are
+    // copied from `@deepseek-ai/dsh-client-ui-model-selection` (0.2.1-rc.5,
+    // `lib/client.js`) — a 28px `display:flex; align-items:center` trigger with
+    // 13px/20px type, and a block label (`overflow:hidden`) that keeps the host's
+    // clipping box — then mounts the real label contribution inside it. The plugin's
+    // 2px optical nudge must put the 22px mark's centre on the vertical centre of
+    // that 28px hit area (where the 13px name's glyphs sit) without pushing the mark
+    // outside the label's line box. The probe sits off screen, so the Settings
+    // fixture and its screenshot are untouched.
+    if (labelRegistration && window.React && window.ReactDOM) {
+      const probeStyle = document.createElement('style');
+      probeStyle.id = 'dshml-composer-probe-style';
+      probeStyle.textContent =
+        '#dshml-composer-probe{position:fixed;left:-10000px;top:0;width:420px;font-family:var(--dsw-font-family);}\n' +
+        '#dshml-composer-probe .dshml-composer-trigger{box-sizing:border-box;display:flex;align-items:center;gap:4px;height:28px;padding:0 4px 0 8px;border:0;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:13px;line-height:20px;text-align:left;cursor:pointer;}\n' +
+        '#dshml-composer-probe .dshml-composer-label{display:block;min-width:0;max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}\n';
+      document.head.appendChild(probeStyle);
+      const probe = document.createElement('div');
+      probe.id = 'dshml-composer-probe';
+      const trigger = document.createElement('button');
+      trigger.type = 'button';
+      trigger.className = 'dshml-composer-trigger';
+      const labelSlot = document.createElement('span');
+      labelSlot.className = 'dshml-composer-label';
+      trigger.appendChild(labelSlot);
+      probe.appendChild(trigger);
+      document.body.appendChild(probe);
+      const probeRoot = window.ReactDOM.createRoot(labelSlot);
+      try {
+        probeRoot.render(
+          window.React.createElement(labelRegistration.component, {
+            provider: { id: config.firstModel.providerId, name: config.officialProvider.displayName },
+            model: { id: config.firstModel.modelId, name: config.firstModel.displayName },
+            placement: 'trigger',
+            selected: true,
+          }),
+        );
+        const mark = await waitFor(() => q('.dshml-mark', labelSlot), 4000);
+        const triggerBox = trigger.getBoundingClientRect();
+        const labelBox = labelSlot.getBoundingClientRect();
+        const markBox = mark === null ? null : mark.getBoundingClientRect();
+        const markCentre = markBox === null ? Number.NaN : markBox.top + markBox.height / 2;
+        const triggerCentre = triggerBox.top + triggerBox.height / 2;
+        const centreOffset = markCentre - triggerCentre;
+        add(
+          'composer mark is centred in the 28px trigger hit area',
+          true,
+          markBox !== null && triggerBox.height === 28 && Math.abs(centreOffset) <= 1.5 && markBox.height === 22,
+          markBox === null
+            ? 'no mark rendered'
+            : 'mark 22px centre vs hit-area centre: ' +
+                centreOffset.toFixed(2) +
+                'px (trigger ' +
+                triggerBox.height +
+                'px)',
+        );
+        add(
+          'composer mark paint box stays inside the label line box',
+          true,
+          markBox !== null && markBox.top >= labelBox.top - 0.5 && markBox.bottom <= labelBox.bottom + 0.5,
+          markBox === null
+            ? 'no mark rendered'
+            : 'mark ' +
+                markBox.top.toFixed(2) +
+                '..' +
+                markBox.bottom.toFixed(2) +
+                ', label ' +
+                labelBox.top.toFixed(2) +
+                '..' +
+                labelBox.bottom.toFixed(2),
+        );
+      } catch (error) {
+        add('composer mark is centred in the 28px trigger hit area', true, false, 'threw: ' + errorText(error));
+      } finally {
+        try {
+          probeRoot.unmount();
+        } catch {
+          /* the probe may never have rendered */
+        }
+        probe.remove();
+        probeStyle.remove();
+      }
+    }
+
     add('no uncaught page errors during decoration', true, pageErrors.length === 0, JSON.stringify(pageErrors));
 
     /* ------------------------------- disposal ------------------------------ */
