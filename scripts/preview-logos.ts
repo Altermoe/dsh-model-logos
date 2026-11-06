@@ -13,6 +13,7 @@
  *   pnpm exec tsx scripts/preview-logos.ts --out docs/preview.png   # also copy the png to docs/
  *   pnpm exec tsx scripts/preview-logos.ts --only openai            # one logo, large -> .preview/openai.png
  *   pnpm exec tsx scripts/preview-logos.ts --only-set vendors       # vendor marks -> .preview/logos-vendors.png
+ *   pnpm exec tsx scripts/preview-logos.ts --only-set composer      # composer + model menu -> .preview/composer.png
  *   pnpm exec tsx scripts/preview-logos.ts --no-shot                # only write the html
  */
 import { execFileSync } from 'node:child_process';
@@ -55,18 +56,19 @@ const GROUP_KEYS: Readonly<Record<'vendor' | 'model', readonly string[]>> = {
   vendor: GROUPS.vendor.map((entry) => entry.key),
   model: GROUPS.model.map((entry) => entry.key),
 };
-const isGroupName = (value: string): value is 'vendor' | 'model' => value === 'vendor' || value === 'model';
+/** `--only-set` targets: the two logo groups plus the composer/model-menu mock sheet. */
+type OnlySet = 'vendor' | 'model' | 'composer';
+const isOnlySet = (value: string): value is OnlySet => value === 'vendor' || value === 'model' || value === 'composer';
 // Keep the historical `vendors` spelling used by the docs.
 const normalizedOnlySet = rawOnlySet === 'vendors' ? 'vendor' : rawOnlySet;
-if (normalizedOnlySet !== null && !isGroupName(normalizedOnlySet)) {
-  console.error(`error: unknown --only-set "${rawOnlySet}" (expected: vendor, model)`);
+if (normalizedOnlySet !== null && !isOnlySet(normalizedOnlySet)) {
+  console.error(`error: unknown --only-set "${rawOnlySet}" (expected: vendor, model, composer)`);
   process.exit(1);
 }
-const onlySet: 'vendor' | 'model' | null =
-  normalizedOnlySet !== null && isGroupName(normalizedOnlySet) ? normalizedOnlySet : null;
+const onlySet: OnlySet | null = normalizedOnlySet !== null && isOnlySet(normalizedOnlySet) ? normalizedOnlySet : null;
 
 const allKeys = Object.keys(LOGOS).sort();
-const keys = onlySet !== null ? [...GROUP_KEYS[onlySet]] : allKeys;
+const keys = onlySet === null ? allKeys : onlySet === 'composer' ? [] : [...GROUP_KEYS[onlySet]];
 const missing = LOGO_KEYS.filter((key) => !(key in LOGOS));
 const unused = allKeys.filter((key) => !LOGO_KEYS.includes(key));
 
@@ -236,15 +238,28 @@ const artworkCard = (key: string): string => {
   </figure>`;
 };
 
+const mockBlock = (): string =>
+  onlySet === 'vendor'
+    ? providerMock('light') + providerMock('dark') + letterMock()
+    : onlySet === 'composer'
+      ? composerMock('light') + composerMock('dark')
+      : composerMock('light') + composerMock('dark') + navMock('light') + navMock('dark');
+
 const sheetTitle =
-  onlySet !== null ? `${onlySet} artwork — ${keys.length} marks` : `Artwork sheet — ${keys.length} marks`;
+  onlySet === 'composer'
+    ? 'Composer and model menu — shipped sizes'
+    : onlySet !== null
+      ? `${onlySet} artwork — ${keys.length} marks`
+      : `Artwork sheet — ${keys.length} marks`;
 
 const body = only
   ? `
-${onlySet === 'vendor' ? providerMock('light') + providerMock('dark') + letterMock() : composerMock('light') + composerMock('dark') + navMock('light') + navMock('dark')}
+${mockBlock()}
 <section class="sheet"><h2>${escape(only)}</h2>${artworkCard(only)}</section>`
-  : `
-${onlySet === 'vendor' ? providerMock('light') + providerMock('dark') + letterMock() : composerMock('light') + composerMock('dark') + navMock('light') + navMock('dark')}
+  : onlySet === 'composer'
+    ? mockBlock()
+    : `
+${mockBlock()}
 <section class="sheet"><h2>${sheetTitle}</h2><div class="grid">${keys.map(artworkCard).join('')}</div></section>`;
 
 const html = `<!doctype html>
@@ -310,7 +325,7 @@ const html = `<!doctype html>
 <p style="font-size:11px;color:#8b93a1;margin-top:24px">Static preview of src/logos/*.ts — shipped sizes are 20px (composer), 22px (Settings → Models and Model icons page) and 36px (icon picker preview).</p>
 </body></html>`;
 
-const suffix = only ? only : onlySet !== null ? `logos-${onlySet}` : 'logos';
+const suffix = only ? only : onlySet === 'composer' ? 'composer' : onlySet !== null ? `logos-${onlySet}` : 'logos';
 const htmlPath = join(PREVIEW, `${suffix}.html`);
 writeFileSync(htmlPath, html);
 console.log('wrote ' + htmlPath);
@@ -328,8 +343,8 @@ if (!noShot) {
   }
   const columns = 4;
   const rows = Math.ceil(keys.length / columns);
-  const width = forcedWidth ?? (only ? 720 : 1280);
-  const height = forcedHeight ?? (only ? 900 : 500 + Math.max(1, rows) * 340);
+  const width = forcedWidth ?? (only ? 720 : onlySet === 'composer' ? 1000 : 1280);
+  const height = forcedHeight ?? (only ? 900 : onlySet === 'composer' ? 1300 : 500 + Math.max(1, rows) * 340);
   const pngPath = join(PREVIEW, `${suffix}.png`);
   const profileDir = join(PREVIEW, `edge-profile-${process.pid}`);
   mkdirSync(profileDir, { recursive: true });
