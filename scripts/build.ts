@@ -29,6 +29,7 @@ import { LOGO_RANKS } from '../src/logos/ranking';
 import { LOGO_KEYS, MODEL_RULES, PICKER_ONLY_KEYS, PROVIDER_RULES, VENDOR_CHANNELS, VENDOR_RULES } from '../src/match';
 import { letterTile } from '../src/artwork';
 import { DSHML_NAV_ICON_CSS, DSHML_NAV_ICON_SVG, DSHML_NAV_MARKER } from '../src/nav-icon';
+import { DSHML_BRAND_NAMES } from '../src/i18n';
 import type { BrandLogo, LogoGroup, LogoSet } from '../src/types';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -167,6 +168,35 @@ function validateGroupsAndRanks(merged: Map<string, BrandLogo>): void {
   }
 }
 
+/**
+ * Validate the localized brand-name overlay against the artwork it decorates.
+ *
+ * A branded name is only admissible when the brand owner publishes it, so the
+ * structural checks here catch a stale key, a value that would leave the picker
+ * in English (no CJK), a pointless duplicate of the official title, and stray
+ * whitespace. Provenance for every entry is in `docs/brand-names.md`.
+ * @param merged - the validated artwork set.
+ */
+function validateBrandNames(merged: Map<string, BrandLogo>): void {
+  for (const [lang, table] of Object.entries(DSHML_BRAND_NAMES)) {
+    for (const [key, name] of Object.entries(table)) {
+      const official = merged.get(key)?.title;
+      if (official === undefined) problems.push(`src/i18n.ts: brand name "${key}" (${lang}) has no artwork`);
+      if (typeof name !== 'string' || name.trim() === '') {
+        problems.push(`src/i18n.ts: brand name "${key}" (${lang}) must be a non-empty string`);
+        continue;
+      }
+      if (name !== name.trim()) problems.push(`src/i18n.ts: brand name "${key}" (${lang}) must not have outer spaces`);
+      if (official !== undefined && name === official) {
+        problems.push(`src/i18n.ts: brand name "${key}" (${lang}) duplicates the official title`);
+      }
+      if (!/\p{Script=Han}/u.test(name)) {
+        problems.push(`src/i18n.ts: brand name "${key}" (${lang}) has no CJK character — not an official Chinese name`);
+      }
+    }
+  }
+}
+
 /** Validate the generated letter-tile fallback that ships in the runtime. */
 function validateLetterTile(): void {
   const sample = letterTile('测试');
@@ -299,6 +329,7 @@ async function main(): Promise<void> {
   collectLogos(merged);
   validateCoverage(merged);
   validateGroupsAndRanks(merged);
+  validateBrandNames(merged);
   validateLetterTile();
   validateNavIcon();
 

@@ -14,7 +14,7 @@
 import type { ChangeEvent, ReactElement } from 'react';
 import { h, React, getCreateRoot } from './runtime';
 import type { BrandLogo, IconState } from './types';
-import { dshmlT } from './i18n';
+import { dshmlBrandName, dshmlBrandNameAliases, dshmlT } from './i18n';
 import { letterTile } from './artwork';
 import { LOGOS, filterLogoGroups, groupLogoEntries } from './logos';
 import { LOGO_RANKS } from './logos/ranking';
@@ -376,7 +376,9 @@ function DshmlIconPickerApp(props: DshmlIconPickerAppProps): ReactElement {
   const letterSvg = letterTileEntry !== null ? letterTileEntry.svg : DSHML_PICKER_AUTO_SVG;
 
   const allGroups = dshmlUiBrandGroups();
-  const filteredGroups = filterLogoGroups(allGroups, query);
+  const filteredGroups = filterLogoGroups(allGroups, query, function brandAliases(entry) {
+    return dshmlBrandNameAliases(entry.key);
+  });
   const vendorBrands = filteredGroups.vendor;
   const modelBrands = filteredGroups.model;
 
@@ -501,13 +503,16 @@ function DshmlIconPickerApp(props: DshmlIconPickerAppProps): ReactElement {
   ];
 
   function toBrandCell(entry: DshmlUiLogoEntry): ReactElement {
+    // The cell shows the brand's official name in the active language; the
+    // artwork title is the English fallback and the option key never changes.
+    const brandTitle = dshmlBrandName(entry.key, entry.title);
     return h(DshmlPickerOption, {
       key: 'brand-' + entry.key,
       optionKey: entry.key,
       svg: entry.svg,
-      label: entry.title,
-      hint: entry.title,
-      ariaLabel: entry.title,
+      label: brandTitle,
+      hint: brandTitle,
+      ariaLabel: brandTitle,
       selected: selectedBrandKey === entry.key,
       disabled: disabled,
       onSelect: function onBrand() {

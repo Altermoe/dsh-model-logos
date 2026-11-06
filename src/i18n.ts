@@ -4,6 +4,13 @@
  * Copy dictionary for the plugin, inlined into the client bundle. The active
  * language follows the DSH locale service when it is mounted; otherwise the
  * browser language decides. `dshmlT(key, vars)` replaces `{name}` placeholders.
+ *
+ * Brand names are a second, deliberately narrower table. The artwork set carries
+ * each brand's own official English title, so English needs no overrides; the
+ * Chinese table only carries names the brand owner itself publishes in Chinese.
+ * Community translations are excluded on principle — the source list and the
+ * policy live in `docs/brand-names.md`, and a name without a primary source
+ * simply keeps its English title.
  */
 
 /** Languages the plugin ships copy for. */
@@ -158,4 +165,80 @@ export function dshmlT(key: string, vars?: Readonly<Record<string, string | numb
     );
   }
   return text;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Brand names                                                                */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Official brand names per language, keyed by artwork key (`qwen`, `google`, …).
+ *
+ * `LOGOS[key].title` already is the brand's official English title, so the `en`
+ * table stays empty: an override there would only duplicate the artwork and
+ * drift from it. The `zh` table holds only vendors/models whose owner publishes
+ * an official Chinese name; `docs/brand-names.md` records the primary source for
+ * every entry. Anything else (and every community translation) stays English.
+ */
+export const DSHML_BRAND_NAMES: Readonly<Record<DshmlLang, Readonly<Record<string, string>>>> = Object.freeze({
+  zh: Object.freeze({
+    // Companies / channels whose owner publishes an official Chinese name.
+    alibaba: '阿里巴巴',
+    antgroup: '蚂蚁集团',
+    aws: '亚马逊云科技',
+    baidu: '百度',
+    bytedance: '字节跳动',
+    google: '谷歌',
+    microsoft: '微软',
+    moonshot: '月之暗面',
+    nvidia: '英伟达',
+    tencent: '腾讯',
+    xiaomi: '小米',
+    zhipu: '智谱',
+    // Models whose vendor officially names the model itself in Chinese.
+    // (`qwen` is 「千问」 since Alibaba's 2026 brand unification retired
+    // 「通义千问」; `stepfun` is the official company name on a model-group mark.)
+    antling: '蚂蚁百灵',
+    doubao: '豆包',
+    ernie: '文心',
+    hailuo: '海螺',
+    hunyuan: '混元',
+    qwen: '千问',
+    stepfun: '阶跃星辰',
+  }),
+  en: Object.freeze({}),
+});
+
+/** The localized name of a brand in one language, or undefined with no entry. */
+function dshmlBrandNameIn(lang: DshmlLang, key: unknown): string | undefined {
+  if (typeof key !== 'string') return undefined;
+  const name = DSHML_BRAND_NAMES[lang]?.[key];
+  return typeof name === 'string' && name.trim() !== '' ? name : undefined;
+}
+
+/**
+ * The brand title to display: the official name in the active language, else
+ * the artwork set's own official title.
+ * @param key - artwork key (`qwen`, …); unknown keys always fall back.
+ * @param officialTitle - the artwork entry's official English title.
+ */
+export function dshmlBrandName(key: unknown, officialTitle: string): string {
+  return dshmlBrandNameIn(dshmlLang(), key) ?? officialTitle;
+}
+
+/**
+ * Every localized name of a brand, for cross-language picker search.
+ *
+ * The artwork title is not repeated: the picker's filter already matches it, and
+ * this list only adds the other languages' official names so a Chinese name
+ * finds its mark while the UI is English and vice versa.
+ * @param key - artwork key (`qwen`, …).
+ */
+export function dshmlBrandNameAliases(key: unknown): string[] {
+  const aliases: string[] = [];
+  for (const lang of Object.keys(DSHML_BRAND_NAMES) as DshmlLang[]) {
+    const name = dshmlBrandNameIn(lang, key);
+    if (name !== undefined && !aliases.includes(name)) aliases.push(name);
+  }
+  return aliases;
 }

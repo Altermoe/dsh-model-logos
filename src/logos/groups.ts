@@ -73,17 +73,33 @@ export function groupLogoEntries(logos: LogoSet, ranks: Readonly<Record<string, 
 }
 
 /**
- * Filter both groups by the picker query (key or title, case-insensitive).
+ * Extra searchable text for one picker entry.
+ *
+ * The caller supplies localized brand names here so the picker can be searched
+ * in either language without teaching this pure module about i18n state.
+ */
+export type LogoSearchAliases = (entry: GroupedLogoEntry) => readonly string[];
+
+/**
+ * Filter both groups by the picker query (key, title or an extra alias,
+ * case-insensitive).
  * @param groups - already grouped and sorted sections.
  * @param query - raw search input.
+ * @param aliases - optional extra text per entry (localized brand names).
  */
-export function filterLogoGroups(groups: LogoGroups, query: unknown): LogoGroups {
+export function filterLogoGroups(groups: LogoGroups, query: unknown, aliases?: LogoSearchAliases): LogoGroups {
   const normalized = String(query ?? '')
     .trim()
     .toLowerCase();
   if (normalized === '') return groups;
-  const matches = (entry: GroupedLogoEntry): boolean =>
-    entry.key.toLowerCase().includes(normalized) || entry.title.toLowerCase().includes(normalized);
+  const matches = (entry: GroupedLogoEntry): boolean => {
+    if (entry.key.toLowerCase().includes(normalized) || entry.title.toLowerCase().includes(normalized)) return true;
+    if (aliases === undefined) return false;
+    for (const alias of aliases(entry)) {
+      if (alias.toLowerCase().includes(normalized)) return true;
+    }
+    return false;
+  };
   return {
     vendor: groups.vendor.filter(matches),
     model: groups.model.filter(matches),

@@ -119,6 +119,17 @@ describe('logo grouping', () => {
     expect(filterLogoGroups(groups, 'no-such-brand-xyz')).toEqual({ vendor: [], model: [] });
   });
 
+  it('filters by caller-supplied localized aliases as well', () => {
+    const groups = groupLogoEntries(LOGOS, LOGO_RANKS);
+    const aliases = (entry: { key: string }): readonly string[] => (entry.key === 'qwen' ? ['千问'] : []);
+    const zh = filterLogoGroups(groups, '千问', aliases);
+    expect(zh.model.map((entry) => entry.key)).toEqual(['qwen']);
+    expect(zh.vendor).toEqual([]);
+    // The alias never hides the key/title match, and English still works.
+    expect(filterLogoGroups(groups, 'Qwen', aliases).model.map((entry) => entry.key)).toEqual(['qwen']);
+    expect(filterLogoGroups(groups, '千问')).toEqual({ vendor: [], model: [] });
+  });
+
   it('keeps every legacy override key valid', () => {
     for (const key of ['openai', 'zhipu', 'kimi', 'antling', 'xiaomi', 'meta', 'microsoft', 'nvidia', 'aws']) {
       expect(isKnownLogoKey(key), `${key} must stay a known key`).toBe(true);

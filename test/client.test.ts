@@ -276,6 +276,8 @@ interface Registration {
 interface ContextOptions {
   overrides?: Record<string, Record<string, string>>;
   missing?: string[];
+  /** Active DSH locale (`en` unless a test forces another language). */
+  lang?: string;
 }
 
 interface FakeScope {
@@ -299,7 +301,7 @@ interface FakeContext {
  * Build a plugin context with the services the bundle injects.
  * `missing` names services to withhold (e.g. `['configForms']`).
  */
-function createContext({ overrides = {}, missing = [] }: ContextOptions = {}) {
+function createContext({ overrides = {}, missing = [], lang = 'en' }: ContextOptions = {}) {
   const registrations: Registration[] = [];
   const injectedSlots: string[] = [];
   const effects: Array<{ label: string | undefined; off: unknown }> = [];
@@ -322,7 +324,7 @@ function createContext({ overrides = {}, missing = [] }: ContextOptions = {}) {
       $on: () => () => {},
     },
     locale: {
-      getSnapshot: () => ({ active: 'en' }),
+      getSnapshot: () => ({ active: lang }),
       subscribe: () => () => {},
     },
   };
@@ -575,6 +577,22 @@ describe('generated client bundle', () => {
     expect(mark.props['aria-hidden']).toBe('true');
     const text = expectPresent(findText(tree), 'expected a label text element');
     expect(text.children[0]).toBe('DeepSeek-V4.1-Flash');
+  });
+
+  it('uses the official Chinese brand name in the zh locale', () => {
+    const zh = loadClient({ lang: 'zh' });
+    const zhLabel = labelRegistration(zh.registrations).component;
+    // Qwen is officially 「千问」 since Alibaba's 2026 brand unification.
+    const zhQwen = zhLabel(labelProps('openrouter', 'OpenRouter', 'qwen3-max', 'Qwen3 Max'));
+    expect(expectPresent(findMark(zhQwen), 'qwen must resolve through the heuristic').props.title).toBe('千问');
+    // No official Chinese name exists, so the artwork title survives in zh.
+    const zhClaude = zhLabel(labelProps('anthropic', 'Anthropic', 'claude-sonnet-4-5', 'Claude Sonnet 4.5'));
+    expect(expectPresent(findMark(zhClaude), 'claude must resolve through the heuristic').props.title).toBe('Claude');
+
+    const en = loadClient({ lang: 'en' });
+    const enLabel = labelRegistration(en.registrations).component;
+    const enQwen = enLabel(labelProps('openrouter', 'OpenRouter', 'qwen3-max', 'Qwen3 Max'));
+    expect(expectPresent(findMark(enQwen), 'qwen must resolve through the heuristic').props.title).toBe('Qwen');
   });
 
   it('keeps the shipped 1017 release badge on the official Flash entry', () => {

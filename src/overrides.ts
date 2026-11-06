@@ -18,7 +18,7 @@ import { matchVendorLogo } from './match';
 import { letterTile } from './artwork';
 import { LOGOS } from './logos';
 import { React } from './runtime';
-import { dshmlT, dshmlSetLang } from './i18n';
+import { dshmlBrandName, dshmlT, dshmlSetLang } from './i18n';
 import type {
   CatalogModel,
   CatalogProvider,
@@ -205,7 +205,7 @@ export function dshmlModelMark(provider: Identity | null | undefined, model: Ide
   }
   const key = resolved.key;
   const logo = key !== null ? LOGOS[key] : undefined;
-  if (logo !== undefined) return { resolved, svg: logo.svg, title: logo.title };
+  if (logo !== undefined) return { resolved, svg: logo.svg, title: dshmlBrandName(key, logo.title) };
   return { resolved, svg: null, title: null };
 }
 
@@ -217,7 +217,7 @@ export function dshmlModelMark(provider: Identity | null | undefined, model: Ide
 export function dshmlVendorMark(providerId: string, displayName?: string | null, allowFallback?: boolean): VendorMark {
   const key = matchVendorLogo(providerId);
   const logo = key !== null ? LOGOS[key] : undefined;
-  if (logo !== undefined) return { key, svg: logo.svg, title: logo.title };
+  if (logo !== undefined) return { key, svg: logo.svg, title: dshmlBrandName(key, logo.title) };
   if (allowFallback !== false) {
     const tile = letterTile(displayName || providerId || '?');
     return { key: null, svg: tile.svg, title: tile.title };
@@ -633,8 +633,13 @@ function dshmlMountLocaleScope(scope: DshContext): () => void {
       active = null;
     }
     dshmlSetLang(active);
-    dshmlPublishIcons(dshmlIconState());
-    dshmlPublishCatalog(dshmlCatalogState());
+    // The language switch also changes every localized label and brand title.
+    // Publish fresh snapshot objects: useSyncExternalStore bails out on an
+    // identical reference, so re-sending the old snapshot would leave the
+    // composer label, the settings section and an open picker in the old
+    // language until the next data change.
+    dshmlPublishIcons({ ...dshmlIconState() });
+    dshmlPublishCatalog({ ...dshmlCatalogState() });
   };
   apply();
   const off = typeof service.subscribe === 'function' ? dshmlDisposerOf(service.subscribe(apply)) : null;

@@ -914,6 +914,11 @@ async function browserDriver(config: DriverConfig): Promise<void> {
     return (node.getAttribute('aria-label') || node.getAttribute('title') || text(node)).trim();
   }
 
+  /** Expected picker label of a brand: official Chinese name in zh, artwork title in en. */
+  function brandLabel(zhName: string, officialTitle: string): string {
+    return config.lang === 'zh' ? zhName : officialTitle;
+  }
+
   function pickerGroupHas(grid: Element | null, label: string): boolean {
     return pickerOptionsInGrid(grid).some((node) => pickerOptionLabel(node) === label);
   }
@@ -1506,9 +1511,9 @@ async function browserDriver(config: DriverConfig): Promise<void> {
       add(
         'vendor group contains Alibaba/Anthropic/Google/OpenAI',
         true,
-        pickerGroupHas(grids[0] ?? null, 'Alibaba') &&
+        pickerGroupHas(grids[0] ?? null, brandLabel('阿里巴巴', 'Alibaba')) &&
           pickerGroupHas(grids[0] ?? null, 'Anthropic') &&
-          pickerGroupHas(grids[0] ?? null, 'Google') &&
+          pickerGroupHas(grids[0] ?? null, brandLabel('谷歌', 'Google')) &&
           pickerGroupHas(grids[0] ?? null, 'OpenAI'),
         'vendor=' +
           pickerOptionsInGrid(grids[0] ?? null)
@@ -1518,12 +1523,32 @@ async function browserDriver(config: DriverConfig): Promise<void> {
       add(
         'model group contains Qwen/Claude/Gemini/GPT/DeepSeek',
         true,
-        pickerGroupHas(grids[1] ?? null, 'Qwen') &&
+        pickerGroupHas(grids[1] ?? null, brandLabel('千问', 'Qwen')) &&
           pickerGroupHas(grids[1] ?? null, 'Claude') &&
           pickerGroupHas(grids[1] ?? null, 'Gemini') &&
           pickerGroupHas(grids[1] ?? null, 'GPT') &&
           pickerGroupHas(grids[1] ?? null, 'DeepSeek'),
         'model=' +
+          pickerOptionsInGrid(grids[1] ?? null)
+            .map(pickerOptionLabel)
+            .join(','),
+      );
+      // The zh picker must show the vendor's own official names and must never
+      // fall back to a community translation or the retired 「通义千问」 brand.
+      add(
+        'brand titles use the official Chinese names',
+        config.lang === 'zh',
+        config.lang !== 'zh' ||
+          (pickerGroupHas(grids[0] ?? null, '阿里巴巴') &&
+            pickerGroupHas(grids[0] ?? null, '谷歌') &&
+            pickerGroupHas(grids[1] ?? null, '千问') &&
+            !pickerGroupHas(grids[0] ?? null, 'Alibaba') &&
+            !pickerGroupHas(grids[1] ?? null, '通义千问')),
+        'vendor=' +
+          pickerOptionsInGrid(grids[0] ?? null)
+            .map(pickerOptionLabel)
+            .join(',') +
+          ' model=' +
           pickerOptionsInGrid(grids[1] ?? null)
             .map(pickerOptionLabel)
             .join(','),
@@ -1538,7 +1563,7 @@ async function browserDriver(config: DriverConfig): Promise<void> {
         add(
           'picker search keeps only the matching group',
           true,
-          filteredTitles.length === 1 && pickerGroupHas(filteredGrids[0] ?? null, 'Qwen'),
+          filteredTitles.length === 1 && pickerGroupHas(filteredGrids[0] ?? null, brandLabel('千问', 'Qwen')),
           'titles=' + JSON.stringify(filteredTitles),
         );
         setInputValue(search, '');
