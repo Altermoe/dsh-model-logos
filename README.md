@@ -5,7 +5,7 @@
 Brand marks for the models you actually use — a small plugin for the DeepSeek
 Harness (DSH) Web GUI.
 
-![The icon picker: auto, no icon, a letter tile, then vendor and model marks — searchable](docs/preview-live-picker.png)
+![The icon picker: auto, no icon, a letter tile, then vendor and model marks — searchable](docs/preview-picker.png)
 
 ## Why icons?
 
@@ -20,6 +20,11 @@ look at right before sending a message. The interface answers "which model is
 this?" with a string of words. A mark answers it in one glance, the same reason a
 phone's home screen is not a list of app names. Model names that differ by a suffix
 are also easy to mix up, and the mark catches the mistake before you send.
+
+The button and the menu it opens, mocked at the shipped sizes — a 20px mark beside
+each 13px label, on light and dark surfaces:
+
+![The composer model button and the model menu, at shipped sizes on light and dark](docs/preview-composer.png)
 
 Settings → Models makes the point even more plainly. Provider rows show a route id
 such as `anthropic` or a display name, the add-provider dropdown lists more of the
@@ -38,15 +43,14 @@ plugin is careful never to pass one off as the other.
 Settings → Models, with the plugin loaded: every official provider row and editor
 title reserves a 22px mark seat (filled with the vendor mark; left as empty width
 for hand-declared providers), every model row begins with a reserved 22px icon
-seat (its mark, or a one-click dashed placeholder), and the plugin's own entry
-sits in the Settings nav.
+seat (its mark, or a one-click dashed placeholder), the add-provider `<select>` is
+replaced by a logo-bearing combobox, and the plugin's own entry sits in the
+Settings nav.
 
-![Settings → Models in the running GUI](docs/preview-live-settings.png)
+![Settings → Models with vendor marks, the 22px model-row icon seats and the add-provider dropdown](docs/preview-settings.png)
 
-The provider rows and the add-provider dropdown up close, rendered from the same
-markup by the verification harness — channels are chosen by logo, not by route id:
-
-![Provider rows and the add-provider dropdown](docs/preview-settings.png)
+The decorated page, rendered from the shipped page markup by the verification
+harness — channels are chosen by logo, not by route id.
 
 ## What you get
 

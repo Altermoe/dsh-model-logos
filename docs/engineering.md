@@ -259,15 +259,23 @@ that recorded them, not from the current build.
   `docs/preview-corrected-marks.png`. The design sheet also renders the plugin's
   16 px settings-navigation glyph next to shipped nav icons on light and dark
   surfaces.
+- The README preview set is generated from the current build, never hand-captured.
+  `pnpm exec tsx scripts/verify-dom.ts --screenshot docs/preview-settings.png --open combobox`
+  and `... --screenshot docs/preview-picker.png --open picker` render the decorated
+  Settings page and the icon picker from the real generated bundle; `pnpm exec tsx
+  scripts/preview-logos.ts --only-set composer --scale 2 --out docs/preview-composer.png`
+  renders the composer trigger and model-menu mock at the shipped 20px mark size;
+  `pnpm exec tsx scripts/preview-logos.ts --out docs/preview.png` renders the artwork
+  sheet. `screenshots.json` lists the three shipped screenshots.
 - The navigation glyph is validated twice: `test/nav-icon.test.ts` pins its 16 px
   `currentColor` geometry, the percent-encoded mask URL and the row matcher
   (including the element-name case a real browser reports for SVG children), and
   `scripts/build.ts` refuses a glyph or a stylesheet rule that breaks those
   invariants.
 - Live bundle check with `scripts/verify-live.ts` against the running Web GUI:
-  `/plugins/??dsh-model-logos/client.js&rev=<current>` returned the freshly built
-  artifact (202,165 bytes served, 56 artwork entries), proving the client HMR
+  `/plugins/??dsh-model-logos/client.js&rev=e81788b19a12` returned the freshly built
+  artifact (203,742 bytes served, 56 artwork entries), proving the client HMR
   transport published this exact build without an app restart.
 - `pnpm run verify` on the final tree: typecheck, lint (0 errors; warnings are the
-  pre-existing `verify-dom.ts` style notes), fmt:check, 66 unit/bundle tests,
+  pre-existing `verify-dom.ts` style notes), fmt:check, 73 unit/bundle tests,
   `logo:check`, `rank:check`, build and artifact freshness all pass.
