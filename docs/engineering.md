@@ -203,9 +203,9 @@ that recorded them, not from the current build.
 - Bundle tests load the generated `client.js` in a DOM/React stand-in and check the
   label contribution (slot, priority −1, override rendering, letter and none
   sentinels, the shipped release badge, the localized official brand name in the
-  zh locale), the label stylesheet (the shared 22px mark
-  base, the 36px picker preview, and the paint-only 2px optical nudge that keeps the
-  composer mark off the Settings seats), the settings-section registration, and
+  zh locale), the label stylesheet (the composer's 20px mark, the 22px Settings
+  base, the 36px picker preview, and the flex-centred label with no paint offset),
+  the settings-section registration, and
   that `apply()` disposers remove the stylesheet, listeners and observer.
 - `scripts/verify-dom.ts` drives the faithful Settings fixture in headless Edge:
   **55 assertions pass** — vendor logos on official rows/editor titles (including
@@ -213,28 +213,34 @@ that recorded them, not from the current build.
   empty 22px name seat, the reserved **22px mark base** for provider-name seats and
   the model-row icon seat (dropping either seat re-inserts it on the next pass, so
   the row's text never moves), the **36px picker preview**, model-row buttons and
-  the 5-track grid, the hidden native select, the custom combobox (option marks,
+  the flex model row, the hidden native select, the custom combobox (option marks,
   write-back, bubbling `change`, face re-sync), the picker groups (vendor before
   model, both populated, official Chinese brand labels (`阿里巴巴`, `谷歌`,
   `千问`, …) instead of a community translation, search keeps only the matching
   group), the picker write
   path into `configForms.mutate`, the composer label override/`none` rendering, the
-  composer mark's geometry in a rebuilt shipped trigger (centre on the 28px hit
-  area, paint box inside the label line box), the plugin's own settings-nav row
+  composer mark's geometry in a rebuilt shipped trigger (the 20px box centred on the
+  28px hit area, paint box inside the label line box), the plugin's own settings-nav row
   (marked by label, shipped gear hidden, 16 px `currentColor` mask glyph painted, no
   other row marked), full disposal reversibility and observer disconnection.
-- **The composer mark sits on the text's optical line, not on its box centre.** A
-  composer label is a 13px/20px line, and the glyphs of that line sit about 2px
-  below the centre of the 22px mark box the row centres: the baseline-aligned
-  `inline-flex` label therefore drew the mark too high in the 28px composer trigger
-  and in the model menu (2px above the hit area's vertical centre, with 1px of top
-  padding against 5px below). The mark carries a paint-only `position: relative;
-  top: 2px` nudge, so its centre lands on the name's optical line and on the
-  trigger's hit-area centre while its 22px layout box — and with it the host's row
-  heights, clipping boxes and hit areas — stays exactly as it was. `verify:dom`
-  pins the geometry against a rebuilt shipped trigger (centre within 0.5px, paint
-  box inside the label line box); the bundle test pins the paint-only rule and that
-  the Settings marks and picker preview keep their own row centring.
+- **The composer mark fills the label's line box, so it needs no optical nudge.** A
+  composer label is a 13px/20px line. The mark is a 20px box, exactly the line box,
+  inside a `display:flex; align-items:center` row: its centre therefore lands on the
+  name's line and on the 28px trigger's hit-area centre, and the paint box cannot
+  escape the host's clipping box. The old 22px box plus a paint-only `top: 2px`
+  nudge is gone; Settings marks keep the 22px base and the picker preview keeps 36px,
+  both centred by their own rows. `verify:dom` pins the geometry against a rebuilt
+  shipped trigger (20px box, centre within 1.5px, paint box inside the label line
+  box); the bundle test pins the 20px size, the flex label, and that no mark carries
+  a paint offset.
+- **Settings model rows become flex rows.** The host ships `.jrmgQW_modelRow` as a
+  grid with four tracks; the plugin used to add a fifth `auto` track so the leading
+  icon seat could reserve its 22px. The stylesheet now turns the tagged row into
+  `display:flex; flex-direction:row; align-items:center` instead, so the seat leads
+  the row without taking a grid track away from the model-ID and display-name inputs,
+  and the delete action stays on the same line. `verify:dom` pins the computed
+  `flex/row/center` layout and the 22×22 seat, and that disposal restores the host's
+  grid row.
 - **Settings decoration is write-idempotent.** The decorator re-runs on a
   `MutationObserver` over `document.body`, and re-writing identical markup into its
   own inserted marks (`innerHTML` always replaces children) used to feed that
@@ -248,7 +254,7 @@ that recorded them, not from the current build.
   mutations** on the decorated page, while removing an inserted vendor mark (what a
   React re-render does) still wakes the decorator and the mark is re-inserted on the
   next pass.
-- Visual check of every mark at 22/36/96 px: `docs/preview.png`; the vendor
+- Visual check of every mark at 20/22/36/96 px: `docs/preview.png`; the vendor
   marks: `docs/preview-vendors.png`; before/after of Claude, Ollama and Doubao:
   `docs/preview-corrected-marks.png`. The design sheet also renders the plugin's
   16 px settings-navigation glyph next to shipped nav icons on light and dark

@@ -233,13 +233,12 @@ private primitives internals.
   1. explicit override in `modelIcons[providerId][modelId]` (`'none'` → no icon);
   2. heuristic (`matchModelLogo`) — this is only the _initial_ icon;
   3. none.
-- Icons are inline SVG tiles. Every conversation and Settings mark renders on one
-  shared 22px base; the icon picker preview is the single enlarged surface at 36px.
-  The composer label's mark is optically nudged 2px down (`position: relative;
-  top: 2px`, paint-only): a 13px/20px line's glyphs sit below the centre of its 22px
-  mark box, so without the nudge the mark reads high in the 28px composer trigger and
-  the model menu instead of on the name's line. Settings → Models reserves that 22px
-  in two places from the first decoration pass:
+- Icons are inline SVG tiles. Settings marks render on one shared 22px base; the
+  composer label draws a 20px mark that fits its 13px/20px line box exactly, and the
+  icon picker preview is the single enlarged surface at 36px. The composer label is
+  a flex row (`display:flex; align-items:center`), so the 20px box's centre lands on
+  the name's line and on the 28px trigger's hit-area centre without a paint offset.
+  Settings → Models reserves its 22px in two places from the first decoration pass:
   a mark seat in front of every provider row name / editor title (the vendor mark
   on official channels, empty width on hand-declared providers) and the icon seat at
   the start of every model row (the mark, or the dashed placeholder). Both seats are
@@ -470,16 +469,18 @@ above.
      Idempotent: a pass reconciles the seat in place and writes only on change.
 3. **Model rows**: `input` in the modal whose `aria-label` matches
    `/^(?:Model ID|模型 ?ID|Display name|显示名称)\s+\d+$/` (model id input,
-   first column). For its `input.parentElement` (the grid row):
+   first column). For its `input.parentElement` (the model row):
    - resolve `modelId` from the `Model ID` input's `value`;
    - resolve `providerId` from: the enclosing add-card's provider `<select>` value,
      else the enclosing `li`'s provider-name text mapped through the directory,
      else the enclosing setup/editor card title mapped through the directory;
-   - insert the model-logo seat (`type=button`) as the first child of the grid row
-     from the first decoration pass — even while the provider identity is still
+   - insert the model-logo seat (`type=button`) as the first child of the row from
+     the first decoration pass — even while the provider identity is still
      unresolved, in which case it shows the dashed placeholder. Add
-     `data-dshml-model-row` + the CSS grid-template override with an extra `auto`
-     column so the seat's 22px is reserved for as long as the row exists;
+     `data-dshml-model-row`; the plugin stylesheet turns the host's grid row into a
+     flex row (`display:flex; flex-direction:row; align-items:center`), so the seat's
+     22px leads the row without displacing the input tracks and the delete action
+     stays on the same line;
    - click → re-resolve the identity, then `dshmlOpenIconPicker({ providerId,
      modelId, ... })`;
    - refresh logo when the id input changes (capture `input` listener).

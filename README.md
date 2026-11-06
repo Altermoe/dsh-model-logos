@@ -139,8 +139,9 @@ Then refresh the Web GUI page. The plugin appears in Plugins as **Model Logos** 
 ## About the artwork
 
 Every mark is a self-contained 24×24 SVG tile — a brand-coloured rounded square with
-a glyph that stays legible at the 22px size it ships beside UI text (36px in the
-icon picker preview). Nothing is fetched at runtime, so the artwork needs no
+a glyph that stays legible at the sizes it ships beside UI text: 20px in the composer
+label, 22px in Settings → Models and the Model icons page (36px in the icon picker
+preview). Nothing is fetched at runtime, so the artwork needs no
 network and no external asset.
 
 The shapes are not redrawn by eye. They come from a pinned official vector set —
