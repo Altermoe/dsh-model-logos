@@ -102,7 +102,8 @@ scripts/rank-logos.ts             --collect/--check for reference/rankings.json
 Browser modules (import the modules above; no globals):
 
 ```
-src/i18n.ts         dshmlLang, dshmlSetLang, dshmlT
+src/i18n.ts         dshmlLang, dshmlSetLang, dshmlT, DSHML_BRAND_NAMES,
+                    dshmlBrandName, dshmlBrandNameAliases
 src/ui-css.ts       DSHML_UI_CSS
 src/overrides.ts    icon store + settings persistence + catalog store:
                     dshmlIconState, dshmlSubscribeIconState, dshmlUseIconState,
@@ -163,7 +164,19 @@ that recorded them, not from the current build.
   `id` attributes, scripts, event handlers, external references), duplicate keys,
   missing vendor/model groups, missing or non-contiguous prominence ranks, vendor
   channels that point at a model-only mark, and artwork keys no rule can reach
-  (except the documented picker-only vendor marks).
+  (except the documented picker-only vendor marks). It also validates the
+  localized brand-name overlay: only known artwork keys, trimmed non-empty values,
+  a CJK character in every value, and no entry that merely repeats the official
+  English title.
+- Brand names are localized from a deliberately narrow table in `src/i18n.ts`:
+  only names the brand owner itself publishes in Chinese. `docs/brand-names.md`
+  records the primary source for every entry and the policy that excludes
+  community translations; `en` is empty because the artwork titles already are
+  the official English names. `test/i18n.test.ts` pins the reviewed set exactly,
+  so a new name (or a folk translation) cannot ship without changing the pinned
+  list and its documented source. The picker shows the localized title in its
+  option label/`title`/`aria-label`, the composer mark's tooltip follows it, and
+  search matches the artwork key, the official title and every localized name.
 - `pnpm run logo:check` re-runs the offline importer against the committed
   `reference/official/` files and fails on a path/title/tile drift; the manifest
   pins each upstream file's sha256 and the Lobe Icons version/license.
@@ -177,26 +190,34 @@ that recorded them, not from the current build.
 - Artwork tests pin the letter-tile generator (determinism, safe SVG, CJK text,
   escaping) and the brand marks' inlining rules.
 - Grouping tests pin the exact 32 vendor / 24 model key sets, the absence of
-  overlaps, search filtering across both groups, the alias glyphs
+  overlaps, search filtering across both groups, caller-supplied localized search
+  aliases, the alias glyphs
   (`gpt/openai`, `llama/meta`, `phi/microsoft`, `nemotron/nvidia`, `nova/aws`,
   `ernie/baidu`), and the ranking sanity relations.
+- Brand-name tests pin the reviewed official-Chinese-name table (`千问`,
+  `蚂蚁百灵`, `亚马逊云科技`, …), that every localized key has artwork and differs
+  from the English title, that names without an official Chinese form stay
+  English, and that the localized names are searchable in both languages.
 - Resolver tests pin override precedence (`brand` / `none` / `letter` / stale
   value), immutability, and per-provider keys.
 - Bundle tests load the generated `client.js` in a DOM/React stand-in and check the
   label contribution (slot, priority −1, override rendering, letter and none
-  sentinels, the shipped release badge), the label stylesheet (the shared 22px mark
+  sentinels, the shipped release badge, the localized official brand name in the
+  zh locale), the label stylesheet (the shared 22px mark
   base, the 36px picker preview, and the paint-only 2px optical nudge that keeps the
   composer mark off the Settings seats), the settings-section registration, and
   that `apply()` disposers remove the stylesheet, listeners and observer.
 - `scripts/verify-dom.ts` drives the faithful Settings fixture in headless Edge:
-  **54 assertions pass** — vendor logos on official rows/editor titles (including
+  **55 assertions pass** — vendor logos on official rows/editor titles (including
   the localized DeepSeek account row), none on the declared custom provider but its
   empty 22px name seat, the reserved **22px mark base** for provider-name seats and
   the model-row icon seat (dropping either seat re-inserts it on the next pass, so
   the row's text never moves), the **36px picker preview**, model-row buttons and
   the 5-track grid, the hidden native select, the custom combobox (option marks,
   write-back, bubbling `change`, face re-sync), the picker groups (vendor before
-  model, both populated, search keeps only the matching group), the picker write
+  model, both populated, official Chinese brand labels (`阿里巴巴`, `谷歌`,
+  `千问`, …) instead of a community translation, search keeps only the matching
+  group), the picker write
   path into `configForms.mutate`, the composer label override/`none` rendering, the
   composer mark's geometry in a rebuilt shipped trigger (centre on the 28px hit
   area, paint box inside the label line box), the plugin's own settings-nav row

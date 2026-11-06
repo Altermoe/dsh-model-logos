@@ -253,6 +253,16 @@ private primitives internals.
   model marks are listed once in the model group and reused by the vendor channel.
   Both groups are ordered by a checked-in, multi-source prominence snapshot, so the
   list is not alphabetical.
+- **Brand names are localized, but only officially.** In the zh locale every
+  vendor/model option shows the brand owner's own Chinese name where one exists
+  (阿里巴巴, 月之暗面, 千问, 豆包, 蚂蚁百灵, …). A brand with no vendor-published
+  Chinese name keeps its official English title; community/fan translations are
+  never admitted — `docs/brand-names.md` records the primary source for every
+  entry, and `scripts/build.ts` rejects a stale key, a name that duplicates the
+  official title, or a "Chinese" name without a CJK character. The picker search
+  matches the artwork key, the official title and the localized names in both
+  languages, so `通义` no longer finds Qwen (that brand is retired) while `千问`
+  and `qwen` both do.
 - Artwork is imported from pinned official vector sources by a script and validated
   against the committed upstream files (`logo:check`). The three named corrections
   (Claude, Ollama, Doubao) and the other redraws are source changes, not visual
@@ -339,7 +349,15 @@ export function letterTextFor(provider, model) → string
 
 ```js
 function dshmlLang() → 'zh' | 'en'
-function dshmlT(key, vars?) → string     // dictionary lives in this file
+function dshmlSetLang(value) → void          // follows the DSH locale service
+function dshmlT(key, vars?) → string         // dictionary lives in this file
+
+// Official brand names overlaid on the artwork titles. `en` is empty because
+// LOGOS[key].title already is the official English name; `zh` only carries names
+// the brand owner publishes in Chinese (sources: docs/brand-names.md).
+const DSHML_BRAND_NAMES = { zh: { qwen: '千问', … }, en: {} }
+function dshmlBrandName(key, officialTitle) → string       // localized name, else artwork title
+function dshmlBrandNameAliases(key) → string[]             // cross-language picker search
 ```
 
 ### 6.5 `src/overrides.ts` (module)
@@ -376,7 +394,8 @@ function dshmlOpenIconPicker(options) → () => void
 ```
 
 Uses `dshmlIconState()`, `dshmlSetModelIcon`, `dshmlClearModelIcon`,
-`dshmlResolveFor`, `dshmlT`, `LOGOS`, `letterTile`, `h`, `React`.
+`dshmlResolveFor`, `dshmlT`, `dshmlBrandName`, `dshmlBrandNameAliases`, `LOGOS`,
+`letterTile`, `h`, `React`.
 
 ### 6.7 `src/section.ts` (module — ui)
 
@@ -406,6 +425,10 @@ function DshmlModelIconsSection(props) → React element
   contiguous, no duplicate keys across sets, every SVG is self-contained (no `id`,
   script, event handler or external reference), and the vendor tables only reference
   known keys. The `letterTile` fallback is validated too.
+- Validates the localized brand-name table in `src/i18n.ts`: every key has
+  artwork, every value is a trimmed non-empty string that differs from the official
+  artwork title and contains a CJK character (a pure-English "Chinese" entry is a
+  mistake, not a translation), and no entry duplicates the English title.
 - Bundles `src/client.ts` (esbuild, IIFE, `globalName: __dshml`) into the
   `window.__ModuleLoader__.load({ id, factory(require) { … } })` contract with
   `react`/`react-dom`/`react-dom/client` external, then asserts the contract
