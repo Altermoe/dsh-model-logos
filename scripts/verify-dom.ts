@@ -1320,15 +1320,15 @@ async function browserDriver(config: DriverConfig): Promise<void> {
       rowStates.length === config.modelRows && seatBoxes.every((value) => value === '22×22'),
       'seat boxes=' + JSON.stringify(seatBoxes),
     );
-    const gridTrackCounts = qa('.jrmgQW_modelEntry .jrmgQW_modelRow', root).map((row) => {
-      const value = getComputedStyle(row).gridTemplateColumns;
-      return value === 'none' ? 0 : value.trim().split(/\s+/).filter(Boolean).length;
+    const rowLayouts = qa('.jrmgQW_modelEntry .jrmgQW_modelRow', root).map((row) => {
+      const style = getComputedStyle(row);
+      return style.display + '/' + style.flexDirection + '/' + style.alignItems;
     });
     add(
-      'model row grid gains an extra auto column (5 tracks)',
+      'model row becomes a flex row so the icon seat leads without displacing the inputs',
       true,
-      modelRows.length === config.modelRows && gridTrackCounts.every((count) => count === 5),
-      'grid-template-columns track counts=' + JSON.stringify(gridTrackCounts),
+      modelRows.length === config.modelRows && rowLayouts.every((layout) => layout === 'flex/row/center'),
+      'row layouts=' + JSON.stringify(rowLayouts),
     );
 
     const selectHiddenOk = ((): boolean => {
@@ -1723,11 +1723,11 @@ async function browserDriver(config: DriverConfig): Promise<void> {
     // copied from `@deepseek-ai/dsh-client-ui-model-selection` (0.2.1-rc.5,
     // `lib/client.js`) — a 28px `display:flex; align-items:center` trigger with
     // 13px/20px type, and a block label (`overflow:hidden`) that keeps the host's
-    // clipping box — then mounts the real label contribution inside it. The plugin's
-    // 2px optical nudge must put the 22px mark's centre on the vertical centre of
-    // that 28px hit area (where the 13px name's glyphs sit) without pushing the mark
-    // outside the label's line box. The probe sits off screen, so the Settings
-    // fixture and its screenshot are untouched.
+    // clipping box — then mounts the real label contribution inside it. The 20px
+    // mark box fits the label's 20px line box, so flex centring must put its centre
+    // on the vertical centre of the 28px hit area without any paint offset. The
+    // probe sits off screen, so the Settings fixture and its screenshot are
+    // untouched.
     if (labelRegistration && window.React && window.ReactDOM) {
       const probeStyle = document.createElement('style');
       probeStyle.id = 'dshml-composer-probe-style';
@@ -1766,10 +1766,10 @@ async function browserDriver(config: DriverConfig): Promise<void> {
         add(
           'composer mark is centred in the 28px trigger hit area',
           true,
-          markBox !== null && triggerBox.height === 28 && Math.abs(centreOffset) <= 1.5 && markBox.height === 22,
+          markBox !== null && triggerBox.height === 28 && Math.abs(centreOffset) <= 1.5 && markBox.height === 20,
           markBox === null
             ? 'no mark rendered'
-            : 'mark 22px centre vs hit-area centre: ' +
+            : 'mark 20px centre vs hit-area centre: ' +
                 centreOffset.toFixed(2) +
                 'px (trigger ' +
                 triggerBox.height +

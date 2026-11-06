@@ -2,8 +2,8 @@
  * Render the logo set into a static HTML page and capture it with headless Edge.
  *
  * This is a design-iteration aid, not part of the shipped plugin: it imports the
- * artwork modules directly and screenshots them at shipped sizes (22px on the
- * conversation and Settings surfaces, 36px in the picker preview) plus larger
+ * artwork modules directly and screenshots them at shipped sizes (20px in the
+ * composer label, 22px on Settings surfaces, 36px in the picker preview) plus larger
  * reference sizes, on light and dark surfaces, next to a mock of the composer
  * trigger and model menu (`--only-set vendors` swaps those for a mock of the
  * Settings → Models provider rows, where vendor marks actually appear).
@@ -132,26 +132,26 @@ const mark = (key: string, size: number): string => {
 
 const composerMock = (theme: 'light' | 'dark'): string => `
 <section class="mock mock-${theme}">
-  <h3>${theme === 'light' ? 'Light surface' : 'Dark surface'} — composer trigger (13px text, 22px mark)</h3>
+  <h3>${theme === 'light' ? 'Light surface' : 'Dark surface'} — composer trigger (13px text, 20px mark)</h3>
   <div class="trigger-row">
     ${SAMPLES.slice(0, 6)
       .map(
         ([key, name]) => `
       <span class="trigger">
-        ${mark(key, 22)}
+        ${mark(key, 20)}
         <span class="trigger-label">${escape(name)}</span>
         <svg class="chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </span>`,
       )
       .join('')}
   </div>
-  <h3>Model menu rows (13px text, 22px mark)</h3>
+  <h3>Model menu rows (13px text, 20px mark)</h3>
   <div class="menu">
     ${SAMPLES.slice(2, 12)
       .map(
         ([key, name], index) => `
       <div class="option">
-        <span class="option-copy">${mark(key, 22)}<span class="option-name">${escape(name)}</span></span>
+        <span class="option-copy">${mark(key, 20)}<span class="option-name">${escape(name)}</span></span>
         <span class="check">${index === 1 ? '✓' : ''}</span>
       </div>`,
       )
@@ -229,7 +229,7 @@ const artworkCard = (key: string): string => {
       <span class="on-dark">${mark(key, 96)}</span>
     </div>
     <div class="small">
-      ${[36, 22, 16].map((size) => `<span class="on-light">${mark(key, size)}</span>`).join('')}
+      ${[36, 22, 20, 16].map((size) => `<span class="on-light">${mark(key, size)}</span>`).join('')}
       ${[36, 22].map((size) => `<span class="on-dark">${mark(key, size)}</span>`).join('')}
     </div>
     <figcaption><b>${escape(key)}</b><span>${escape(entry ? entry.title : 'MISSING')}</span><span>${escape(meta)}</span></figcaption>
@@ -307,7 +307,7 @@ const html = `<!doctype html>
   .missing { color: #d64545; font-weight: 700; }
 </style></head>
 <body>${body}
-<p style="font-size:11px;color:#8b93a1;margin-top:24px">Static preview of src/logos/*.ts — shipped sizes are 22px (composer, Settings → Models and Model icons page) and 36px (icon picker preview).</p>
+<p style="font-size:11px;color:#8b93a1;margin-top:24px">Static preview of src/logos/*.ts — shipped sizes are 20px (composer), 22px (Settings → Models and Model icons page) and 36px (icon picker preview).</p>
 </body></html>`;
 
 const suffix = only ? only : onlySet !== null ? `logos-${onlySet}` : 'logos';

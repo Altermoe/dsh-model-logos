@@ -36,17 +36,12 @@ import { DshmlModelIconsSection } from './section';
 const LABEL_STYLE_ID = 'dsh-model-logos/label.css';
 
 const LABEL_CSS = `
-/* Composer model label. The mark base size is 22px on every conversation and
-   Settings surface; only the icon picker preview enlarges it (36px). */
-.dshml-root { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; vertical-align: baseline; }
-/* Optical centring of the mark. The row centres the 22px mark box on the label
-   line, but a 13px UI line's glyphs sit about 2px below that box's centre (cap
-   height and descender are not symmetric around the content box), so the mark
-   read high in the 28px composer trigger and in the model menu. One shared 2px
-   nudge puts its centre on the name's optical line and in the vertical centre of
-   the trigger's hit area. The offset is paint-only: the mark stays a 22px layout
-   box, so the host's row heights, clipping and hit areas are untouched. */
-.dshml-mark { flex: none; width: 22px; height: 22px; display: inline-block; line-height: 0; position: relative; top: 2px; }
+/* Composer model label. The mark is 20px so its box fits the label's 13px/20px
+   line exactly and flex centring puts it on the name's line without a paint
+   offset; Settings marks stay on the 22px base, and only the icon picker preview
+   enlarges a mark (36px). */
+.dshml-root { display: flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; vertical-align: baseline; }
+.dshml-mark { flex: none; width: 20px; height: 20px; display: inline-block; line-height: 0; position: relative; }
 .dshml-mark > svg { display: block; width: 100%; height: 100%; }
 .dshml-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dshml-menu { gap: 5px; }
@@ -63,7 +58,10 @@ const LABEL_CSS = `
 .dshml-model-icon-btn .dshml-model-mark { width: 22px; height: 22px; display: inline-flex; }
 .dshml-model-placeholder { opacity: .55; }
 .dshml-model-icon-disabled .dshml-model-mark { opacity: .35; }
-[data-dshml-model-row="1"] { grid-template-columns: auto minmax(0, 1.4fr) minmax(0, 1fr) auto auto !important; }
+/* The host ships the model row as a grid; the plugin replaces it with a flex
+   row so the 22px icon seat can lead the row without displacing the input
+   tracks, and the delete action stays on the same line. */
+[data-dshml-model-row="1"] { display: flex; flex-direction: row; align-items: center; }
 
 /* Settings → Models: custom provider combobox over the native select. */
 .dshml-combo { position: relative; width: 100%; max-width: 240px; }

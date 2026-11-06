@@ -517,7 +517,7 @@ describe('generated client bundle', () => {
     expect(sectionLabel().trim() !== '', 'the section nav label must not be empty').toBeTruthy();
   });
 
-  it('sizes the marks on the shared 22px base and the picker preview at 36px', () => {
+  it('sizes the composer mark at 20px, the Settings marks on the 22px base and the picker preview at 36px', () => {
     const { doc } = loadClient();
     const style = expectPresent(doc.styleTags[0], 'the plugin stylesheet must be mounted');
     /** Whether one rule declares both the width and the height. */
@@ -525,9 +525,10 @@ describe('generated client bundle', () => {
       const block = cssRule(style, selector);
       return new RegExp('width:\\s*' + px + 'px').test(block) && new RegExp('height:\\s*' + px + 'px').test(block);
     };
-    // The composer label, the Settings → Models marks and the Model icons page
-    // share one 22px base, so a mark never renders at a different scale.
-    expect(sized('.dshml-mark', 22), 'composer trigger/menu mark').toBe(true);
+    // The composer mark fits the 13px/20px label line exactly. The Settings → Models
+    // marks and the Model icons page share one 22px base, and the picker preview is
+    // the single enlarged surface at 36px.
+    expect(sized('.dshml-mark', 20), 'composer trigger/menu mark').toBe(true);
     expect(sized('.dshml-vendor', 22), 'Settings vendor mark').toBe(true);
     expect(sized('.dshml-model-icon-btn', 22), 'Settings model-row icon seat').toBe(true);
     expect(sized('.dshml-model-icon-btn .dshml-model-mark', 22), 'Settings model-row mark').toBe(true);
@@ -537,24 +538,21 @@ describe('generated client bundle', () => {
     expect(sized('.dshml-picker-option-mark', 36), 'picker option mark').toBe(true);
   });
 
-  it('optically centres the composer mark on the label line', () => {
-    // The composer label is a 13px/20px line. Its glyphs sit about 2px below the
-    // centre of the 22px mark box, and the row's baseline alignment used to leave
-    // the mark high in the 28px trigger hit area and high against the model name.
-    // One 2px paint-only nudge covers the optical difference. The mark keeps its
-    // 22px layout box, so the host's row heights, clipping boxes and hit areas do
-    // not move. Settings marks and the picker preview are already centred by their
-    // own grid/flex rows and must not take the nudge.
+  it('centres the composer mark on the label line without a paint offset', () => {
+    // The composer label is a 13px/20px line. The 20px mark box fits that line
+    // exactly, so flex centring puts the mark's centre on the name's line and in
+    // the 28px trigger's hit area without the old 2px paint nudge. Settings marks
+    // and the picker preview are centred by their own grid/flex rows.
     const { doc } = loadClient();
     const style = expectPresent(doc.styleTags[0], 'the plugin stylesheet must be mounted');
     const root = cssRule(style, '.dshml-root');
-    expect(root, 'the row centres the 22px mark box and the name').toMatch(/align-items:\s*center/);
+    expect(root, 'the label row is a flex container').toMatch(/display:\s*flex/);
+    expect(root, 'the row centres the 20px mark box and the name').toMatch(/align-items:\s*center/);
     expect(root, 'the label keeps the host line baseline').toMatch(/vertical-align:\s*baseline/);
     const mark = cssRule(style, '.dshml-mark');
-    expect(mark, 'the optical nudge must not change the 22px layout box').toMatch(/position:\s*relative/);
-    expect(mark, 'a 13px line needs a 2px optical nudge').toMatch(/top:\s*2px/);
-    expect(mark, 'the composer mark stays on the shared 22px base').toMatch(/width:\s*22px/);
-    expect(mark).toMatch(/height:\s*22px/);
+    expect(mark, 'the mark fits the label line box').toMatch(/width:\s*20px/);
+    expect(mark).toMatch(/height:\s*20px/);
+    expect(mark, 'the composer mark needs no optical nudge').not.toMatch(/top:\s*2px/);
     for (const seat of [
       '.dshml-vendor',
       '.dshml-model-icon-btn',
