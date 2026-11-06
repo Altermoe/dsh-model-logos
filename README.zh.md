@@ -68,8 +68,15 @@ dsh plugin --profile web add github:Altermoe/dsh-model-logos
 ```
 
 源码安装会在本机构建插件 —— 仓库的 `prepare` 脚本会执行 `pnpm run build` —— 因此需要
-Node.js ≥ 26.13.0 与 pnpm，市场上首次安装时也会请求一次构建授权。预构建的发布 tarball 还在
-计划中；在那之前，本地检出也可以走插件管理器安装：
+Node.js ≥ 26.13.0 与 pnpm，市场上首次安装时也会请求一次构建授权。想跳过构建，可以从
+[最新发布](https://github.com/Altermoe/dsh-model-logos/releases/latest) 下载
+`dsh-model-logos.tgz`，直接安装这个文件：
+
+```sh
+dsh plugin --profile web add ./dsh-model-logos.tgz
+```
+
+本地检出也可以走插件管理器安装：
 
 ```
 plugin_manager action=install_bundle target=<指向本目录的绝对路径>

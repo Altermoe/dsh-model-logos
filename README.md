@@ -130,8 +130,16 @@ dsh plugin --profile web add github:Altermoe/dsh-model-logos
 
 A source install builds the plugin on your machine — the tracked `prepare` script
 runs `pnpm run build` — so it needs Node.js ≥ 26.13.0 and pnpm, and the storefront
-asks you to approve the build step once. A prebuilt release tarball is planned;
-until then, a local checkout also installs through the Plugin Manager:
+asks you to approve the build step once.
+
+To skip that build, download `dsh-model-logos.tgz` from the
+[latest release](https://github.com/Altermoe/dsh-model-logos/releases/latest) and add the file:
+
+```sh
+dsh plugin --profile web add ./dsh-model-logos.tgz
+```
+
+A local checkout also installs through the Plugin Manager:
 
 ```
 plugin_manager action=install_bundle target=<absolute path to this directory>

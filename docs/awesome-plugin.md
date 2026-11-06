@@ -87,8 +87,10 @@ submission PR.
 2. **README install section** — done in this tree: both READMEs now document
    `dsh plugin --profile web add github:Altermoe/dsh-model-logos` before the local
    `plugin_manager ... install_bundle` path, including the source-install build requirement.
-3. **Publish path** — still open: npm package or prebuilt release tarball, see §4. Until one
-   exists, the only install path is build-from-source.
+3. **Publish path** — done in v0.5.0: the [`v0.5.0` release](https://github.com/Altermoe/dsh-model-logos/releases/tag/v0.5.0)
+   carries the prebuilt `dsh-model-logos.tgz` asset (version-free name, so a
+   `latest/download/` URL cannot rot), and both READMEs document that install path. The package
+   stays `private: true` and is not on npm; see §4 and §8.
 
 ## 4. npm, `repository`, and the metadata proposal
 
@@ -140,14 +142,14 @@ without verifying it against the shipped slots and services the plugin uses.
 
 **Tarball instead of npm.** Source install executes `prepare` (`simple-git-hooks && pnpm run
 build`): Node ≥ 26.13, pnpm, devDependencies and the storefront's build approval. To skip that
-path, publish to npm (preferred) or attach a prebuilt tarball:
+path, publish to npm (preferred) or attach a prebuilt tarball — **done in v0.5.0**:
 
 1. `pnpm run build` then `pnpm pack`; `client.js` and `index.js` are in the `files` array, so the
    `.tgz` carries the built artifacts.
-2. Attach it to a GitHub release as `dsh-model-logos.tgz` (version-free asset name) and uncomment
-   `tarball:` in the entry — `latest/download/` takes the filename literally, so a version in the
-   name 404s at the next release. Alternatively pin the release tag and keep the version in the
-   filename there.
+2. Attach it to a GitHub release as `dsh-model-logos.tgz` (version-free asset name) — `latest/download/`
+   takes the filename literally, so a version in the name 404s at the next release. The asset is on
+   [`v0.5.0`](https://github.com/Altermoe/dsh-model-logos/releases/tag/v0.5.0); the entry's
+   `tarball:` line stays commented out until a listing update is worth a fresh PR (§8).
 
 ## 5. Manual steps (human only)
 
@@ -158,29 +160,33 @@ path, publish to npm (preferred) or attach a prebuilt tarball:
 3. Land the remaining repo-side items in §3 (LICENSE and the README install command) through the
    normal gate workflow. — **done in this tree**.
 4. Wait until GitHub reports the repository as at least 1 day old. CI measures creation, not
-   commits; the gate refreshes itself on open PRs, so an early submission is not fatal. — the bar
-   is 2026-11-05T07:51Z; nothing to do but leave the PR open.
+   commits; the gate refreshes itself on open PRs, so an early submission is not fatal. — **met**:
+   the repository was created 2026-11-04T07:51:14Z.
 5. Verify installation on a clean profile: `dsh plugin --profile web add
    github:Altermoe/dsh-model-logos`. If that fails on the build step, publish npm or attach the
-   tarball first and test that path. — **still open**.
+   tarball first and test that path. — **still open**; the prebuilt tarball (§8) is the documented
+   path that skips the build.
 6. Optional: publish to npm (only after §4 metadata and `private` are handled) or cut the
-   tarball release and uncomment `tarball:`.
+   tarball release and uncomment `tarball:`. — **tarball release done in v0.5.0** (§8); npm publish
+   remains open and needs npm auth.
 7. Fork `awesome-dsh-plugin`, add exactly `data/plugins/Altermoe__dsh-model-logos.yml` with the
    values in §1, commit that one file, open the PR. Do not edit `README.md` / `README.zh.md` and
    do not regenerate them for the PR. Committing a locally regenerated README is accepted only
    if it matches the data source. — **done 2026-11-04**: PR
    [#11938](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/11938) adds exactly
    `data/plugins/Altermoe__dsh-model-logos.yml` on branch `add-dsh-model-logos` of the existing
-   fork `Altermoe/awesome-dsh-plugin`, created from a fork main synced to upstream.
+   fork `Altermoe/awesome-dsh-plugin`, created from a fork main synced to upstream. — **merged
+   2026-11-05T17:09Z**: the entry is live upstream and the generated README lists the plugin.
 8. If a maintainer applies `held: author`, push the fixes to the same branch and leave one
-   comment describing them; do not open a new PR.
+   comment describing them; do not open a new PR. — not applicable; the PR merged without the label.
 
 ## 6. Open questions for the Lead
 
 - Clean-profile install: does `dsh plugin --profile web add github:Altermoe/dsh-model-logos`
-  succeed end to end (build approval, Node/pnpm availability)? Not yet tested.
-- npm publish vs release tarball vs source-install only — the decision changes `private`, the
-  `files` list and whether the `tarball:` line is used.
+  succeed end to end (build approval, Node/pnpm availability)? Not yet tested by hand; the prebuilt
+  tarball (§8) is the documented path that skips the build.
+- npm publish is still open: it needs npm auth and `"private": true` removed (§4), and nothing in the
+  listing depends on it.
 - Category `ui` vs `model`: `ui` is chosen because the two nearest entries live there; the
   contributors' doc treats a near miss as maintenance, not a rejection.
 
@@ -199,3 +205,21 @@ in §1 is written to carry the differentiator without claiming novelty.
 `docs/prior-art.md` has the fuller survey (including the composer-icon competitors that are not on
 the list) and the one-line differentiator: Settings → Models coverage, model-level matching, and a
 per `provider + model` override picker persisted in the DSH settings document.
+
+## 8. Release record
+
+- **v0.5.0** (2026-11-06) — first tagged release: annotated tag `v0.5.0` on `main`, published as
+  <https://github.com/Altermoe/dsh-model-logos/releases/tag/v0.5.0>. The tag and the release name the
+  same version as `package.json`.
+- The release carries `dsh-model-logos.tgz`, packed from the tagged tree with `pnpm pack`. `client.js`
+  and `index.js` are in the `files` array, so the tarball is a prebuilt install that needs no
+  `prepare` build; `assets/`, `screenshots.json` and both READMEs travel with it. The release notes
+  record the asset's SHA-256.
+- Gates on the tagged tree: `pnpm run verify` (73 tests, build + artifact freshness), `pnpm run
+  verify:dom` (55/55 assertions), `pnpm run verify:live` (the running GUI served this exact bundle),
+  plus the `CI` workflow on the pushed `main` commit.
+- **No listing re-push is required for v0.5.0.** The merged entry carries no version, its description
+  still matches the released feature set, and its icon and screenshots are fetched from `main`. The
+  only optional follow-up is adding `tarball:` to the entry (§4) so storefronts offer the prebuilt
+  package instead of the source build — a new one-file PR touching only our own entry, left unopened
+  until it is worth the maintainers' review time.
