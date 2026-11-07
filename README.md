@@ -129,7 +129,7 @@ dsh plugin --profile web add github:Altermoe/dsh-model-logos
 ```
 
 A source install builds the plugin on your machine — the tracked `prepare` script
-runs `pnpm run build` — so it needs Node.js ≥ 26.13.0 and pnpm, and the storefront
+runs `pnpm run build` — so it needs Node.js ≥ 24.22.2 and pnpm, and the storefront
 asks you to approve the build step once.
 
 To skip that build, download `dsh-model-logos.tgz` from the
@@ -175,7 +175,7 @@ their owners and appear here only to identify the provider or model in use.
 
 ## Development
 
-The toolchain requires Node.js ≥ 26.13.0 and pnpm (the exact version is pinned by
+The toolchain requires Node.js ≥ 24.22.2 and pnpm (the exact version is pinned by
 `packageManager`). `client.js` and `index.js` are generated build output — never edit
 them by hand.
 

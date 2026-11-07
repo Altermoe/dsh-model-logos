@@ -11,9 +11,9 @@ commands in [`README.md`](README.md).
 - **pnpm only.** The version is pinned by `packageManager` in `package.json`
   (`pnpm@12.16.1`) and is downloaded automatically on first use. Run
   `pnpm install`; never use `npm`, `npx` or `yarn` in this repository.
-- **Node.js ≥ 26.13.0** is required by `engines`. The 26.x releases before
-  26.12.1 contain the Brotli decoder vulnerability CVE-2026-111497; never lower
-  the engine floor into that range.
+- **Node.js ≥ 24.22.2** is required by `engines` (the latest 24 LTS). Releases
+  before 24.22.1 contain the Brotli decoder vulnerability CVE-2026-111497;
+  never lower the engine floor below 24.22.2.
 - `client.js` and `index.js` are **generated, git-ignored build output**. Never
   edit them by hand: change `src/**`, then run `pnpm run build`. A fresh
   `pnpm install` rebuilds them through the `prepare` script.
@@ -36,8 +36,8 @@ Rules:
 - Never report a task as complete while a gate fails. Either fix the failure or
   report the exact failing command and its output.
 - Never bypass a gate: no `--no-verify`, no `--frozen-lockfile=false` in CI, no
-  skipping or weakening tests, no widening `engines`, no `--no-fix` escape from
-  the formatter.
+  skipping or weakening tests, no widening `engines` to make a failing gate
+  pass, no `--no-fix` escape from the formatter.
 - `pnpm run check` reporting stale artifacts means run `pnpm run build` and then
   re-run the gates.
 - Fix formatting/lint first (`pnpm run fmt`, `pnpm run lint:fix`), then run the

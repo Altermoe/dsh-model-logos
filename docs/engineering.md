@@ -8,7 +8,7 @@ module graph, a real bundler, a linter/formatter pair and a test runner.
 
 | Concern             | Tool                                                                                              | Where                                   |
 | ------------------- | ------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| Runtime             | Node.js ≥ 26.13.0 (the Brotli decoder fix landed in 26.12.1, so older 26.x is not acceptable)     | `package.json` (`engines`)              |
+| Runtime             | Node.js ≥ 24.22.2 (the Brotli decoder fix landed in 24.22.1, so older 24.x is not acceptable)     | `package.json` (`engines`)              |
 | Language            | TypeScript 7 (`strict`, `noUncheckedIndexedAccess`, `verbatimModuleSyntax`, `erasableSyntaxOnly`) | `tsconfig.json`                         |
 | Package manager     | pnpm 12 (pinned by `packageManager`; lockfile committed)                                          | `package.json`, `pnpm-workspace.yaml`   |
 | Bundle + host build | esbuild (programmatic API)                                                                        | `scripts/build.ts`                      |

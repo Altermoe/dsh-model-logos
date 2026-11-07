@@ -141,7 +141,7 @@ as `"dsh": { "engines": { "dsh": ">=0.2.1-rc.2" } }`. This repo has no such floo
 without verifying it against the shipped slots and services the plugin uses.
 
 **Tarball instead of npm.** Source install executes `prepare` (`simple-git-hooks && pnpm run
-build`): Node ≥ 26.13, pnpm, devDependencies and the storefront's build approval. To skip that
+build`): Node ≥ 24.22.2, pnpm, devDependencies and the storefront's build approval. To skip that
 path, publish to npm (preferred) or attach a prebuilt tarball — **done in v0.5.0**:
 
 1. `pnpm run build` then `pnpm pack`; `client.js` and `index.js` are in the `files` array, so the
