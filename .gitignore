@@ -30,4 +30,7 @@ Thumbs.db
 !.vscode/extensions.json
 !.vscode/settings.json
 
+# Local agent workspace data (session notes, not source or build input)
+.workbuddy/
+
 # pnpm-lock.yaml is committed: reproducible installs are a project invariant.
