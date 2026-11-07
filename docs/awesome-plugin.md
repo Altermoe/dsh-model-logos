@@ -72,7 +72,7 @@ Field notes:
 | Dependencies resolve to upstream                                    | satisfied          | Only runtime dependency is official `@deepseek-ai/schemastery`; nothing re-uploaded.                                                                                                                                                                             |
 | Icon is a GitHub-hosted raster image                                | satisfied          | `assets/icon-180.png` (180×180 PNG) is committed; `package.json` declares `"icon": "assets/icon-180.png"` and the entry points at its GitHub raw URL.                                                                                                            |
 | Screenshots, 1–8 images (optional, recommended)                     | satisfied          | `screenshots.json` at the repo root declares `docs/preview-picker.png`, `docs/preview-settings.png` and `docs/preview-composer.png` (3 of the 8 allowed).                                                                                                        |
-| npm package (optional)                                              | not published      | Listing does not require it. `package.json` now declares `repository`, so a later publish is linked rather than unattached (§4).                                                                                                                                 |
+| npm package (optional)                                              | not published      | Listing does not require it. `package.json` declares `repository`, so the publish is linked rather than unattached; the repo-side prep in §4 is done and only the manual publish is left (§5).                                                                   |
 | One PR, at most 3 entries, one yml file, only its own entry touched | manual             | This submission adds one entry and nothing else.                                                                                                                                                                                                                 |
 | Repo is public and installs with `dsh plugin add`                   | **partially**      | The repo is public and `main` carries the manifest and `prepare` build. A clean-profile install (`dsh plugin --profile web add github:Altermoe/dsh-model-logos`) still has to be verified by hand before or during review (§5).                                  |
 
@@ -89,8 +89,9 @@ submission PR.
    `plugin_manager ... install_bundle` path, including the source-install build requirement.
 3. **Publish path** — done in v0.5.0: the [`v0.5.0` release](https://github.com/Altermoe/dsh-model-logos/releases/tag/v0.5.0)
    carries the prebuilt `dsh-model-logos.tgz` asset (version-free name, so a
-   `latest/download/` URL cannot rot), and both READMEs document that install path. The package
-   stays `private: true` and is not on npm; see §4 and §8.
+   `latest/download/` URL cannot rot), and both READMEs document that install path. The npm
+   package is now publishable (the `private` flag is gone) but has not been published yet;
+   see §4 and §8.
 
 ## 4. npm, `repository`, and the metadata proposal
 
@@ -98,10 +99,10 @@ Listing is unaffected by npm; publishing only adds a download count. If the pack
 published, its `repository` field must point back at the repository listed in the entry, or the
 two are not linked.
 
-Current state: `repository`, `homepage`, `bugs` and `author` are now declared alongside
+Current state: `repository`, `homepage`, `bugs` and `author` are declared alongside
 `keywords` and the DSH manifest `icon` (`assets/icon-180.png`, the Plugins-page artwork rather
-than npm metadata); `private: true`; `license: MIT` with a matching `LICENSE` file.
-`private: true` makes `npm publish` refuse; it does not affect `dsh plugin add` from GitHub.
+than npm metadata); the `private` flag is gone; `license: MIT` with a matching `LICENSE` file.
+`private: true` used to make `npm publish` refuse; it never affected `dsh plugin add` from GitHub.
 
 The declarations, for the record:
 
@@ -112,10 +113,14 @@ The declarations, for the record:
   "bugs": { "url": "https://github.com/Altermoe/dsh-model-logos/issues" },
 ```
 
-Only if publishing: remove `"private": true` (or set it to `false`) and optionally add
-`"publishConfig": { "access": "public" }` (the name is unscoped, so that is optional). The
-LICENSE file now exists. Keep `pnpm-lock.yaml` untouched for these metadata-only fields: none
-of them change the dependency graph, so `pnpm install --frozen-lockfile` stays valid.
+Done in this tree (publication is prepared, not executed): `"private": true` is removed and
+`"publishConfig": { "access": "public" }` is declared (the name is unscoped, so that is
+optional). `"prepublishOnly": "pnpm run verify"` runs the full gate before every publish, and
+the tarball carries the generated `client.js` / `index.js`, so an npm install needs no local
+build. The LICENSE file exists. Keep `pnpm-lock.yaml` untouched for these metadata-only fields:
+none of them change the dependency graph, so `pnpm install --frozen-lockfile` stays valid.
+The name `dsh-model-logos` and version `0.5.0` are unclaimed on the public registry, and the
+sole runtime dependency `@deepseek-ai/schemastery` is published there too.
 
 **`@deepseek-ai/schemastery` and peerDependencies.** The contributing doc _recommends_ declaring
 official `@deepseek-ai/*` packages as `peerDependencies`, not `dependencies`, and warns that a
@@ -167,8 +172,8 @@ path, publish to npm (preferred) or attach a prebuilt tarball — **done in v0.5
    tarball first and test that path. — **still open**; the prebuilt tarball (§8) is the documented
    path that skips the build.
 6. Optional: publish to npm (only after §4 metadata and `private` are handled) or cut the
-   tarball release and uncomment `tarball:`. — **tarball release done in v0.5.0** (§8); npm publish
-   remains open and needs npm auth.
+   tarball release and uncomment `tarball:`. — **tarball release done in v0.5.0** (§8); the
+   repo-side npm prep is done too, leaving only the manual `pnpm publish` (npm login + 2FA).
 7. Fork `awesome-dsh-plugin`, add exactly `data/plugins/Altermoe__dsh-model-logos.yml` with the
    values in §1, commit that one file, open the PR. Do not edit `README.md` / `README.zh.md` and
    do not regenerate them for the PR. Committing a locally regenerated README is accepted only
@@ -185,8 +190,9 @@ path, publish to npm (preferred) or attach a prebuilt tarball — **done in v0.5
 - Clean-profile install: does `dsh plugin --profile web add github:Altermoe/dsh-model-logos`
   succeed end to end (build approval, Node/pnpm availability)? Not yet tested by hand; the prebuilt
   tarball (§8) is the documented path that skips the build.
-- npm publish is still open: it needs npm auth and `"private": true` removed (§4), and nothing in the
-  listing depends on it.
+- npm publish is the only remaining step: the repo-side prep in §4 is done, but the actual
+  `pnpm publish` still needs an authenticated npm account (and 2FA). Nothing in the listing
+  depends on it.
 - Category `ui` vs `model`: `ui` is chosen because the two nearest entries live there; the
   contributors' doc treats a near miss as maintenance, not a rejection.
 
@@ -223,3 +229,7 @@ per `provider + model` override picker persisted in the DSH settings document.
   only optional follow-up is adding `tarball:` to the entry (§4) so storefronts offer the prebuilt
   package instead of the source build — a new one-file PR touching only our own entry, left unopened
   until it is worth the maintainers' review time.
+- **npm publication prepared (2026-11-08)** — `private` removed, `publishConfig.access: public`
+  and `prepublishOnly: pnpm run verify` added; both READMEs now lead with the npm install command
+  and carry the maintainer publish steps. Version stays `0.5.0` to match the `v0.5.0` tag. Not
+  published yet: the manual `pnpm publish` is pending npm auth/2FA.

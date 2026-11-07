@@ -39,7 +39,14 @@ pnpm run rank:check   # offline: recompute the snapshot and compare the ranks
 pnpm run verify:dom   # headless-Edge DOM fixture harness (needs Edge)
 pnpm run verify:live  # assert the running GUI serves this exact client.js
 pnpm run verify       # typecheck + lint + fmt:check + test + logo:check + rank:check + build + check
+pnpm publish         # prepublishOnly runs verify, then packs the prebuilt artifacts
 ```
+
+Publishing is a manual step. `pnpm publish` triggers `prepublishOnly`, which runs
+the full `verify` gate before the tarball is built; `files` in `package.json`
+carries the generated `client.js` / `index.js`, so an npm install needs no local
+build. The account, 2FA and tag/release alignment are recorded in the Publishing
+section of `README.md`.
 
 `client.js` and `index.js` are **generated, never committed**. They are written
 into the package root because the local DSH install loads the bundle from disk,

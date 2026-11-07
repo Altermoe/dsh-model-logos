@@ -122,17 +122,24 @@ in localStorage, and with no network request involved.
 
 ## Install
 
-Add the public repository to a DSH profile:
+Install the published package into a DSH profile. The npm tarball carries the
+prebuilt `client.js` / `index.js`, so no local build, Node.js toolchain or build
+approval is needed:
+
+```sh
+dsh plugin --profile web add dsh-model-logos
+```
+
+Alternatively, add the public repository directly. A source install builds the
+plugin on your machine — the tracked `prepare` script runs `pnpm run build` — so
+it needs Node.js ≥ 24.22.2 and pnpm, and the storefront asks you to approve the
+build step once:
 
 ```sh
 dsh plugin --profile web add github:Altermoe/dsh-model-logos
 ```
 
-A source install builds the plugin on your machine — the tracked `prepare` script
-runs `pnpm run build` — so it needs Node.js ≥ 24.22.2 and pnpm, and the storefront
-asks you to approve the build step once.
-
-To skip that build, download `dsh-model-logos.tgz` from the
+To skip that build without npm, download `dsh-model-logos.tgz` from the
 [latest release](https://github.com/Altermoe/dsh-model-logos/releases/latest) and add the file:
 
 ```sh
@@ -188,6 +195,23 @@ pnpm run preview      # render the artwork design sheet into .preview/
 pnpm run logo:check   # prove the checked-in marks match the pinned official vectors
 pnpm run rank:check   # prove the picker order matches the committed ranking snapshot
 ```
+
+### Publishing (maintainers)
+
+The npm package is unscoped and public. `pnpm publish` runs `prepublishOnly`
+(the full `verify` gate) and packs the generated `client.js` / `index.js`.
+pnpm checks that the tree is clean, that the branch is `main` and that it is in
+sync with the remote, so commit and push first. With the npm account logged in
+and a 2FA code ready:
+
+```sh
+pnpm run verify
+pnpm publish --access public   # add --otp <code> when the account requires 2FA
+```
+
+Bump `version` and cut a matching `v<version>` tag/release before publishing a
+new version. Afterwards check `pnpm view dsh-model-logos version` and verify a
+clean-profile install with `dsh plugin --profile web add dsh-model-logos`.
 
 The module map, contribution rules and the verification log are in
 [`docs/engineering.md`](docs/engineering.md); the runtime contract and design

@@ -61,14 +61,21 @@
 
 ## 安装
 
-把公开仓库添加到 DSH 配置档：
+从 npm 安装已发布的包到 DSH 配置档。npm 包内已带预构建的 `client.js` / `index.js`，
+无需本机构建、Node.js 工具链或构建授权：
+
+```sh
+dsh plugin --profile web add dsh-model-logos
+```
+
+也可以直接添加公开仓库。源码安装会在本机构建插件 —— 仓库的 `prepare` 脚本会执行
+`pnpm run build` —— 因此需要 Node.js ≥ 24.22.2 与 pnpm，市场上首次安装时也会请求一次构建授权：
 
 ```sh
 dsh plugin --profile web add github:Altermoe/dsh-model-logos
 ```
 
-源码安装会在本机构建插件 —— 仓库的 `prepare` 脚本会执行 `pnpm run build` —— 因此需要
-Node.js ≥ 24.22.2 与 pnpm，市场上首次安装时也会请求一次构建授权。想跳过构建，可以从
+不用 npm 又想跳过构建，可以从
 [最新发布](https://github.com/Altermoe/dsh-model-logos/releases/latest) 下载
 `dsh-model-logos.tgz`，直接安装这个文件：
 
@@ -107,6 +114,21 @@ pnpm run preview      # 生成图标设计总览到 .preview/
 pnpm run logo:check   # 校验入库图标与固定版本官方矢量一致
 pnpm run rank:check   # 校验选择器顺序与提交的热度快照一致
 ```
+
+### 发布（维护者）
+
+npm 包是非 scoped 的公开包。`pnpm publish` 会先执行 `prepublishOnly`（完整 `verify`
+门禁），再把生成的 `client.js` / `index.js` 打进包。pnpm 会检查工作树干净、分支为
+`main` 且与远端同步，因此先提交并推送。npm 账号已登录且备好 2FA 验证码后执行：
+
+```sh
+pnpm run verify
+pnpm publish --access public   # 账号开启 2FA 时加 --otp <验证码>
+```
+
+发布新版本前先提升 `version`，并建立对应的 `v<version>` tag 与 release。发布后用
+`pnpm view dsh-model-logos version` 确认版本，再用
+`dsh plugin --profile web add dsh-model-logos` 在干净配置档里验证安装。
 
 模块图、贡献规则与验证日志在 [`docs/engineering.md`](docs/engineering.md)；运行时契约与设计决策在 [`docs/architecture.md`](docs/architecture.md)。
 
