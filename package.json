@@ -1,7 +1,6 @@
 {
   "name": "dsh-model-logos",
   "version": "0.5.0",
-  "private": true,
   "description": "Shows each model's brand mark beside its name in the composer model selector and model picker, and vendor/model logos across Settings → Models, with a per-model icon picker.",
   "keywords": [
     "deepseek-harness",
@@ -45,6 +44,9 @@
     "./locale/*.json": "./locale/*.json",
     "./icon": "./icon.svg"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsx scripts/build.ts",
     "check": "tsx scripts/build.ts --check",
@@ -63,6 +65,7 @@
     "verify:dom": "tsx scripts/verify-dom.ts",
     "verify:live": "tsx scripts/verify-live.ts",
     "verify": "pnpm run typecheck && pnpm run lint && pnpm run fmt:check && pnpm run test && pnpm run logo:check && pnpm run rank:check && pnpm run build && pnpm run check",
+    "prepublishOnly": "pnpm run verify",
     "prepare": "simple-git-hooks && pnpm run build"
   },
   "dependencies": {
