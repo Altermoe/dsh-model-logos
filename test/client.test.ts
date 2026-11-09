@@ -178,10 +178,17 @@ function createMirror() {
   };
 }
 
+/** Settings value the fake form mirrors: both override fields the bundle reads. */
+interface FakeFormValue {
+  modelIcons: Record<string, Record<string, string>>;
+  /** Absent in a legacy profile that never stored a provider override. */
+  providerIcons?: Record<string, string>;
+}
+
 /** Snapshot shape the fake settings form returns to the bundle. */
 interface FakeFormSnapshot {
   status: string;
-  value: { modelIcons: Record<string, Record<string, string>> };
+  value: FakeFormValue;
   base: Record<string, never>;
   user: Record<string, never>;
   revision: number;
@@ -200,13 +207,22 @@ interface FakeForm {
   mutate(ops: unknown[], expectedRevision?: number): Promise<boolean>;
 }
 
-function createForm(overrides: Record<string, Record<string, string>>): FakeForm {
+/** Mutate behaviour the fake form needs beyond its default document. */
+interface FakeFormOptions {
+  /** Persisted provider overrides; omit for a legacy document that predates them. */
+  providerIcons?: Record<string, string>;
+}
+
+function createForm(overrides: Record<string, Record<string, string>>, options: FakeFormOptions = {}): FakeForm {
   const form: FakeForm = {
     listeners: new Set(),
     mutateCalls: [],
     snapshot: {
       status: 'ready',
-      value: { modelIcons: overrides },
+      value:
+        options.providerIcons === undefined
+          ? { modelIcons: overrides }
+          : { modelIcons: overrides, providerIcons: options.providerIcons },
       base: {},
       user: {},
       revision: 1,
@@ -230,24 +246,39 @@ function createForm(overrides: Record<string, Record<string, string>>): FakeForm
       for (const op of ops) {
         if (!isRecord(op)) continue;
         const path = Array.isArray(op.path) ? op.path : [];
-        if (path.length !== 3 || path[0] !== 'modelIcons') continue;
-        const providerId = String(path[1]);
-        const modelId = String(path[2]);
-        const icons = { ...(form.snapshot.value.modelIcons ?? {}) };
-        const bucket = { ...(icons[providerId] ?? {}) };
-        if (op.op === 'unset') {
-          delete bucket[modelId];
-          if (Object.keys(bucket).length === 0) delete icons[providerId];
-          else icons[providerId] = bucket;
-        } else {
-          bucket[modelId] = String(op.value);
-          icons[providerId] = bucket;
+        // Per-model overrides: ['modelIcons', providerId, modelId].
+        if (path[0] === 'modelIcons' && path.length === 3) {
+          const providerId = String(path[1]);
+          const modelId = String(path[2]);
+          const icons = { ...(form.snapshot.value.modelIcons ?? {}) };
+          const bucket = { ...(icons[providerId] ?? {}) };
+          if (op.op === 'unset') {
+            delete bucket[modelId];
+            if (Object.keys(bucket).length === 0) delete icons[providerId];
+            else icons[providerId] = bucket;
+          } else {
+            bucket[modelId] = String(op.value);
+            icons[providerId] = bucket;
+          }
+          form.snapshot = {
+            ...form.snapshot,
+            revision: form.snapshot.revision + 1,
+            value: { ...form.snapshot.value, modelIcons: icons },
+          };
+          continue;
         }
-        form.snapshot = {
-          ...form.snapshot,
-          revision: form.snapshot.revision + 1,
-          value: { ...form.snapshot.value, modelIcons: icons },
-        };
+        // Per-provider overrides: ['providerIcons', providerId].
+        if (path[0] === 'providerIcons' && path.length === 2) {
+          const providerId = String(path[1]);
+          const providers = { ...(form.snapshot.value.providerIcons ?? {}) };
+          if (op.op === 'unset') delete providers[providerId];
+          else providers[providerId] = String(op.value);
+          form.snapshot = {
+            ...form.snapshot,
+            revision: form.snapshot.revision + 1,
+            value: { ...form.snapshot.value, providerIcons: providers },
+          };
+        }
       }
       for (const listener of [...form.listeners]) listener();
       return true;
@@ -275,6 +306,8 @@ interface Registration {
 
 interface ContextOptions {
   overrides?: Record<string, Record<string, string>>;
+  /** Persisted provider overrides; omit for a document written before they existed. */
+  providerIcons?: Record<string, string>;
   missing?: string[];
   /** Active DSH locale (`en` unless a test forces another language). */
   lang?: string;
@@ -301,13 +334,13 @@ interface FakeContext {
  * Build a plugin context with the services the bundle injects.
  * `missing` names services to withhold (e.g. `['configForms']`).
  */
-function createContext({ overrides = {}, missing = [], lang = 'en' }: ContextOptions = {}) {
+function createContext({ overrides = {}, providerIcons, missing = [], lang = 'en' }: ContextOptions = {}) {
   const registrations: Registration[] = [];
   const injectedSlots: string[] = [];
   const effects: Array<{ label: string | undefined; off: unknown }> = [];
   const disposers: unknown[] = [];
   const events: Array<{ event: string; handler: unknown; off: () => void }> = [];
-  const form = createForm(overrides);
+  const form = createForm(overrides, providerIcons === undefined ? {} : { providerIcons });
   const mirror = createMirror();
   const services: Record<string, unknown> = {
     configForms: { get: (id: string) => (id === 'dsh-model-logos' ? form : form), describe: () => mirror },
@@ -442,6 +475,28 @@ function expectPresent<T>(value: T | undefined, message: string): T {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object';
+}
+
+/** Icon-state snapshot the bundle publishes for maintainers and the live harness. */
+interface DiagnosticsIconState {
+  status: string;
+  overrides: Record<string, Record<string, string>>;
+  providerOverrides: Record<string, string>;
+  writable: boolean;
+  error: string | null;
+}
+
+/** The read-only diagnostics surface `apply()` publishes on `globalThis`. */
+interface Diagnostics {
+  iconState(): DiagnosticsIconState;
+}
+
+/** Read the diagnostics surface, failing loudly when `apply()` never set it. */
+function diagnostics(): Diagnostics {
+  const value = (globalThis as unknown as Record<string, unknown>).__dshModelLogos;
+  expect(value, 'apply() must publish the diagnostics surface').toBeTruthy();
+  if (value === undefined) throw new Error('apply() must publish the diagnostics surface');
+  return value as Diagnostics;
 }
 
 interface LabelProps {
@@ -697,6 +752,38 @@ describe('generated client bundle', () => {
     const tree = component(props);
     const mark = expectPresent(findMark(tree), 'the label must re-render with the override that was just written');
     expect(mark.props.title).toBe('Claude');
+  });
+
+  it('starts with an empty provider override document', () => {
+    loadClient();
+    expect(diagnostics().iconState().status).toBe('ready');
+    expect(diagnostics().iconState().providerOverrides).toEqual({});
+  });
+
+  it('folds a provider override written through the settings form into the icon state', async () => {
+    const loaded = loadClient();
+    const ok = await loaded.form.mutate([{ op: 'set', path: ['providerIcons', 'volcengine'], value: 'qwen' }]);
+    expect(ok, 'the settings form must accept the provider write').toBe(true);
+    expect(diagnostics().iconState().providerOverrides).toEqual({ volcengine: 'qwen' });
+    // An unset at the same path removes the entry again.
+    const cleared = await loaded.form.mutate([{ op: 'unset', path: ['providerIcons', 'volcengine'] }]);
+    expect(cleared, 'the settings form must accept the provider reset').toBe(true);
+    expect(diagnostics().iconState().providerOverrides).toEqual({});
+  });
+
+  it('keeps a legacy document without provider overrides ready and empty', () => {
+    // A profile written before provider overrides existed carries `modelIcons`
+    // only; the bundle must not treat the missing field as an error.
+    loadClient({ overrides: { 'deepseek-account': { 'deepseek-flash': 'deepseek' } } });
+    const state = diagnostics().iconState();
+    expect(state.status).toBe('ready');
+    expect(state.providerOverrides).toEqual({});
+    expect(state.overrides).toEqual({ 'deepseek-account': { 'deepseek-flash': 'deepseek' } });
+  });
+
+  it('adopts persisted provider overrides from the settings document', () => {
+    loadClient({ providerIcons: { volcengine: 'qwen', anthropic: 'none' } });
+    expect(diagnostics().iconState().providerOverrides).toEqual({ volcengine: 'qwen', anthropic: 'none' });
   });
 
   it('the none sentinel renders text only', () => {

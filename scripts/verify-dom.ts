@@ -489,6 +489,52 @@ async function browserDriver(config: DriverConfig): Promise<void> {
     }
   }
 
+  /**
+   * The persisted `providerIcons` document the fake settings form serves.
+   *
+   * It has no dedicated harness field (unlike `modelIcons`, which the store keeps
+   * a live reference to): the plugin writes it as a top-level settings field
+   * through the generic `setPath`, so it only appears once a provider override
+   * has been written and disappears again when the last one is unset.
+   */
+  function dshmlProviderIconsDoc(): Record<string, unknown> {
+    const value = settingsValue.providerIcons;
+    return value !== null && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  }
+
+  /** Non-empty model overrides currently persisted in `modelIcons`. */
+  function dshmlModelOverrideCount(): number {
+    let count = 0;
+    for (const providerId of Object.keys(H.overrides)) {
+      const bucket = H.overrides[providerId];
+      if (bucket === null || typeof bucket !== 'object') continue;
+      for (const modelId of Object.keys(bucket)) if (bucket[modelId] !== '') count += 1;
+    }
+    return count;
+  }
+
+  /**
+   * The first recorded `providerIcons[providerId]` operation of one kind.
+   *
+   * `from` skips the calls a previous probe already consumed: the harness keeps
+   * every `mutate` call for the whole run, so a fresh write has to be matched
+   * against the tail, not against history.
+   */
+  function dshmlProviderOp(providerId: string, op: 'set' | 'unset', from?: number): Record<string, unknown> | null {
+    const calls = H.mutateCalls.slice(from === undefined ? 0 : from);
+    for (const call of calls) {
+      for (const candidate of Array.isArray(call) ? call : []) {
+        if (!isRecord(candidate)) continue;
+        const path = candidate.path;
+        if (candidate.op !== op || !Array.isArray(path)) continue;
+        if (path[0] === 'providerIcons' && path[1] === providerId) return candidate;
+      }
+    }
+    return null;
+  }
+
   const fieldPath = (field: unknown): unknown[] => (Array.isArray(field) ? field : String(field).split('.'));
 
   let cachedSnapshot: FormSnapshot | null = null;
@@ -802,6 +848,27 @@ async function browserDriver(config: DriverConfig): Promise<void> {
   // as zero and would let the first painted frame show un-seated rows.
   const seatsAtApply = qa('[data-dshml-seat="1"]').length;
   const modelSeatsAtApply = qa('[data-dshml-kind="model"]').length;
+  // The provider seats reserved in the same task as `apply()` have no provider
+  // identity yet: the directory is still loading, so the decorator must keep them
+  // inert — a disabled, unfocusable button that still holds the 22px column —
+  // rather than a live control that would write an override under a guessed route
+  // id. Captured before the first await, because the resolved mark replaces this
+  // state a few tasks later and nothing in the DOM would remember it.
+  const unresolvedSeats = qa<HTMLButtonElement>('[data-dshml-seat="1"]').map((seat) => {
+    const box = seat.getBoundingClientRect();
+    return {
+      label: text(seat.nextElementSibling),
+      type: seat.type,
+      owner: seat.getAttribute('data-dshml-owner'),
+      disabled: seat.disabled,
+      tabIndex: seat.getAttribute('tabindex'),
+      ariaHidden: seat.getAttribute('aria-hidden'),
+      vendor: seat.getAttribute('data-dshml-vendor'),
+      seatProvider: seat.getAttribute('data-dshml-seat-provider'),
+      hasSvg: q('svg', seat) !== null,
+      box: Math.round(box.width) + '×' + Math.round(box.height),
+    };
+  });
 
   /* -------------------------- decoration locators -------------------------- */
 
@@ -809,6 +876,97 @@ async function browserDriver(config: DriverConfig): Promise<void> {
 
   function findProviderRow(displayName: string): HTMLElement | null {
     return rowCards.filter((row) => text(q('.jrmgQW_rowName', row)) === displayName)[0] ?? null;
+  }
+
+  /** Selector matching the provider-icon seat this module reserves. */
+  const SEAT_SELECTOR = '[data-dshml-seat="1"]';
+
+  /** The provider-icon seat immediately preceding one row name / editor title. */
+  function seatBefore(target: Element | null): HTMLButtonElement | null {
+    if (target === null) return null;
+    const previous = target.previousElementSibling;
+    if (previous === null || !(previous instanceof HTMLButtonElement)) return null;
+    return previous.matches(SEAT_SELECTOR) ? previous : null;
+  }
+
+  /** The shape of one provider-icon seat, as the assertions read it. */
+  interface SeatState {
+    node: HTMLButtonElement;
+    tag: string;
+    type: string;
+    owner: string | null;
+    cls: string;
+    vendor: string | null;
+    seatProvider: string | null;
+    hasSvg: boolean;
+    innerHTML: string;
+    disabled: boolean;
+    tabIndex: string | null;
+    ariaHidden: string | null;
+    box: { width: number; height: number } | null;
+  }
+
+  /** Snapshot one seat: presence, identity attributes, mark and interactivity. */
+  function seatState(node: HTMLButtonElement | null): SeatState | null {
+    if (node === null) return null;
+    const box = node.getBoundingClientRect();
+    return {
+      node,
+      tag: node.tagName.toLowerCase(),
+      type: node.type,
+      owner: node.getAttribute('data-dshml-owner'),
+      cls: typeof node.className === 'string' ? node.className : '',
+      vendor: node.getAttribute('data-dshml-vendor'),
+      seatProvider: node.getAttribute('data-dshml-seat-provider'),
+      hasSvg: q('svg', node) !== null,
+      innerHTML: node.innerHTML,
+      disabled: node.disabled,
+      tabIndex: node.getAttribute('tabindex'),
+      ariaHidden: node.getAttribute('aria-hidden'),
+      box: { width: Math.round(box.width), height: Math.round(box.height) },
+    };
+  }
+
+  /** Whether a seat is a live control (the "declared but unmarked" state). */
+  function seatClickable(state: SeatState | null): boolean {
+    return (
+      state !== null &&
+      state.tag === 'button' &&
+      state.type === 'button' &&
+      state.disabled === false &&
+      state.tabIndex !== '-1' &&
+      state.ariaHidden === 'false'
+    );
+  }
+
+  /** Compact one-line rendering of a seat snapshot for assertion details. */
+  function seatSummary(state: SeatState | null): string {
+    if (state === null) return 'no seat';
+    return (
+      '<' +
+      state.tag +
+      ' type=' +
+      state.type +
+      ' classes="' +
+      state.cls +
+      '" owner=' +
+      String(state.owner) +
+      ' vendor=' +
+      String(state.vendor) +
+      ' seat-provider=' +
+      String(state.seatProvider) +
+      ' svg=' +
+      String(state.hasSvg) +
+      ' disabled=' +
+      String(state.disabled) +
+      ' tabindex=' +
+      String(state.tabIndex) +
+      ' aria-hidden=' +
+      String(state.ariaHidden) +
+      ' ' +
+      (state.box === null ? 'no box' : state.box.width + '×' + state.box.height + 'px') +
+      '>'
+    );
   }
 
   /** Model rows carry [data-dshml-model-row] once decorated; the button is `.dshml-model-icon-btn`. */
@@ -1324,6 +1482,309 @@ async function browserDriver(config: DriverConfig): Promise<void> {
             'px, vendor attr=' +
             String(customSeat?.getAttribute('data-dshml-vendor'))
         : 'no [data-dshml-seat] inside the custom provider row',
+    );
+
+    /* ------------------- provider-icon seats (configurable) ------------------ */
+    // The seat is not just a drawing slot any more: it is the control that opens
+    // the provider-scope picker. Three states are pinned here, and each one is a
+    // distinct regression: an unresolved seat that writes under a guessed route
+    // id, a declared seat that cannot be configured at all, and a mark that
+    // ignores the stored override.
+
+    const officialSeat = seatBefore(officialName);
+    const officialSeatState = seatState(officialSeat);
+    add(
+      'provider-name seat is a 22×22 type=button owned by the plugin',
+      true,
+      officialSeatState !== null &&
+        officialSeatState.tag === 'button' &&
+        officialSeatState.type === 'button' &&
+        officialSeatState.owner === '1' &&
+        officialSeatState.cls.split(/\s+/).includes('dshml-insert') &&
+        officialSeatState.cls.split(/\s+/).includes('dshml-vendor') &&
+        officialSeatState.cls.split(/\s+/).includes('dshml-vendor-btn') &&
+        officialSeatState.box !== null &&
+        officialSeatState.box.width === 22 &&
+        officialSeatState.box.height === 22,
+      seatSummary(officialSeatState),
+    );
+    add(
+      'official provider seat carries its vendor mark and identity',
+      true,
+      officialSeatState !== null &&
+        officialSeatState.hasSvg &&
+        officialSeatState.vendor === config.officialProvider.id &&
+        officialSeatState.seatProvider === config.officialProvider.id &&
+        officialSeatState.disabled === false &&
+        officialSeatState.ariaHidden === 'false' &&
+        officialSeatState.tabIndex === null,
+      seatSummary(officialSeatState) +
+        ', preceded-by-name=' +
+        String(isBefore(officialSeat, officialName)) +
+        ', editor-title-seat=' +
+        seatSummary(seatState(seatBefore(editorTitle))),
+    );
+    add(
+      'official provider seat precedes the row name and the editor title',
+      true,
+      isBefore(officialSeat, officialName) && isBefore(seatBefore(editorTitle), editorTitle),
+      'row seat=' +
+        String(isBefore(officialSeat, officialName)) +
+        ', title seat=' +
+        String(isBefore(seatBefore(editorTitle), editorTitle)),
+    );
+
+    // A hand-declared provider has an identity but no automatic mark. That seat
+    // must stay empty yet clickable: choosing an icon for it is the whole point,
+    // so disabling it would make the case that needs the picker most unreachable.
+    const declaredSeat = seatBefore(customRow ? q('.jrmgQW_rowName', customRow) : null);
+    const declaredSeatState = seatState(declaredSeat);
+    add(
+      'declared provider seat is an empty but clickable seat with its identity',
+      true,
+      declaredSeatState !== null &&
+        declaredSeatState.seatProvider === config.customProvider.id &&
+        declaredSeatState.vendor === null &&
+        !declaredSeatState.hasSvg &&
+        declaredSeatState.innerHTML === '' &&
+        declaredSeatState.cls.split(/\s+/).includes('dshml-vendor-empty') &&
+        declaredSeatState.box !== null &&
+        declaredSeatState.box.width === 22 &&
+        declaredSeatState.box.height === 22 &&
+        seatClickable(declaredSeatState),
+      seatSummary(declaredSeatState),
+    );
+
+    // Before the directory resolves, the seat has no identity at all: it must be
+    // inert. A live seat here would open a picker and write `providerIcons[?]`
+    // under a route id the plugin only guessed.
+    add(
+      'seats reserved before the directory resolves are inert, not fake controls',
+      true,
+      unresolvedSeats.length > 0 &&
+        unresolvedSeats.every(
+          (seat) =>
+            seat.type === 'button' &&
+            seat.owner === '1' &&
+            seat.disabled === true &&
+            seat.tabIndex === '-1' &&
+            seat.ariaHidden === 'true' &&
+            seat.vendor === null &&
+            seat.seatProvider === null &&
+            !seat.hasSvg &&
+            seat.box === '22×22',
+        ),
+      'seats=' +
+        unresolvedSeats.length +
+        ' ' +
+        JSON.stringify(
+          unresolvedSeats.map((seat) => ({
+            on: seat.label,
+            disabled: seat.disabled,
+            tabindex: seat.tabIndex,
+            ariaHidden: seat.ariaHidden,
+            box: seat.box,
+          })),
+        ),
+    );
+
+    // The `providerIcons` document does not exist in the settings mirror until the
+    // first provider override is written: the assertion below proves the write
+    // creates that top-level field through the generic path rather than reading a
+    // field the harness pre-seeded.
+    add(
+      'providerIcons is absent until the first provider write',
+      true,
+      !Object.prototype.hasOwnProperty.call(settingsValue, 'providerIcons'),
+      'settings fields=' + JSON.stringify(Object.keys(settingsValue)),
+    );
+
+    // Clicking the official seat opens the provider-scope picker. The provider
+    // scope is distinguishable from the model scope by its title and, crucially,
+    // by its subtitle: one channel identity (`name · routeId`) and never a model
+    // id, which is what makes the write unambiguous.
+    const providerWriteStart = H.mutateCalls.length;
+    const officialMarkBefore = officialSeatState !== null ? officialSeatState.innerHTML : '';
+    let providerPicker: HTMLElement | null = null;
+    if (officialSeat !== null) {
+      officialSeat.click();
+      providerPicker = await waitFor(() => {
+        const candidate = findPicker();
+        if (candidate === null) return null;
+        const title = pickerTitle(candidate);
+        return title.indexOf('选择厂商图标') >= 0 || title.indexOf('Choose vendor icon') >= 0 ? candidate : null;
+      }, 5000);
+    }
+    add(
+      'clicking the official provider seat opens the provider-scope picker',
+      true,
+      providerPicker !== null,
+      providerPicker !== null
+        ? 'root ' + describeNode(providerPicker) + ' title "' + pickerTitle(providerPicker) + '"'
+        : 'no provider-scope picker after clicking ' +
+            describeNode(officialSeat) +
+            '; open title=' +
+            JSON.stringify(pickerTitle(findPicker())),
+    );
+    if (providerPicker !== null) {
+      const pickerNode = providerPicker;
+      const subtitleNode = q('.dshml-picker-subtitle', pickerNode);
+      const subtitle = text(subtitleNode);
+      add(
+        'provider picker names the channel (name + route id) and no model id',
+        true,
+        subtitle.indexOf(config.officialProvider.id) >= 0 &&
+          subtitle.indexOf(config.officialProvider.displayName) >= 0 &&
+          subtitle.indexOf(config.firstModel.modelId) < 0 &&
+          subtitle.indexOf('·') >= 0,
+        'subtitle "' + subtitle + '" (must not contain "' + config.firstModel.modelId + '")',
+      );
+      // The provider picker still offers the full brand set: the write has to be
+      // possible from the empty declared seat as much as from an official one.
+      const providerBrandOption = findPickerOption(pickerNode, 'OpenAI');
+      add(
+        'provider picker offers brand options to pick from',
+        true,
+        providerBrandOption !== null && providerBrandOption.classList.contains('dshml-picker-option'),
+        providerBrandOption !== null
+          ? 'found ' + describeNode(providerBrandOption)
+          : 'no OpenAI option inside the provider picker',
+      );
+      if (providerBrandOption !== null) {
+        clickable(providerBrandOption).click();
+        const providerWrite = await waitFor(
+          () => dshmlProviderOp(config.officialProvider.id, 'set', providerWriteStart),
+          5000,
+        );
+        const writePath =
+          providerWrite !== null && Array.isArray(providerWrite.path) ? (providerWrite.path as unknown[]) : null;
+        add(
+          'picking a brand in the provider picker writes providerIcons[provider] through configForms.mutate',
+          true,
+          writePath !== null &&
+            writePath.length === 2 &&
+            writePath[0] === 'providerIcons' &&
+            writePath[1] === config.officialProvider.id &&
+            typeof providerWrite?.value === 'string' &&
+            providerWrite.value !== '' &&
+            providerWrite.value !== 'none',
+          providerWrite !== null
+            ? 'op=' + JSON.stringify(providerWrite)
+            : 'mutate calls=' + JSON.stringify(H.mutateCalls.slice(providerWriteStart)),
+        );
+        add(
+          'picked provider brand key is OpenAI and lands in the settings document',
+          true,
+          providerWrite?.value === 'openai' && dshmlProviderIconsDoc()[config.officialProvider.id] === 'openai',
+          'providerIcons=' + JSON.stringify(dshmlProviderIconsDoc()),
+        );
+      }
+      const providerClosed = await waitFor(() => !pickerNode.isConnected || !visible(pickerNode), 4000);
+      add(
+        'provider picker closes after a successful write and the seat repaints',
+        true,
+        !!providerClosed,
+        providerClosed ? 'modal removed' : 'provider modal still visible',
+      );
+    }
+
+    // The seat must show the stored override, not the automatic artwork: the
+    // `dshml-vendor-custom` marker is set exactly when the resolution came from
+    // `providerIcons`, so this cannot pass by simply repainting the same mark.
+    const repaintedSeat = await waitFor(() => {
+      const state = seatState(seatBefore(officialName));
+      if (state === null) return null;
+      return state.innerHTML !== officialMarkBefore && state.cls.split(/\s+/).includes('dshml-vendor-custom')
+        ? state
+        : null;
+    }, 4000);
+    add(
+      'provider seat repaints from the stored override after the picker write',
+      true,
+      repaintedSeat !== null &&
+        repaintedSeat.hasSvg &&
+        repaintedSeat.vendor === config.officialProvider.id &&
+        repaintedSeat.seatProvider === config.officialProvider.id,
+      repaintedSeat !== null
+        ? seatSummary(repaintedSeat) +
+            ' (was ' +
+            officialMarkBefore.length +
+            ' bytes, now ' +
+            repaintedSeat.innerHTML.length +
+            ')'
+        : 'seat markup did not change from ' + officialMarkBefore.length + ' bytes',
+    );
+
+    // An explicit `none` must win over the automatic vendor mark while keeping the
+    // seat clickable — the user has to be able to undo it from the same control.
+    form.mutate([{ op: 'set', path: ['providerIcons', config.officialProvider.id], value: 'none' }]);
+    const clearedSeat = await waitFor(() => {
+      const state = seatState(seatBefore(officialName));
+      return state !== null && !state.hasSvg ? state : null;
+    }, 4000);
+    add(
+      'providerIcons[provider]="none" hides the mark but keeps the seat clickable',
+      true,
+      clearedSeat !== null &&
+        clearedSeat.vendor === null &&
+        clearedSeat.innerHTML === '' &&
+        clearedSeat.seatProvider === config.officialProvider.id &&
+        seatClickable(clearedSeat) &&
+        clearedSeat.box !== null &&
+        clearedSeat.box.width === 22 &&
+        clearedSeat.box.height === 22,
+      seatSummary(clearedSeat),
+    );
+
+    // Unsetting restores the automatic official mark, which is what the row showed
+    // before any override existed.
+    form.mutate([{ op: 'unset', path: ['providerIcons', config.officialProvider.id] }]);
+    const providerSeatRestored = await waitFor(() => {
+      const state = seatState(seatBefore(officialName));
+      return state !== null && state.hasSvg && state.vendor === config.officialProvider.id ? state : null;
+    }, 4000);
+    add(
+      'unsetting providerIcons[provider] restores the official vendor mark',
+      true,
+      providerSeatRestored !== null &&
+        providerSeatRestored.seatProvider === config.officialProvider.id &&
+        !providerSeatRestored.cls.split(/\s+/).includes('dshml-vendor-custom'),
+      seatSummary(providerSeatRestored),
+    );
+
+    // The declared provider is configurable too — this is the case the empty seat
+    // exists for: `providerIcons['<declared>']='qwen'` has to draw a real mark on
+    // it, and clearing it has to return to an empty (still clickable) seat.
+    form.mutate([{ op: 'set', path: ['providerIcons', config.customProvider.id], value: 'qwen' }]);
+    const declaredMarked = await waitFor(() => {
+      const state = seatState(seatBefore(customRow ? q('.jrmgQW_rowName', customRow) : null));
+      return state !== null && state.hasSvg && state.vendor === config.customProvider.id ? state : null;
+    }, 4000);
+    add(
+      'declared provider accepts a configured mark (providerIcons[volcengine]="qwen")',
+      true,
+      declaredMarked !== null &&
+        declaredMarked.seatProvider === config.customProvider.id &&
+        declaredMarked.cls.split(/\s+/).includes('dshml-vendor-custom') &&
+        seatClickable(declaredMarked) &&
+        declaredMarked.vendor === config.customProvider.id,
+      seatSummary(declaredMarked),
+    );
+    form.mutate([{ op: 'unset', path: ['providerIcons', config.customProvider.id] }]);
+    const declaredCleared = await waitFor(() => {
+      const state = seatState(seatBefore(customRow ? q('.jrmgQW_rowName', customRow) : null));
+      return state !== null && !state.hasSvg && state.seatProvider === config.customProvider.id ? state : null;
+    }, 4000);
+    add(
+      'clearing the declared override returns to the empty but clickable seat',
+      true,
+      declaredCleared !== null &&
+        declaredCleared.vendor === null &&
+        declaredCleared.innerHTML === '' &&
+        seatClickable(declaredCleared) &&
+        declaredCleared.box !== null &&
+        declaredCleared.box.width === 22,
+      seatSummary(declaredCleared),
     );
 
     const select = q<HTMLSelectElement>('.jrmgQW_addPanel select', root);
@@ -1871,6 +2332,238 @@ async function browserDriver(config: DriverConfig): Promise<void> {
       ),
       'registrations=' + JSON.stringify(H.registrations.map((registration) => registration.options)),
     );
+
+    /* ------------- Model icons page: provider group (task-1 contract) -------- */
+    // The page lists one row per provider route, not only per model pair: the
+    // vendor icon has to be configurable there as well, and the summary line
+    // carries the per-scope counts the DOM gate reads as data hooks.
+    const sectionRegistration = H.registrations.find(
+      (registration) => registration.options?.name === 'settings.section',
+    );
+    let sectionHost: HTMLElement | null = null;
+    let sectionRoot: ReactRootLike | null = null;
+    if (sectionRegistration && window.React && window.ReactDOM) {
+      const host = document.createElement('div');
+      // Off screen, exactly like the composer probes below: the Settings fixture
+      // and its screenshot must not gain a second, unrelated panel.
+      host.id = 'dshml-section-probe';
+      host.style.cssText = 'position:fixed;left:-10000px;top:0;width:720px';
+      document.body.appendChild(host);
+      sectionHost = host;
+      const mounted = window.ReactDOM.createRoot(host);
+      sectionRoot = mounted;
+      try {
+        mounted.render(window.React.createElement(sectionRegistration.component, {}));
+        const providerRows = await waitFor(() => {
+          const rows = qa('[data-dshml-provider-row]', host);
+          return rows.length >= 2 ? rows : null;
+        }, 6000);
+        const providerRowIds = (providerRows ?? []).map((row) => row.getAttribute('data-dshml-provider-row'));
+        add(
+          'Model icons page lists a provider row for the official and the declared channel',
+          true,
+          providerRowIds.indexOf(config.officialProvider.id) >= 0 &&
+            providerRowIds.indexOf(config.customProvider.id) >= 0,
+          'provider rows=' + JSON.stringify(providerRowIds),
+        );
+
+        const sectionOfficialRow = q('[data-dshml-provider-row="' + config.officialProvider.id + '"]', host);
+        const sectionDeclaredRow = q('[data-dshml-provider-row="' + config.customProvider.id + '"]', host);
+        const sectionOfficialMark = sectionOfficialRow
+          ? q<HTMLElement>('.dshml-section-mark', sectionOfficialRow)
+          : null;
+        const sectionDeclaredMark = sectionDeclaredRow
+          ? q<HTMLElement>('.dshml-section-mark', sectionDeclaredRow)
+          : null;
+        const sectionOfficialBox = sectionOfficialMark ? sectionOfficialMark.getBoundingClientRect() : null;
+        const sectionDeclaredBox = sectionDeclaredMark ? sectionDeclaredMark.getBoundingClientRect() : null;
+        add(
+          'Model icons page draws the official vendor mark and an empty 22px seat for the declared one',
+          true,
+          sectionOfficialMark !== null &&
+            q('svg', sectionOfficialMark) !== null &&
+            sectionOfficialBox !== null &&
+            Math.round(sectionOfficialBox.width) === 22 &&
+            sectionDeclaredMark !== null &&
+            q('svg', sectionDeclaredMark) === null &&
+            sectionDeclaredBox !== null &&
+            Math.round(sectionDeclaredBox.width) === 22 &&
+            Math.round(sectionDeclaredBox.height) === 22,
+          'official="' +
+            (sectionOfficialMark
+              ? text(sectionOfficialMark).slice(0, 12) + ' svg=' + String(q('svg', sectionOfficialMark) !== null)
+              : 'missing') +
+            '" ' +
+            (sectionOfficialBox
+              ? Math.round(sectionOfficialBox.width) + '×' + Math.round(sectionOfficialBox.height)
+              : 'no box') +
+            ', declared svg=' +
+            String(sectionDeclaredMark !== null && q('svg', sectionDeclaredMark) !== null) +
+            ' ' +
+            (sectionDeclaredBox
+              ? Math.round(sectionDeclaredBox.width) + '×' + Math.round(sectionDeclaredBox.height)
+              : 'no box'),
+        );
+
+        // Choose → the same provider-scope picker the Settings seat opens, and the
+        // write lands under `providerIcons[<route id>]`, not under a model pair.
+        const sectionWriteStart = H.mutateCalls.length;
+        const chooseButton = q<HTMLButtonElement>(
+          '[data-dshml-provider-choose="' + config.customProvider.id + '"]',
+          host,
+        );
+        let sectionPicker: HTMLElement | null = null;
+        if (chooseButton) {
+          chooseButton.click();
+          sectionPicker = await waitFor(() => {
+            const candidate = findPicker();
+            if (candidate === null) return null;
+            const title = pickerTitle(candidate);
+            return title.indexOf('选择厂商图标') >= 0 || title.indexOf('Choose vendor icon') >= 0 ? candidate : null;
+          }, 5000);
+        }
+        add(
+          'Model icons page choose button opens the provider-scope picker',
+          true,
+          sectionPicker !== null,
+          sectionPicker !== null
+            ? 'title "' +
+                pickerTitle(sectionPicker) +
+                '" subtitle "' +
+                text(q('.dshml-picker-subtitle', sectionPicker)) +
+                '"'
+            : 'choose button=' +
+                describeNode(chooseButton) +
+                ', open picker title=' +
+                JSON.stringify(pickerTitle(findPicker())),
+        );
+        if (sectionPicker !== null) {
+          const brandOption = findPickerOption(sectionPicker, 'OpenAI');
+          if (brandOption) clickable(brandOption).click();
+          const pageWrite = await waitFor(
+            () => dshmlProviderOp(config.customProvider.id, 'set', sectionWriteStart),
+            5000,
+          );
+          const pagePath = pageWrite !== null && Array.isArray(pageWrite.path) ? (pageWrite.path as unknown[]) : null;
+          add(
+            'Model icons page writes providerIcons[declared] from the picker',
+            true,
+            brandOption !== null &&
+              pagePath !== null &&
+              pagePath.length === 2 &&
+              pagePath[0] === 'providerIcons' &&
+              pagePath[1] === config.customProvider.id &&
+              pageWrite?.value === 'openai',
+            pageWrite !== null
+              ? 'op=' + JSON.stringify(pageWrite)
+              : 'mutate calls=' + JSON.stringify(H.mutateCalls.slice(sectionWriteStart)),
+          );
+          await waitFor(() => !sectionPicker.isConnected || !visible(sectionPicker), 4000);
+        }
+
+        // A configured declared channel now draws its mark, and the summary line
+        // exposes both override counts as data hooks.
+        form.mutate([
+          { op: 'set', path: ['modelIcons', config.firstModel.providerId, config.firstModel.modelId], value: 'openai' },
+        ]);
+        const summary = await waitFor(() => {
+          const node = q<HTMLElement>('.dshml-section-summary', host);
+          if (node === null) return null;
+          return node.getAttribute('data-dshml-provider-overrides') === '1' ? node : null;
+        }, 4000);
+        add(
+          'Model icons summary reports model and provider override counts separately',
+          true,
+          summary !== null &&
+            summary.getAttribute('data-dshml-model-overrides') === String(dshmlModelOverrideCount()) &&
+            summary.getAttribute('data-dshml-provider-overrides') === '1' &&
+            dshmlModelOverrideCount() === 1,
+          summary !== null
+            ? 'model=' +
+                String(summary.getAttribute('data-dshml-model-overrides')) +
+                ' provider=' +
+                String(summary.getAttribute('data-dshml-provider-overrides')) +
+                ' text="' +
+                text(summary) +
+                '"'
+            : 'no .dshml-section-summary with provider-overrides="1"',
+        );
+        const declaredMarkAfter = await waitFor(() => {
+          const node = q<HTMLElement>(
+            '[data-dshml-provider-row="' + config.customProvider.id + '"] .dshml-section-mark',
+            host,
+          );
+          return node !== null && q('svg', node) !== null ? node : null;
+        }, 4000);
+        add(
+          'Model icons page draws the configured mark on the declared row',
+          true,
+          declaredMarkAfter !== null,
+          declaredMarkAfter !== null
+            ? 'svg present after the provider override (' + declaredMarkAfter.innerHTML.length + ' bytes)'
+            : 'declared row still has no svg after providerIcons[' + config.customProvider.id + '] was written',
+        );
+
+        // Reset is offered exactly while a persisted override exists, and clears it
+        // with an `unset` on the same flat path.
+        const resetButton = q<HTMLButtonElement>(
+          '[data-dshml-provider-reset="' + config.customProvider.id + '"]',
+          host,
+        );
+        add(
+          'Model icons page offers a provider reset while an override is persisted',
+          true,
+          resetButton !== null && resetButton.tagName === 'BUTTON' && resetButton.disabled === false,
+          resetButton !== null ? describeNode(resetButton) : 'no [data-dshml-provider-reset] for the declared provider',
+        );
+        const resetWriteStart = H.mutateCalls.length;
+        if (resetButton) resetButton.click();
+        const resetOp = await waitFor(() => dshmlProviderOp(config.customProvider.id, 'unset', resetWriteStart), 5000);
+        add(
+          'clicking the provider reset unsets providerIcons[declared]',
+          true,
+          resetOp !== null && Array.isArray(resetOp.path) && (resetOp.path as unknown[]).length === 2,
+          resetOp !== null
+            ? 'op=' + JSON.stringify(resetOp)
+            : 'mutate calls=' + JSON.stringify(H.mutateCalls.slice(resetWriteStart)),
+        );
+        const resetGone = await waitFor(
+          () => q('[data-dshml-provider-reset="' + config.customProvider.id + '"]', host) === null,
+          4000,
+        );
+        add(
+          'provider reset disappears once the override is cleared',
+          true,
+          !!resetGone,
+          resetGone ? 'reset button removed' : 'reset button still present after the unset',
+        );
+        // Leave the settings document as the later disposal probes expect it.
+        form.mutate([{ op: 'unset', path: ['modelIcons', config.firstModel.providerId, config.firstModel.modelId] }]);
+      } catch (error) {
+        add(
+          'Model icons page lists a provider row for the official and the declared channel',
+          true,
+          false,
+          'threw: ' + errorText(error),
+        );
+      } finally {
+        if (sectionRoot !== null) {
+          try {
+            sectionRoot.unmount();
+          } catch {
+            /* the probe may never have rendered */
+          }
+        }
+        if (sectionHost !== null) sectionHost.remove();
+      }
+    } else {
+      add(
+        'Model icons page lists a provider row for the official and the declared channel',
+        true,
+        false,
+        'no settings.section registration component to mount',
+      );
+    }
 
     let labelHost: HTMLElement | null = null;
     let labelRoot: ReactRootLike | null = null;

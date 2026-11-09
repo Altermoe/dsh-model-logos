@@ -8,11 +8,17 @@ import { describe, expect, it } from 'vitest';
 
 import {
   flattenOverrides,
+  flattenProviderOverrides,
   letterTextFor,
   overrideIcon,
+  providerLetterTextFor,
+  providerOverrideIcon,
   resolveModelIcon,
+  resolveProviderIcon,
   withOverride,
+  withProviderOverride,
   withoutOverride,
+  withoutProviderOverride,
 } from '../src/resolve';
 
 describe('resolve', () => {
@@ -178,5 +184,183 @@ describe('resolve', () => {
     expect(letterTextFor({ id: 'prov-1' }, null)).toBe('prov-1');
     expect(letterTextFor({ name: '  ' }, { name: '' })).toBe('?');
     expect(letterTextFor(null, null)).toBe('?');
+  });
+});
+
+/**
+ * Provider (vendor / channel) overrides: the flat `providerId → icon` document,
+ * its immutable edits, and the resolution order override → official channel
+ * table → optional letter tile. A hand-declared provider must stay empty rather
+ * than borrow a logo that would misname it.
+ */
+describe('provider override resolution', () => {
+  it('reads a provider override by route id and ignores inherited properties', () => {
+    const overrides = { anthropic: 'anthropic', volcengine: 'qwen', off: 'none', tile: 'letter' };
+    expect(providerOverrideIcon(overrides, 'volcengine')).toBe('qwen');
+    expect(providerOverrideIcon(overrides, 'off')).toBe('none');
+    expect(providerOverrideIcon(overrides, 'tile')).toBe('letter');
+    expect(providerOverrideIcon(overrides, 'missing')).toBe(null);
+    expect(providerOverrideIcon(overrides, '')).toBe(null);
+    expect(providerOverrideIcon(overrides, '   ')).toBe(null);
+    expect(providerOverrideIcon(overrides, 42)).toBe(null);
+    expect(providerOverrideIcon(overrides, null)).toBe(null);
+    expect(providerOverrideIcon(undefined, 'anthropic')).toBe(null);
+    expect(providerOverrideIcon(null, 'anthropic')).toBe(null);
+    // Only own data properties count, so a polluted prototype chain is inert.
+    const polluted = Object.create({ anthropic: 'claude' }) as Record<string, unknown>;
+    expect(providerOverrideIcon(polluted, 'anthropic')).toBe(null);
+  });
+
+  it('withProviderOverride writes flat and immutably', () => {
+    const base = { anthropic: 'anthropic' };
+    const next = withProviderOverride(base, 'volcengine', 'qwen');
+    expect(next).toEqual({ anthropic: 'anthropic', volcengine: 'qwen' });
+    expect(next).not.toBe(base);
+    expect(base, 'the input document must not mutate').toEqual({ anthropic: 'anthropic' });
+    expect(withProviderOverride({ volcengine: 'qwen' }, 'volcengine', 'openai')).toEqual({ volcengine: 'openai' });
+    expect(withProviderOverride(undefined, 'p', 'qwen')).toEqual({ p: 'qwen' });
+    expect(withProviderOverride(null, 'p', 'qwen')).toEqual({ p: 'qwen' });
+  });
+
+  it('withProviderOverride removes the entry for blank, null and undefined icons', () => {
+    const base = { anthropic: 'anthropic', volcengine: 'qwen' };
+    expect(withProviderOverride(base, 'volcengine', '')).toEqual({ anthropic: 'anthropic' });
+    expect(withProviderOverride(base, 'volcengine', '   ')).toEqual({ anthropic: 'anthropic' });
+    expect(withProviderOverride(base, 'volcengine', null)).toEqual({ anthropic: 'anthropic' });
+    expect(withProviderOverride(base, 'volcengine', undefined)).toEqual({ anthropic: 'anthropic' });
+    expect(base, 'removal must not mutate the input').toEqual({ anthropic: 'anthropic', volcengine: 'qwen' });
+    expect(withProviderOverride(base, '', 'qwen')).toEqual(base);
+    expect(withProviderOverride(base, '   ', 'qwen')).toEqual(base);
+  });
+
+  it('withoutProviderOverride removes immutably and tolerates unset or blank ids', () => {
+    const base = { anthropic: 'anthropic', volcengine: 'qwen' };
+    const next = withoutProviderOverride(base, 'volcengine');
+    expect(next).toEqual({ anthropic: 'anthropic' });
+    expect(next).not.toBe(base);
+    expect(base, 'the input document must not mutate').toEqual({ anthropic: 'anthropic', volcengine: 'qwen' });
+    expect(withoutProviderOverride(base, 'missing')).toEqual(base);
+    expect(withoutProviderOverride(base, 'missing')).not.toBe(base);
+    expect(withoutProviderOverride(base, '')).toEqual(base);
+    expect(withoutProviderOverride(null, 'anthropic')).toEqual({});
+    expect(withoutProviderOverride(undefined, 'anthropic')).toEqual({});
+  });
+
+  it('provider ids with dots, colons, slashes and spaces survive the flat dict', () => {
+    const providerId = 'local.provider:one/two three';
+    const overrides = withProviderOverride({}, providerId, 'letter');
+    expect(overrides).toEqual({ [providerId]: 'letter' });
+    expect(providerOverrideIcon(overrides, providerId)).toBe('letter');
+    expect(flattenProviderOverrides(overrides)).toEqual([{ providerId, icon: 'letter' }]);
+    expect(withoutProviderOverride(overrides, providerId)).toEqual({});
+  });
+
+  it('flattenProviderOverrides lists every persisted entry ordered by provider id', () => {
+    expect(flattenProviderOverrides({ zai: 'zhipu', anthropic: 'none', volcengine: 'letter' })).toEqual([
+      { providerId: 'anthropic', icon: 'none' },
+      { providerId: 'volcengine', icon: 'letter' },
+      { providerId: 'zai', icon: 'zhipu' },
+    ]);
+    // Deterministic: the same document must always flatten to the same order.
+    const document = { b: 'openai', a: 'claude', c: 'letter' };
+    expect(flattenProviderOverrides(document)).toEqual(flattenProviderOverrides(document));
+    // Non-string and empty values are not persisted entries.
+    expect(flattenProviderOverrides({ p: '', q: 42, r: null, s: {} } as Record<string, unknown>)).toEqual([]);
+  });
+
+  it('flattenProviderOverrides returns [] for null, undefined, arrays and non-objects', () => {
+    expect(flattenProviderOverrides(null)).toEqual([]);
+    expect(flattenProviderOverrides(undefined)).toEqual([]);
+    expect(flattenProviderOverrides([])).toEqual([]);
+    expect(flattenProviderOverrides(['qwen'])).toEqual([]);
+    expect(flattenProviderOverrides('volcengine')).toEqual([]);
+    expect(flattenProviderOverrides(7)).toEqual([]);
+  });
+
+  it('a known brand override wins over the official channel', () => {
+    const resolved = resolveProviderIcon({ anthropic: 'openai' }, 'anthropic');
+    expect(resolved).toEqual({ key: 'openai', source: 'override', disabled: false, letter: false });
+    // Without the override the official channel table would pick Anthropic itself.
+    expect(resolveProviderIcon({}, 'anthropic')).toEqual({
+      key: 'anthropic',
+      source: 'heuristic',
+      disabled: false,
+      letter: false,
+    });
+  });
+
+  it('the none sentinel disables the mark even for an official channel', () => {
+    expect(resolveProviderIcon({ anthropic: 'none' }, 'anthropic')).toEqual({
+      key: null,
+      source: 'override',
+      disabled: true,
+      letter: false,
+    });
+  });
+
+  it('the letter sentinel asks for a generated tile and wins over the official channel', () => {
+    expect(resolveProviderIcon({ anthropic: 'letter' }, 'anthropic')).toEqual({
+      key: null,
+      source: 'override',
+      disabled: false,
+      letter: true,
+    });
+  });
+
+  it('an unknown or stale override value falls back to the official channel', () => {
+    expect(resolveProviderIcon({ anthropic: 'brand-that-does-not-exist' }, 'anthropic')).toEqual({
+      key: 'anthropic',
+      source: 'heuristic',
+      disabled: false,
+      letter: false,
+    });
+  });
+
+  it('a declared provider gets no mark unless the letter fallback is allowed', () => {
+    const none = { key: null, source: 'none', disabled: false, letter: false };
+    expect(resolveProviderIcon({}, 'acme')).toEqual(none);
+    expect(resolveProviderIcon({}, 'acme', { fallback: false })).toEqual(none);
+    expect(resolveProviderIcon({}, 'acme', { allowFallback: false })).toEqual(none);
+    expect(resolveProviderIcon({}, 'acme', null)).toEqual(none);
+    expect(resolveProviderIcon({}, 'acme', { fallback: true })).toEqual({
+      key: null,
+      source: 'none',
+      disabled: false,
+      letter: true,
+    });
+    // `allowFallback` is the legacy spelling of the same flag.
+    expect(resolveProviderIcon({}, 'acme', { allowFallback: true })).toEqual({
+      key: null,
+      source: 'none',
+      disabled: false,
+      letter: true,
+    });
+    // An explicit override still beats either fallback spelling.
+    expect(resolveProviderIcon({ acme: 'qwen' }, 'acme', { fallback: true })).toEqual({
+      key: 'qwen',
+      source: 'override',
+      disabled: false,
+      letter: false,
+    });
+  });
+
+  it('empty and non-string provider ids resolve to no icon, even with a fallback', () => {
+    const none = { key: null, source: 'none', disabled: false, letter: false };
+    for (const providerId of ['', '   ', 42, null, undefined, {}, []]) {
+      expect(resolveProviderIcon({ '': 'qwen' }, providerId), String(providerId)).toEqual(none);
+      expect(resolveProviderIcon({ '': 'qwen' }, providerId, { fallback: true }), String(providerId)).toEqual(none);
+    }
+  });
+
+  it('providerLetterTextFor prefers the display name, then the route id, then a placeholder', () => {
+    expect(providerLetterTextFor('volcengine', 'Volcengine')).toBe('Volcengine');
+    expect(providerLetterTextFor('volcengine', '  Volcengine  ')).toBe('Volcengine');
+    expect(providerLetterTextFor('volcengine', '   ')).toBe('volcengine');
+    expect(providerLetterTextFor('  volcengine  ', null)).toBe('volcengine');
+    expect(providerLetterTextFor('volcengine')).toBe('volcengine');
+    expect(providerLetterTextFor('volcengine', 42)).toBe('volcengine');
+    expect(providerLetterTextFor('', '')).toBe('?');
+    expect(providerLetterTextFor(null, null)).toBe('?');
+    expect(providerLetterTextFor(undefined, undefined)).toBe('?');
   });
 });
