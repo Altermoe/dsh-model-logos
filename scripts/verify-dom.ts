@@ -776,6 +776,11 @@ async function browserDriver(config: DriverConfig): Promise<void> {
     H.errors.push('factory: ' + errorText(error));
   }
 
+  // The shipped dialog markup as the page renders it, before any decoration: the
+  // "dialog opens after the plugin started" probe below mounts this clone, which
+  // is exactly what React does when the user reaches Settings later.
+  const pristineSettingsRoot = q('[data-shortcut-modal="settings"]')?.cloneNode(true) as HTMLElement | null;
+
   let applyDispose: unknown = null;
   if (exported !== null) {
     try {
@@ -1016,6 +1021,45 @@ async function browserDriver(config: DriverConfig): Promise<void> {
       true,
       seatsAtApply > 0 && modelSeatsAtApply === config.modelRows,
       'provider-name seats=' + seatsAtApply + ', model-row seats=' + modelSeatsAtApply + '/' + config.modelRows,
+    );
+
+    // The reported flash happens when Settings is opened after the plugin has been
+    // running: the shell mounts the dialog into the body, and the decorator only
+    // learns about it from the MutationObserver. Mount the undecorated fixture clone
+    // the way React would (in its own task) and require the seats before the next
+    // task — a debounced pass would let the browser paint the bare dialog first.
+    let mountProbe: { seats: number; modelSeats: number } | null = null;
+    if (pristineSettingsRoot !== null && root !== null && root.parentElement !== null) {
+      const dialogParent = root.parentElement;
+      const nextSibling = root.nextSibling;
+      root.remove();
+      dialogParent.insertBefore(pristineSettingsRoot, nextSibling);
+      await new Promise<void>((done) => {
+        setTimeout(done, 0);
+      });
+      mountProbe = {
+        seats: qa('[data-dshml-seat="1"]', pristineSettingsRoot).length,
+        modelSeats: qa('[data-dshml-kind="model"]', pristineSettingsRoot).length,
+      };
+      // Swap the live, already-decorated dialog back for the remaining probes.
+      pristineSettingsRoot.remove();
+      dialogParent.insertBefore(root, nextSibling);
+      await new Promise<void>((done) => {
+        setTimeout(done, 0);
+      });
+    }
+    add(
+      'a dialog mounted after the plugin starts is seated before the next task',
+      true,
+      mountProbe !== null && mountProbe.seats > 0 && mountProbe.modelSeats === config.modelRows,
+      mountProbe === null
+        ? 'no pristine dialog clone to mount'
+        : 'provider-name seats=' +
+            mountProbe.seats +
+            ', model-row seats=' +
+            mountProbe.modelSeats +
+            '/' +
+            config.modelRows,
     );
 
     // Give the decorator's async directory fetch time to land. It no longer needs

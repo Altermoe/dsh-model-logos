@@ -216,7 +216,7 @@ that recorded them, not from the current build.
   the settings-section registration, and
   that `apply()` disposers remove the stylesheet, listeners and observer.
 - `scripts/verify-dom.ts` drives the faithful Settings fixture in headless Edge:
-  **57 assertions pass** — vendor logos on official rows/editor titles (including
+  **58 assertions pass** — vendor logos on official rows/editor titles (including
   the localized DeepSeek account row), none on the declared custom provider but its
   empty 22px name seat, the reserved **22px mark base** for provider-name seats and
   the model-row icon seat (dropping either seat re-inserts it on the same task, so
@@ -239,11 +239,12 @@ that recorded them, not from the current build.
   i.e. before style, layout and paint, so the decorator now runs the pass
   synchronously for records that touch the dialog (and for the plugin's own mount,
   plus the catalogue / override subscriptions); only unrelated page churn and the
-  keystroke-driven refreshes keep the debounce. `verify:dom` pins both halves: the
-  seats exist when `apply()` returns (before any timer can run), and a seat removed
-  from an open dialog is back one 0 ms task later — the two assertions fail on the
-  timer-based code. The synchronous pass performs no layout reads, so it cannot
-  force a reflow inside React's commit.
+  keystroke-driven refreshes keep the debounce. `verify:dom` pins the contract from
+  three sides: the seats exist when `apply()` returns (before any timer can run), a
+  dialog mounted after the plugin started is seated before the next task, and a
+  seat removed from an open dialog is back one 0 ms task later — all three
+  assertions fail on the timer-based code. The synchronous pass performs no layout
+  reads, so it cannot force a reflow inside React's commit.
 - **The composer mark fills the label's line box, so it needs no optical nudge.** A
   composer label is a 13px/20px line. The mark is a 20px box, exactly the line box,
   inside a `display:flex; align-items:center` row: its centre therefore lands on the
