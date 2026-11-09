@@ -97,7 +97,10 @@ src/match.ts        LOGO_KEYS, MODEL_RULES, PROVIDER_RULES, VENDOR_CHANNELS,
                     matchModelLogo, matchVendorLogo, isOfficialVendorChannel
 src/artwork.ts      escapeXml, escapeHtml, letterTile
 src/resolve.ts      overrideIcon, withOverride, withoutOverride, flattenOverrides,
-                    isKnownLogoKey, letterTextFor, resolveModelIcon
+                    isKnownLogoKey, letterTextFor, resolveModelIcon,
+                    providerOverrideIcon, withProviderOverride,
+                    withoutProviderOverride, flattenProviderOverrides,
+                    providerLetterTextFor, resolveProviderIcon
 src/logos/official.generated.ts   LOGOS — marks imported from the pinned Lobe Icons set
 src/logos/manual.ts               LOGOS — DeepSeek, Xiaomi, AWS, Radius exceptions
 src/logos/groups.ts               groupLogoEntries, filterLogoGroups, SHARED_VENDOR_MARKS
@@ -116,15 +119,18 @@ src/ui-css.ts       DSHML_UI_CSS
 src/overrides.ts    icon store + settings persistence + catalog store:
                     dshmlIconState, dshmlSubscribeIconState, dshmlUseIconState,
                     dshmlCatalogState, dshmlSubscribeCatalog, dshmlUseModelCatalog,
-                    dshmlResolveFor, dshmlLetterTextFor, dshmlModelMark,
-                    dshmlVendorMark, dshmlSetModelIcon, dshmlClearModelIcon,
-                    dshmlRefreshCatalog, dshmlScheduleCatalogRefresh,
-                    dshmlMountIconStore
-src/picker.ts       dshmlOpenIconPicker + the shared picker helpers the settings
-                    section reuses (DSHML_LETTER_ICON, DSHML_PICKER_NONE_SVG,
-                    dshmlUiCopy, dshmlUiCurrentError, dshmlUiOverrides,
-                    dshmlUiOverrideValue, dshmlUiLogo, dshmlUiLetterTile,
-                    dshmlUiResolve, dshmlUiUseIconState)
+                    dshmlResolveFor, dshmlResolveProviderFor, dshmlLetterTextFor,
+                    dshmlProviderLetterTextFor, dshmlModelMark, dshmlVendorMark,
+                    dshmlSetModelIcon, dshmlClearModelIcon, dshmlSetProviderIcon,
+                    dshmlClearProviderIcon, dshmlRefreshCatalog,
+                    dshmlScheduleCatalogRefresh, dshmlMountIconStore
+src/picker.ts       dshmlOpenIconPicker (model scope and provider scope) + the shared
+                    picker helpers the settings section reuses (DSHML_LETTER_ICON,
+                    DSHML_PICKER_NONE_SVG, dshmlUiCopy, dshmlUiCurrentError,
+                    dshmlUiOverrides, dshmlUiProviderOverrides,
+                    dshmlUiOverrideValue, dshmlUiProviderOverrideValue,
+                    dshmlUiLogo, dshmlUiLetterTile, dshmlUiProviderLetterTile,
+                    dshmlUiResolve, dshmlUiResolveProvider, dshmlUiUseIconState)
 src/decorate.ts     dshmlMountSettingsDecorator, dshmlDecorateNow,
                     dshmlRequestDecorate
 src/nav-icon.ts     DSHML_NAV_MARKER, DSHML_NAV_ICON_SVG, DSHML_NAV_ICON_URL,
@@ -208,6 +214,22 @@ that recorded them, not from the current build.
   English, and that the localized names are searchable in both languages.
 - Resolver tests pin override precedence (`brand` / `none` / `letter` / stale
   value), immutability, and per-provider keys.
+- **Provider icons are configurable.** A provider's 22px seat was decoration: the
+  only way to give a relay or local server a mark was to edit a config file, and an
+  official channel's mark could not be corrected at all. The icon picker now has a
+  provider scope (the same modal, retitled `选择厂商图标` / `Choose vendor icon` and
+  with a provider-only subtitle) writing to a second, flat `providerIcons` settings
+  field, so provider and model overrides cannot collide. `resolveProviderIcon` is the
+  single order — override (`brand` / `none` / `letter`) → the official channel table
+  → the letter tile for an official channel only, because a declared provider must
+  still never borrow a brand it did not declare. Settings → Models keeps the 22px
+  seat in every state but makes it a `<button>`: it opens the picker, and only a seat
+  whose provider the directory cannot name yet stays inert (disabled, `tabindex=-1`,
+  `aria-hidden="true"`) so no override can be written under a guessed route id. The
+  Model icons page gains a provider group with the same choose/reset actions.
+  `test/resolve.test.ts` and `test/client.test.ts` pin the resolution matrix and the
+  settings round-trip; `verify:dom` pins the seat states, the provider-scope modal and
+  both write paths.
 - Bundle tests load the generated `client.js` in a DOM/React stand-in and check the
   label contribution (slot, priority −1, override rendering, letter and none
   sentinels, the shipped release badge, the localized official brand name in the
@@ -216,7 +238,7 @@ that recorded them, not from the current build.
   the settings-section registration, and
   that `apply()` disposers remove the stylesheet, listeners and observer.
 - `scripts/verify-dom.ts` drives the faithful Settings fixture in headless Edge:
-  **63 assertions pass** — vendor logos on official rows/editor titles (including
+  **89 assertions pass** — vendor logos on official rows/editor titles (including
   the localized DeepSeek account row), none on the declared custom provider but its
   empty 22px name seat, the reserved **22px mark base** for provider-name seats and
   the model-row icon seat (dropping either seat re-inserts it on the same task, so
@@ -314,5 +336,20 @@ that recorded them, not from the current build.
   artifact (203,742 bytes served, 56 artwork entries), proving the client HMR
   transport published this exact build without an app restart.
 - `pnpm run verify` on the final tree: typecheck, lint (0 errors; warnings are the
-  pre-existing `verify-dom.ts` style notes), fmt:check, 75 unit/bundle tests,
+  pre-existing `verify-dom.ts` style notes), fmt:check, 93 unit/bundle tests,
   `logo:check`, `rank:check`, build and artifact freshness all pass.
+- The provider-icon contract is pinned from four sides. `test/resolve.test.ts` pins
+  the precedence matrix (override → official channel → letter tile, and a declared
+  provider resolving to nothing), the flat document's immutable edits and its
+  `__proto__`-safe reads. `test/client.test.ts` pins the `providerIcons` round-trip
+  through `configForms.mutate` and that a legacy document carrying only `modelIcons`
+  still reaches `status: 'ready'`. `verify:dom` pins the seat's three states — marked
+  (svg + `data-dshml-vendor`), known-but-unmarked (empty, clickable, identity in
+  `data-dshml-seat-provider`), and unresolved (disabled + `tabindex="-1"` +
+  `aria-hidden="true"`, captured synchronously inside `apply()` before the directory
+  resolves) — the provider-scope modal (`选择厂商图标`, subtitle naming the channel and
+  never a model id), both write paths (`['providerIcons', id]` set/unset), and the
+  Model icons page's provider group with its per-scope summary counts. Those
+  assertions were mutation-tested against the bundle: deleting the
+  known-but-unmarked branch fails exactly three of them, and renaming the summary
+  hook fails exactly one.

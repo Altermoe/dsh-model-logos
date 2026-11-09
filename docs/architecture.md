@@ -169,6 +169,7 @@ import z from '@deepseek-ai/schemastery';
 
 export const Config = z.object({
   modelIcons: z.dict(z.dict(z.string())).volatile(), // providerId → modelId → icon key
+  providerIcons: z.dict(z.string()).volatile(), // providerId → icon key
 });
 
 export function apply() {}
@@ -177,10 +178,14 @@ export function apply() {}
 Namespace / entry id: **`dsh-model-logos`** (from `cordis.patch.yml`).
 Client reads/writes it through `configForms.get('dsh-model-logos')`:
 
-- set: `form.mutate([{ op: 'set', path: ['modelIcons', providerId, modelId], value: key }])`
-- clear: `form.mutate([{ op: 'unset', path: ['modelIcons', providerId, modelId] }])`
+- set model: `form.mutate([{ op: 'set', path: ['modelIcons', providerId, modelId], value: key }])`
+- clear model: `form.mutate([{ op: 'unset', path: ['modelIcons', providerId, modelId] }])`
+- set provider: `form.mutate([{ op: 'set', path: ['providerIcons', providerId], value: key }])`
+- clear provider: `form.mutate([{ op: 'unset', path: ['providerIcons', providerId] }])`
 - value sentinel `'none'` = user explicitly disabled the icon. Absent = auto
-  (heuristic initial icon).
+  (heuristic initial icon for a model; the official channel table for a provider).
+- `providerIcons` is one level flat because a provider has no model dimension, so a
+  provider override and a model override can never collide.
 - `@deepseek-ai/schemastery` must be a real dependency of the plugin (the host
   imports it; a linked local install needs `pnpm install` in this repo).
 
@@ -228,7 +233,16 @@ private primitives internals.
 - **Vendor logo** is resolved from the provider route id only, via an explicit
   channel table for the official channels (`VENDOR_RULES` in `src/match.ts`).
   Unknown official channels get a deterministic letter tile from the display
-  name. Declared custom providers get nothing.
+  name. Declared custom providers get nothing — unless the user picks a mark.
+- **Provider icon** resolution order (`resolveProviderIcon`):
+  1. explicit override in `providerIcons[providerId]` (`'none'` → no icon,
+     `'letter'` → generated tile);
+  2. `matchVendorLogo(providerId)` — the official channel table;
+  3. `fallback: true` only: the generated letter tile (official channels);
+     a declared provider with `fallback: false` resolves to no mark at all.
+     The 22px seat before a provider name is a button in all three states, so a
+     declared provider (or one the user cleared) can be given a mark on the spot;
+     only a seat with no resolved identity is inert.
 - **Model logo** resolution order:
   1. explicit override in `modelIcons[providerId][modelId]` (`'none'` → no icon);
   2. heuristic (`matchModelLogo`) — this is only the _initial_ icon;

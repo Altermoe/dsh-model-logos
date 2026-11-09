@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Model Logos",
-    "description": "Shows each model's brand mark beside its name in the composer model selector and model picker, matched by provider and model heuristics."
+    "description": "Shows each model's brand mark beside its name in the composer model selector and model picker, and lets you configure both the provider (vendor) icon and the per-model icon."
   }
 }

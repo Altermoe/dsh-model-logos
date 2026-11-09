@@ -42,10 +42,10 @@ plugin is careful never to pass one off as the other.
 
 Settings → Models, with the plugin loaded: every official provider row and editor
 title reserves a 22px mark seat (filled with the vendor mark; left as empty width
-for hand-declared providers), every model row begins with a reserved 22px icon
-seat (its mark, or a one-click dashed placeholder), the add-provider `<select>` is
-replaced by a logo-bearing combobox, and the plugin's own entry sits in the
-Settings nav.
+for hand-declared providers) that is **clickable to choose the provider's icon**,
+every model row begins with a reserved 22px icon seat (its mark, or a one-click
+dashed placeholder), the add-provider `<select>` is replaced by a logo-bearing
+combobox, and the plugin's own entry sits in the Settings nav.
 
 ![Settings → Models with vendor marks, the 22px model-row icon seats and the add-provider dropdown](docs/preview-settings.png)
 
@@ -62,18 +62,22 @@ harness — channels are chosen by logo, not by route id.
   the built-in label shows. That is the plugin's one replacement.
 - **Settings → Models** — every provider row and provider editor title keeps a
   reserved 22px mark seat: the vendor logo on official channels, empty width on
-  hand-declared ones. Every model row begins with a model icon in its reserved 22px
+  hand-declared ones. That seat is a button: clicking it opens the icon picker in
+  provider mode, so the vendor icon is configurable exactly like a model's. Every
+  model row begins with a model icon in its reserved 22px
   seat (the seat shows a dashed placeholder until an icon is resolved), and a
   logo-bearing combobox replaces the native add-provider `<select>` (the native
   select stays underneath as the source of truth). Both seats are in the DOM before
   the dialog's first paint — the decorator runs from the DOM observer's callback,
   ahead of layout, not from a timer — so reopening Settings never shows an un-seated
   row that then jumps sideways.
-- **A Model icons page** — the plugin's own Settings entry lists the models from
-  your providers, with their current mark and a way to change it.
+- **A Model icons page** — the plugin's own Settings entry lists your providers with
+  their current vendor mark and a way to choose or reset it, then lists the models
+  from those providers with their current mark and a way to change it.
 - **A picker you can always reach** — clicking a model's icon in Settings → Models
-  opens it, and the Model icons page offers it per model, so fixing a wrong guess
-  costs one click and no configuration-file editing.
+  opens it, clicking a provider's mark seat opens it in provider mode, and the Model
+  icons page offers both per row, so fixing a wrong guess costs one click and no
+  configuration-file editing.
 
 Everything else is added around the existing interface, and disabling the plugin
 removes the decoration and puts the page back as it was.
@@ -92,6 +96,17 @@ model can be overridden:
   ByteDance, OpenRouter, …);
 - **Model icons** — the model product mark (Claude, Gemini, Qwen, Doubao, Kimi, …).
 
+**The provider's icon is configurable too.** Clicking the mark seat beside a provider
+name in Settings → Models, or the choose button on a provider row of the Model icons
+page, opens the same picker in provider mode: pick a vendor mark, a letter tile, or
+no icon, and reset back to auto. This is the only way to give a hand-declared
+provider (a relay, a local server) a mark of your own — the plugin still refuses to
+invent one, so its seat stays empty until you choose.
+
+Provider overrides live in `providerIcons` and model overrides in `modelIcons`, so
+the two never collide; a provider override wins over the official channel table, and
+an unknown channel still falls back to its deterministic letter tile.
+
 The picker shows the two groups one below the other and searches both at once. Some
 companies and their models share one graphic (DeepSeek, Mistral, MiniMax); those
 marks appear in the model group and the vendor channel rows reuse the same artwork.
@@ -105,10 +120,11 @@ Hugging Face and Bilibili signals, so the marks people actually look for come
 first. The method and raw numbers are in
 [`docs/rankings.md`](docs/rankings.md).
 
-Overrides are pinned to a `provider + model` pair, so two providers serving a
-same-named model can show different marks. They live in the DSH user settings
-document (the profile's `cordis.patch.yml`), next to your other preferences — not
-in localStorage, and with no network request involved.
+Model overrides are pinned to a `provider + model` pair, so two providers serving a
+same-named model can show different marks; provider overrides are keyed by the route
+id alone. They live in the DSH user settings document (the profile's
+`cordis.patch.yml`) — `modelIcons` and `providerIcons` — next to your other
+preferences, not in localStorage, and with no network request involved.
 
 ## The honest cases
 
@@ -116,7 +132,8 @@ in localStorage, and with no network request involved.
   or a local URL has no vendor brand behind it, so it gets no vendor logo — an
   invented one would be a lie. The name seat is still reserved (empty) so rows line
   up, and every official channel has a mark, falling back to a deterministic letter
-  tile for the obscure ones.
+  tile for the obscure ones. That empty seat is clickable: the plugin will not
+  invent a brand for you, but it will let you pick one.
 - **A model with no confident match is not left blank.** The Settings row keeps a
   22px icon seat in place and shows a dashed placeholder in it, always one click
   away from the picker — the name never jumps when the real mark arrives.
