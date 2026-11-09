@@ -3,10 +3,15 @@
  *
  * Registers as the `settings.section` contribution (through `src/client.ts`) and
  * reuses the render helpers/constants shared with the icon picker
- * (`dshmlUiCopy`, `dshmlUiOverrideValue`, `dshmlUiResolve`,
- * `dshmlUiLetterTile`, `dshmlUiLogo`, `DSHML_LETTER_ICON`,
+ * (`dshmlUiCopy`, `dshmlUiOverrideValue`, `dshmlUiProviderOverrideValue`,
+ * `dshmlUiResolve`, `dshmlUiLetterTile`, `dshmlUiLogo`, `DSHML_LETTER_ICON`,
  * `DSHML_PICKER_NONE_SVG`, `dshmlOpenIconPicker`) by importing them from
- * `./picker`.
+ * `./picker`, plus `dshmlVendorMark` / `dshmlClearProviderIcon` from
+ * `./overrides` for the provider group.
+ *
+ * The page lists two scopes: a provider group (one vendor mark per provider
+ * route) above the provider/model groups, so a channel icon can be configured
+ * exactly like a model icon.
  *
  * Resilience rules: every piece of catalog/override data is validated before
  * use; missing services or loading states render a notice/short state instead
@@ -14,7 +19,7 @@
  */
 import type { ChangeEvent, FormEvent, MouseEvent, ReactElement } from 'react';
 import { h, React } from './runtime';
-import type { CatalogState } from './types';
+import type { CatalogState, VendorMark } from './types';
 import {
   DSHML_LETTER_ICON,
   DSHML_PICKER_NONE_SVG,
@@ -25,10 +30,12 @@ import {
   dshmlUiLogo,
   dshmlUiOverrideValue,
   dshmlUiOverrides,
+  dshmlUiProviderOverrideValue,
+  dshmlUiProviderOverrides,
   dshmlUiResolve,
   dshmlUiUseIconState,
 } from './picker';
-import { dshmlClearModelIcon, dshmlUseModelCatalog } from './overrides';
+import { dshmlClearModelIcon, dshmlClearProviderIcon, dshmlUseModelCatalog, dshmlVendorMark } from './overrides';
 
 /** One model row inside a normalized catalog group. */
 interface DshmlSectionModel {
@@ -178,6 +185,36 @@ function dshmlSectionCountOverrides(overrides: unknown): number {
   return count;
 }
 
+/**
+ * Count every persisted provider (vendor) override.
+ * @param providerOverrides - flat `providerId → icon` map (host-shaped, so unbounded).
+ */
+function dshmlSectionCountProviderOverrides(providerOverrides: unknown): number {
+  let count = 0;
+  if (!isRecord(providerOverrides)) return count;
+  try {
+    for (const providerId of Object.keys(providerOverrides)) {
+      const value = providerOverrides[providerId];
+      if (typeof value === 'string' && value !== '') count += 1;
+    }
+  } catch {
+    /* keep the partial count */
+  }
+  return count;
+}
+
+/**
+ * The `pending` marker of one provider row.
+ *
+ * Model rows key on `providerId\\u0000modelId`; the provider scope has no model
+ * dimension, so it gets a leading NUL namespace of its own and can never collide
+ * with a model row's marker.
+ * @param providerId - provider route id.
+ */
+function dshmlSectionProviderRowKey(providerId: string): string {
+  return '\u0000provider\u0000' + providerId;
+}
+
 /** `{n}` interpolation for the override summary line. */
 function dshmlSectionOverrideSummary(count: number): string {
   const template = dshmlSectionCopy('section.overrides', '{n} manual overrides');
@@ -314,6 +351,176 @@ function DshmlSectionRow(props: DshmlSectionRowProps): ReactElement | null {
 }
 
 /**
+ * The vendor mark of one provider row, or null when resolution failed.
+ *
+ * `allowFallback` mirrors the Settings decorator: an official channel may fall
+ * back to its generated letter tile, a hand-declared provider must not, so an
+ * unknown custom route keeps an empty (but reserved) 22px seat.
+ * @param providerId - provider route id.
+ * @param displayName - catalog display name (letter-tile source text).
+ * @param allowFallback - enable the generated letter tile.
+ */
+function dshmlSectionVendorMark(providerId: string, displayName: string, allowFallback: boolean): VendorMark | null {
+  try {
+    const mark: unknown = dshmlVendorMark(providerId, displayName, allowFallback);
+    if (mark === null || typeof mark !== 'object') return null;
+    return mark as VendorMark;
+  } catch {
+    return null;
+  }
+}
+
+/** The props one provider (vendor) row accepts. */
+interface DshmlSectionProviderRowProps {
+  providerId: string;
+  providerName: string;
+  /** Shipped official channel: falls back to a letter tile, unlike a declared one. */
+  official: boolean;
+  /** Hand-declared route: an official flag on it is not a real official channel. */
+  declared: boolean;
+  /** Persisted `providerIcons[providerId]` value, or null when unset. */
+  override: string | null;
+  busy: boolean;
+  onChoose: (providerId: string, providerName: string, official: boolean, anchor: Element | null) => void;
+  onReset: (providerId: string) => void;
+}
+
+/**
+ * One provider row: the current vendor mark, the route identity, a state chip
+ * and the choose/reset actions.
+ *
+ * The mark follows the same rule as the Settings decorator: the persisted
+ * override wins; otherwise an official channel resolves its artwork; a
+ * hand-declared provider stays empty, so no brand is invented for it.
+ */
+function DshmlSectionProviderRow(props: DshmlSectionProviderRowProps): ReactElement | null {
+  const providerId = props.providerId;
+  if (providerId === '') return null;
+
+  const providerName = props.providerName !== '' ? props.providerName : providerId;
+  const raw = props.override !== null && props.override !== '' ? props.override : null;
+  // Mirror the Settings decorator's official rule: a channel that is also
+  // hand-declared is a custom route, not an official one.
+  const fallback = props.official === true && props.declared !== true;
+  const mark = dshmlSectionVendorMark(providerId, providerName, fallback);
+  const resolution = mark !== null ? mark.resolved : null;
+
+  let svg = '';
+  if (raw === 'none') {
+    svg = DSHML_PICKER_NONE_SVG;
+  } else if (mark !== null && typeof mark.svg === 'string') {
+    svg = mark.svg;
+  }
+  // A hand-declared provider without an override keeps the same reserved 22px
+  // seat the model rows use (an empty mark, never an invented brand).
+  const emptyMark = svg === '';
+  const markTitle = mark !== null && typeof mark.title === 'string' ? mark.title : '';
+
+  let chipLabel: string;
+  let chipClass = 'dshml-section-chip';
+  if (raw === 'none') {
+    chipLabel = dshmlSectionCopy('section.none', 'None');
+    chipClass += ' dshml-section-chip-none';
+  } else if (raw === DSHML_LETTER_ICON || (resolution !== null && resolution.letter === true)) {
+    chipLabel = dshmlSectionCopy('picker.letter', 'Letter icon');
+    chipClass += ' dshml-section-chip-custom';
+  } else if (raw !== null || (resolution !== null && resolution.source === 'override')) {
+    chipLabel = dshmlSectionCopy('section.custom', 'Custom');
+    chipClass += ' dshml-section-chip-custom';
+  } else {
+    chipLabel = dshmlSectionCopy('section.auto', 'Auto');
+  }
+
+  const chooseLabel =
+    raw !== null
+      ? dshmlSectionCopy('section.changeProvider', 'Change vendor icon')
+      : dshmlSectionCopy('section.chooseProvider', 'Choose vendor icon');
+  const busy = props.busy === true;
+
+  const markClass = emptyMark === true ? 'dshml-section-mark dshml-section-mark-empty' : 'dshml-section-mark';
+  // A hand-declared provider without an override gets a genuinely empty seat —
+  // the same reserved 22px the Settings name seat keeps — rather than a dash
+  // that would read as a configured "no icon". An unresolvable override still
+  // shows the dash, because the user did configure something there.
+  const emptySeat = svg === '' && raw === null && fallback === false;
+  let markNode: ReactElement;
+  if (svg !== '') {
+    markNode = h('span', {
+      key: 'mark',
+      className: markClass,
+      title: markTitle !== '' ? markTitle : null,
+      'aria-hidden': 'true',
+      dangerouslySetInnerHTML: { __html: svg },
+    });
+  } else if (emptySeat === true) {
+    markNode = h('span', { key: 'mark', className: markClass, 'aria-hidden': 'true' });
+  } else {
+    markNode = h('span', { key: 'mark', className: markClass, 'aria-hidden': 'true' }, '\u2013');
+  }
+
+  const textChildren: ReactElement[] = [
+    h(
+      'span',
+      { key: 'name', className: 'dshml-section-row-name', title: providerName + ' \u00b7 ' + providerId },
+      providerName,
+    ),
+    h('span', { key: 'id', className: 'dshml-section-row-id' }, providerId),
+  ];
+
+  const actionChildren: ReactElement[] = [
+    h(
+      'button',
+      {
+        key: 'choose',
+        type: 'button',
+        className: 'dshml-section-btn',
+        disabled: busy,
+        'data-dshml-provider-choose': providerId,
+        'aria-label': providerName + ' \u2014 ' + chooseLabel,
+        onClick: function onChoose(event: MouseEvent<HTMLButtonElement>) {
+          props.onChoose(providerId, providerName, fallback, event.currentTarget);
+        },
+      },
+      chooseLabel,
+    ),
+  ];
+  if (raw !== null) {
+    actionChildren.push(
+      h(
+        'button',
+        {
+          key: 'reset',
+          type: 'button',
+          className: 'dshml-section-btn dshml-section-btn-ghost',
+          disabled: busy,
+          'data-dshml-provider-reset': providerId,
+          'aria-label': providerName + ' \u2014 ' + dshmlSectionCopy('section.resetProvider', 'Reset vendor to auto'),
+          onClick: function onReset() {
+            props.onReset(providerId);
+          },
+        },
+        dshmlSectionCopy('section.resetProvider', 'Reset vendor to auto'),
+      ),
+    );
+  }
+
+  return h(
+    'div',
+    {
+      className: 'dshml-section-row',
+      role: 'listitem',
+      'data-dshml-provider-row': providerId,
+    },
+    [
+      markNode,
+      h('div', { key: 'text', className: 'dshml-section-row-text' }, textChildren),
+      h('span', { key: 'chip', className: chipClass }, chipLabel),
+      h('div', { key: 'actions', className: 'dshml-section-actions' }, actionChildren),
+    ],
+  );
+}
+
+/**
  * The `settings.section` page: searchable list of catalog models with their
  * current icon, plus manual (providerId, modelId) overrides and a pair form.
  * @param _props - slot props (unused).
@@ -329,6 +536,7 @@ export function DshmlModelIconsSection(_props: unknown): ReactElement {
   const [manualError, setManualError] = React.useState('');
 
   const overrides = dshmlUiOverrides(iconState);
+  const providerOverrides = dshmlUiProviderOverrides(iconState);
   const groups = dshmlSectionCatalogGroups(catalog);
   const catalogPairs: Record<string, boolean> = Object.create(null);
   for (const group of groups) {
@@ -337,13 +545,28 @@ export function DshmlModelIconsSection(_props: unknown): ReactElement {
     }
   }
   const manualRows = dshmlSectionManualRows(overrides, catalogPairs);
-  const overrideCount = dshmlSectionCountOverrides(overrides);
+  const modelOverrideCount = dshmlSectionCountOverrides(overrides);
+  const providerOverrideCount = dshmlSectionCountProviderOverrides(providerOverrides);
+  // One summary line for both scopes: a provider override is as much a manual
+  // override as a model one, and a single localized key stays translatable. The
+  // per-scope counts stay on the DOM as data hooks for the DOM gate.
+  const overrideCount = modelOverrideCount + providerOverrideCount;
 
   const normalizedQuery = query.trim().toLowerCase();
   function matchesQuery(text: string): boolean {
     if (normalizedQuery === '') return true;
     return text.toLowerCase().indexOf(normalizedQuery) !== -1;
   }
+
+  // Search parities with the model groups in the other direction too: a query
+  // that matches one of a provider's models keeps that provider row, exactly as
+  // a provider-name match keeps every model row of that provider.
+  const filteredProviders = groups.filter(function byProvider(group) {
+    if (matchesQuery(group.displayName) || matchesQuery(group.providerId)) return true;
+    return group.models.some(function byModel(model) {
+      return matchesQuery(model.name) || matchesQuery(model.modelId);
+    });
+  });
 
   const filteredGroups: DshmlSectionFilteredGroup[] = [];
   for (const group of groups) {
@@ -368,7 +591,7 @@ export function DshmlModelIconsSection(_props: unknown): ReactElement {
   });
 
   const hasContent = groups.length > 0 || manualRows.length > 0;
-  const hasFiltered = filteredGroups.length > 0 || filteredManual.length > 0;
+  const hasFiltered = filteredProviders.length > 0 || filteredGroups.length > 0 || filteredManual.length > 0;
   const loading = iconState.status === 'loading' || catalog.status === 'loading';
   const iconUnavailable = iconState.status === 'unavailable';
   const storeError = typeof iconState.error === 'string' ? iconState.error : '';
@@ -418,6 +641,53 @@ export function DshmlModelIconsSection(_props: unknown): ReactElement {
     }
   }
 
+  /** Open the picker in `provider` scope: one vendor icon per provider route. */
+  function openProviderPicker(
+    providerId: string,
+    displayName: string,
+    allowFallback: boolean,
+    anchor: Element | null,
+  ): void {
+    try {
+      dshmlOpenIconPicker({
+        scope: 'provider',
+        providerId: providerId,
+        displayName: displayName,
+        fallback: allowFallback,
+        anchor: anchor,
+        onChanged: function onChanged() {
+          setError('');
+        },
+      });
+    } catch {
+      setError(explainWriteFailure());
+    }
+  }
+
+  /** Clear `providerIcons[providerId]`, falling back to the automatic choice. */
+  function resetProviderIcon(providerId: string): void {
+    if (pending !== '') return;
+    const rowKey = dshmlSectionProviderRowKey(providerId);
+    setError('');
+    setPending(rowKey);
+    let write: Promise<boolean>;
+    try {
+      write = dshmlClearProviderIcon(providerId);
+    } catch (writeError) {
+      write = Promise.reject(writeError);
+    }
+    Promise.resolve(write).then(
+      function saved(ok) {
+        setPending('');
+        if (ok === false) setError(explainWriteFailure());
+      },
+      function failed() {
+        setPending('');
+        setError(explainWriteFailure());
+      },
+    );
+  }
+
   function submitManual(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     const providerId = manualProvider.trim();
@@ -440,7 +710,16 @@ export function DshmlModelIconsSection(_props: unknown): ReactElement {
   ];
   if (overrideCount > 0) {
     headChildren.push(
-      h('p', { key: 'summary', className: 'dshml-section-summary' }, dshmlSectionOverrideSummary(overrideCount)),
+      h(
+        'p',
+        {
+          key: 'summary',
+          className: 'dshml-section-summary',
+          'data-dshml-model-overrides': String(modelOverrideCount),
+          'data-dshml-provider-overrides': String(providerOverrideCount),
+        },
+        dshmlSectionOverrideSummary(overrideCount),
+      ),
     );
   }
 
@@ -486,7 +765,45 @@ export function DshmlModelIconsSection(_props: unknown): ReactElement {
     }),
   ]);
 
-  const groupElements: ReactElement[] = filteredGroups.map(function toGroup(group) {
+  const providerRows = filteredProviders.map(function toProviderRow(group) {
+    return h(DshmlSectionProviderRow, {
+      key: 'provider-' + group.providerId,
+      providerId: group.providerId,
+      providerName: group.displayName,
+      official: group.official,
+      declared: group.declared,
+      override: dshmlUiProviderOverrideValue(providerOverrides, group.providerId),
+      busy: pending === dshmlSectionProviderRowKey(group.providerId),
+      onChoose: openProviderPicker,
+      onReset: resetProviderIcon,
+    });
+  });
+
+  const groupElements: ReactElement[] = [];
+  if (providerRows.length > 0) {
+    groupElements.push(
+      h('div', { key: 'provider-group', className: 'dshml-section-group dshml-section-group-providers' }, [
+        h('div', { key: 'head', className: 'dshml-section-group-head' }, [
+          h(
+            'span',
+            { key: 'title', className: 'dshml-section-group-title' },
+            dshmlSectionCopy('section.providerIcons', 'Provider icons'),
+          ),
+        ]),
+        h(
+          'p',
+          { key: 'hint', className: 'dshml-section-group-hint' },
+          dshmlSectionCopy(
+            'section.autoProvider',
+            'Auto follows the official channel; hand-declared providers show no icon.',
+          ),
+        ),
+        h('div', { key: 'rows', className: 'dshml-section-rows', role: 'list' }, providerRows),
+      ]),
+    );
+  }
+
+  for (const group of filteredGroups) {
     const rows = group.models.map(function toRow(model) {
       return h(DshmlSectionRow, {
         key: 'row-' + group.providerId + '-' + model.modelId,
@@ -500,20 +817,26 @@ export function DshmlModelIconsSection(_props: unknown): ReactElement {
         onReset: resetIcon,
       });
     });
-    return h('div', { key: 'group-' + group.providerId, className: 'dshml-section-group' }, [
-      h('div', { key: 'head', className: 'dshml-section-group-head' }, [
-        h(
-          'span',
-          { key: 'title', className: 'dshml-section-group-title', title: group.displayName },
-          group.displayName,
-        ),
-        group.displayName === group.providerId
-          ? null
-          : h('span', { key: 'sub', className: 'dshml-section-group-sub', title: group.providerId }, group.providerId),
+    groupElements.push(
+      h('div', { key: 'group-' + group.providerId, className: 'dshml-section-group' }, [
+        h('div', { key: 'head', className: 'dshml-section-group-head' }, [
+          h(
+            'span',
+            { key: 'title', className: 'dshml-section-group-title', title: group.displayName },
+            group.displayName,
+          ),
+          group.displayName === group.providerId
+            ? null
+            : h(
+                'span',
+                { key: 'sub', className: 'dshml-section-group-sub', title: group.providerId },
+                group.providerId,
+              ),
+        ]),
+        h('div', { key: 'rows', className: 'dshml-section-rows', role: 'list' }, rows),
       ]),
-      h('div', { key: 'rows', className: 'dshml-section-rows', role: 'list' }, rows),
-    ]);
-  });
+    );
+  }
 
   if (filteredManual.length > 0) {
     groupElements.push(

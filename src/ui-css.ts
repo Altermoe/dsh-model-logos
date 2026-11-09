@@ -493,6 +493,19 @@ export const DSHML_UI_CSS: string = `
   color: var(--dsw-alias-label-tertiary, #8b93a3);
 }
 
+/* The provider group leads the page, so it carries the one-line rule of how a
+   vendor mark is chosen (auto follows the official channel). */
+.dshml-section-group-providers {
+  padding-bottom: 2px;
+}
+
+.dshml-section-group-hint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-tertiary, #8b93a3);
+}
+
 .dshml-section-rows {
   display: flex;
   flex-direction: column;

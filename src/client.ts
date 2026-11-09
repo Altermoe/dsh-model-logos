@@ -52,6 +52,12 @@ const LABEL_CSS = `
 .dshml-insert { display: inline-flex; align-items: center; justify-content: center; flex: none; line-height: 0; }
 .dshml-vendor { width: 22px; height: 22px; }
 .dshml-vendor > svg, .dshml-model-mark > svg { display: block; width: 100%; height: 100%; }
+/* The provider seat is a button: the same reserved 22px width, now clickable so
+   a vendor mark can be chosen (or cleared) without editing a config file. */
+.dshml-vendor-btn { box-sizing: border-box; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--dsw-alias-label-tertiary, #8a90a0); cursor: pointer; }
+.dshml-vendor-btn:hover { background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, .06)); }
+.dshml-vendor-btn:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary, #5686FE); outline-offset: 1px; }
+.dshml-vendor-empty { opacity: .55; }
 .dshml-model-icon-btn { box-sizing: border-box; flex: none; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--dsw-alias-label-tertiary, #8a90a0); cursor: pointer; line-height: 0; }
 .dshml-model-icon-btn:hover { background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, .06)); }
 .dshml-model-icon-btn:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary, #5686FE); outline-offset: 1px; }
