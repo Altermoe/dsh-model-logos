@@ -1572,6 +1572,53 @@ async function browserDriver(config: DriverConfig): Promise<void> {
           ? 'first option mark ' + Math.round(pickerMarkBox.width) + '×' + Math.round(pickerMarkBox.height) + 'px'
           : 'no .dshml-picker-option-mark inside the picker',
       );
+      // The focused search and the selected mode option must both resolve to the
+      // theme's business blue (#4176e6 in the light theme). The fixture resolves
+      // `--dsw-alias-brand-primary` to the near-black neutral, so a regression to
+      // the old stacked border/shadow style fails here with a concrete color.
+      const pickerSearch = q<HTMLInputElement>('.dshml-picker-search', picker);
+      if (pickerSearch) {
+        // Read the final state, not a mid-transition frame: the input animates
+        // default → focus, so disable that transition for this one probe and refocus.
+        pickerSearch.style.transition = 'none';
+        pickerSearch.blur();
+        pickerSearch.focus();
+      }
+      const searchStyle = pickerSearch ? getComputedStyle(pickerSearch) : null;
+      if (pickerSearch) pickerSearch.style.removeProperty('transition');
+      add(
+        'focused picker search draws one blue border with a soft halo (no near-black border)',
+        true,
+        searchStyle !== null &&
+          document.activeElement === pickerSearch &&
+          searchStyle.borderTopColor === 'rgb(65, 118, 230)' &&
+          searchStyle.boxShadow !== 'none',
+        searchStyle
+          ? 'border=' +
+              searchStyle.borderTopColor +
+              ' shadow=' +
+              searchStyle.boxShadow +
+              ' focused=' +
+              (document.activeElement === pickerSearch)
+          : 'no .dshml-picker-search inside the picker',
+      );
+      const pressedOption = q<HTMLElement>('.dshml-picker-option[aria-pressed="true"]', picker);
+      const pressedStyle = pressedOption ? getComputedStyle(pressedOption) : null;
+      add(
+        'selected mode option carries the same blue border and tint',
+        true,
+        pressedStyle !== null &&
+          pressedStyle.borderTopColor === 'rgb(65, 118, 230)' &&
+          pressedStyle.backgroundColor === 'rgb(228, 237, 253)',
+        pressedStyle
+          ? 'border=' +
+              pressedStyle.borderTopColor +
+              ' background=' +
+              pressedStyle.backgroundColor +
+              ' pressed=' +
+              (pressedOption ? pressedOption.getAttribute('aria-pressed') : 'none')
+          : 'no [aria-pressed="true"] option inside the picker',
+      );
     }
 
     // Picking a brand writes the nested override through configForms.mutate.

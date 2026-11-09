@@ -564,6 +564,47 @@ describe('generated client bundle', () => {
     }
   });
 
+  it('draws input focus and pressed options in the theme blue and animates the state change', () => {
+    const { doc } = loadClient();
+    const style = expectPresent(doc.styleTags[0], 'the plugin stylesheet must be mounted');
+    // The old focus rule mixed a near-black `--dsw-alias-brand-primary` border
+    // with a separate blue shadow, which painted the stacked outlines this popup
+    // used to show. Inputs now use the theme's business blue only.
+    for (const selector of [
+      '.dshml-picker-search:focus',
+      '.dshml-section-search:focus',
+      '.dshml-section-input:focus',
+    ]) {
+      const block = cssRule(style, selector);
+      expect(block, selector + ' uses the blue border token').toMatch(
+        /border-color:\s*var\(--dsw-alias-state-business-primary/,
+      );
+      expect(block, selector + ' must not use the neutral brand token').not.toMatch(/--dsw-alias-brand-primary/);
+      expect(block, selector + ' keeps a soft blue focus halo').toMatch(
+        /box-shadow:[\s\S]*color-mix\(in srgb, var\(--dsw-alias-state-business-primary/,
+      );
+    }
+    for (const selector of ['.dshml-picker-search', '.dshml-section-search', '.dshml-section-input']) {
+      const block = cssRule(style, selector);
+      expect(block, selector + ' animates the border').toMatch(
+        /transition:[^}]*border-color[^}]*var\(--ds-transition-duration-fast/,
+      );
+      expect(block, selector + ' animates the focus halo').toMatch(/transition:[^}]*box-shadow/);
+      expect(cssRule(style, selector + ':active'), selector + ' has an active border').toMatch(
+        /--dsw-alias-state-business-primary/,
+      );
+    }
+    // The three mode buttons (Auto / No icon / Letter icon) share the option cell.
+    expect(cssRule(style, '.dshml-picker-option')).toMatch(/transition:[^}]*background-color/);
+    const selected = cssRule(style, '.dshml-picker-option[aria-pressed="true"]');
+    expect(selected, 'the selected option border is the same blue').toMatch(
+      /border-color:\s*var\(--dsw-alias-state-business-primary/,
+    );
+    expect(selected, 'the selected option uses the blue tint, not the neutral hover fill').toMatch(
+      /background:\s*var\(--dsw-alias-state-business-tertiary/,
+    );
+  });
+
   it('draws the brand mark before the catalog name', () => {
     const { registrations } = loadClient();
     const component = labelRegistration(registrations).component;

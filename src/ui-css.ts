@@ -138,15 +138,31 @@ export const DSHML_UI_CSS: string = `
   font-size: 13px;
   line-height: 20px;
   outline: none;
+  transition:
+    border-color var(--ds-transition-duration-fast, 120ms) var(--ds-ease-in-out, ease),
+    background-color var(--ds-transition-duration-fast, 120ms) var(--ds-ease-in-out, ease),
+    box-shadow var(--ds-transition-duration-fast, 120ms) var(--ds-ease-in-out, ease);
 }
 
 .dshml-picker-search::placeholder {
   color: var(--dsw-alias-label-tertiary, #8b93a3);
 }
 
+.dshml-picker-search:hover:not(:focus) {
+  border-color: var(--dsw-alias-border-l4, rgba(0, 0, 0, 0.16));
+}
+
+.dshml-picker-search:active {
+  border-color: var(--dsw-alias-state-business-primary, #4176e6);
+}
+
+/* One blue interaction family: a single blue border plus the soft focus halo.
+   The old rule mixed a near-black brand-primary border with a separate blue
+   shadow, which painted the two stacked outlines this popup used to show. */
 .dshml-picker-search:focus {
-  border-color: var(--dsw-alias-brand-primary, #5686fe);
-  box-shadow: 0 0 0 2px var(--dsw-focus-ring-color, rgba(86, 134, 254, 0.35));
+  border-color: var(--dsw-alias-state-business-primary, #4176e6);
+  box-shadow: 0 0 0 var(--dsw-focus-ring-width, 2px)
+    color-mix(in srgb, var(--dsw-alias-state-business-primary, #4176e6) 24%, transparent);
 }
 
 .dshml-picker-notice,
@@ -230,15 +246,24 @@ export const DSHML_UI_CSS: string = `
   line-height: 15px;
   text-align: center;
   cursor: pointer;
+  transition:
+    border-color var(--ds-transition-duration-fast, 120ms) var(--ds-ease-in-out, ease),
+    background-color var(--ds-transition-duration-fast, 120ms) var(--ds-ease-in-out, ease),
+    box-shadow var(--ds-transition-duration-fast, 120ms) var(--ds-ease-in-out, ease);
 }
 
 .dshml-picker-option:hover:not(:disabled) {
   background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.05));
 }
 
+.dshml-picker-option:active:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-active, rgba(0, 0, 0, 0.1));
+}
+
 .dshml-picker-option:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary, #5686fe));
+  box-shadow: 0 0 0 var(--dsw-focus-ring-width, 2px)
+    color-mix(in srgb, var(--dsw-alias-state-business-primary, #4176e6) 30%, transparent);
 }
 
 .dshml-picker-option:disabled {
@@ -246,13 +271,23 @@ export const DSHML_UI_CSS: string = `
   cursor: default;
 }
 
+/* Selected mode/brand option: the same blue as an active input, on the theme's
+   blue tint instead of the neutral hover fill the old rule inherited. */
 .dshml-picker-option[aria-pressed="true"] {
-  border-color: var(--dsw-alias-brand-primary, #5686fe);
-  background: var(--dsw-alias-interactive-bg-hover, rgba(86, 134, 254, 0.1));
+  border-color: var(--dsw-alias-state-business-primary, #4176e6);
+  background: var(--dsw-alias-state-business-tertiary, rgba(86, 134, 254, 0.12));
+}
+
+.dshml-picker-option[aria-pressed="true"]:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary, #4176e6) 18%, transparent);
+}
+
+.dshml-picker-option[aria-pressed="true"]:active:not(:disabled) {
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary, #4176e6) 26%, transparent);
 }
 
 .dshml-picker-option[aria-pressed="true"] .dshml-picker-option-label {
-  color: var(--dsw-alias-state-business-primary, #5686fe);
+  color: var(--dsw-alias-state-business-primary, #4176e6);
   font-weight: 600;
 }
 
@@ -278,6 +313,7 @@ export const DSHML_UI_CSS: string = `
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition: color var(--ds-transition-duration-fast, 120ms) var(--ds-ease-in-out, ease);
 }
 
 .dshml-picker-empty {
@@ -370,15 +406,28 @@ export const DSHML_UI_CSS: string = `
   font-size: 13px;
   line-height: 20px;
   outline: none;
+  transition:
+    border-color var(--ds-transition-duration-fast, 120ms) var(--ds-ease-in-out, ease),
+    background-color var(--ds-transition-duration-fast, 120ms) var(--ds-ease-in-out, ease),
+    box-shadow var(--ds-transition-duration-fast, 120ms) var(--ds-ease-in-out, ease);
 }
 
 .dshml-section-search::placeholder {
   color: var(--dsw-alias-label-tertiary, #8b93a3);
 }
 
+.dshml-section-search:hover:not(:focus) {
+  border-color: var(--dsw-alias-border-l4, rgba(0, 0, 0, 0.16));
+}
+
+.dshml-section-search:active {
+  border-color: var(--dsw-alias-state-business-primary, #4176e6);
+}
+
 .dshml-section-search:focus {
-  border-color: var(--dsw-alias-brand-primary, #5686fe);
-  box-shadow: 0 0 0 2px var(--dsw-focus-ring-color, rgba(86, 134, 254, 0.35));
+  border-color: var(--dsw-alias-state-business-primary, #4176e6);
+  box-shadow: 0 0 0 var(--dsw-focus-ring-width, 2px)
+    color-mix(in srgb, var(--dsw-alias-state-business-primary, #4176e6) 24%, transparent);
 }
 
 .dshml-section-scroll {
@@ -653,15 +702,28 @@ export const DSHML_UI_CSS: string = `
   font-size: 13px;
   line-height: 20px;
   outline: none;
+  transition:
+    border-color var(--ds-transition-duration-fast, 120ms) var(--ds-ease-in-out, ease),
+    background-color var(--ds-transition-duration-fast, 120ms) var(--ds-ease-in-out, ease),
+    box-shadow var(--ds-transition-duration-fast, 120ms) var(--ds-ease-in-out, ease);
 }
 
 .dshml-section-input::placeholder {
   color: var(--dsw-alias-label-tertiary, #8b93a3);
 }
 
+.dshml-section-input:hover:not(:focus) {
+  border-color: var(--dsw-alias-border-l4, rgba(0, 0, 0, 0.16));
+}
+
+.dshml-section-input:active {
+  border-color: var(--dsw-alias-state-business-primary, #4176e6);
+}
+
 .dshml-section-input:focus {
-  border-color: var(--dsw-alias-brand-primary, #5686fe);
-  box-shadow: 0 0 0 2px var(--dsw-focus-ring-color, rgba(86, 134, 254, 0.35));
+  border-color: var(--dsw-alias-state-business-primary, #4176e6);
+  box-shadow: 0 0 0 var(--dsw-focus-ring-width, 2px)
+    color-mix(in srgb, var(--dsw-alias-state-business-primary, #4176e6) 24%, transparent);
 }
 
 .dshml-section-error {
