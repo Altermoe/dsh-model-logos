@@ -101,6 +101,7 @@
   },
   "icon": "assets/icon-180.png",
   "engines": {
+    "dsh": ">=0.2.2-alpha.3 <0.3.0-0",
     "node": ">=24.22.2"
   },
   "packageManager": "pnpm@12.16.1",

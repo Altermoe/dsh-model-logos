@@ -130,6 +130,11 @@ approval is needed:
 dsh plugin --profile web add dsh-model-logos
 ```
 
+The plugin requires DSH **0.2.2-alpha.3** or newer (below 0.3.0): the Settings
+decoration relies on the dialog markup that release line introduced, and the
+`engines.dsh` range in `package.json` makes DSH refuse an older host before the
+plugin loads.
+
 Alternatively, add the public repository directly. A source install builds the
 plugin on your machine — the tracked `prepare` script runs `pnpm run build` — so
 it needs Node.js ≥ 24.22.2 and pnpm, and the storefront asks you to approve the

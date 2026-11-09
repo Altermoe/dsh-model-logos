@@ -141,9 +141,19 @@ that the Host resolves it from this package's dependencies. Risk of moving it:
 Recommendation: leave it in `dependencies` unless a clean-profile test proves the host provides
 it. The peer-declaration item is "recommended" and not CI-checked; installability comes first.
 
-Optionally, if a minimum harness version is actually known, other entries in the list declare it
-as `"dsh": { "engines": { "dsh": ">=0.2.1-rc.2" } }`. This repo has no such floor; do not add one
-without verifying it against the shipped slots and services the plugin uses.
+**DSH host floor.** `package.json` declares `engines.dsh: ">=0.2.2-alpha.3 <0.3.0-0"`.
+It is the top-level `engines.dsh`, not `dsh.engines.dsh`: the host's own gate
+(`@deepseek-ai/dsh-app-boot` `unmetRequirements`) reads only the top-level field, while
+dshmarket reads both and lets the top-level one win. The floor is the first release whose web
+frontend carries the Settings dialog root the decorator keys on
+(`[data-shortcut-modal="settings"]`; 0.2.2-alpha.2 did not have it), and every slot,
+config-form service and Settings → Models marker the plugin uses is present in that line,
+with `verify:live` running on 0.2.2-rc.1. The cap keeps an untested 0.3.0 from being promised.
+
+dshmarket reads the requirement from the npm `latest` manifest (the catalog entry's `npm`
+name), so the declaration becomes visible — as `DSH >=0.2.2-alpha.3 <0.3.0-0` on the Discover
+card and in the install preflight — only after the next npm release carries it. Nothing in
+the listing's yml needs to change; the catalog's `version` follows npm on its daily refresh.
 
 **Tarball instead of npm.** Source install executes `prepare` (`simple-git-hooks && pnpm run
 build`): Node ≥ 24.22.2, pnpm, devDependencies and the storefront's build approval. To skip that

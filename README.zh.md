@@ -68,6 +68,8 @@
 dsh plugin --profile web add dsh-model-logos
 ```
 
+插件要求 DSH **0.2.2-alpha.3** 或更高（低于 0.3.0）：设置页装饰依赖这条版本线引入的弹窗结构，`package.json` 里的 `engines.dsh` 范围会让 DSH 在加载插件前拒绝更旧的宿主。
+
 也可以直接添加公开仓库。源码安装会在本机构建插件 —— 仓库的 `prepare` 脚本会执行
 `pnpm run build` —— 因此需要 Node.js ≥ 24.22.2 与 pnpm，市场上首次安装时也会请求一次构建授权：
 
