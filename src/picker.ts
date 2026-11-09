@@ -456,7 +456,27 @@ function DshmlIconPickerApp(props: DshmlIconPickerAppProps): ReactElement {
         title: dshmlUiCopy('picker.close', 'Close'),
         onClick: props.onClose,
       },
-      '\u00d7',
+      // The close mark is drawn, never typed: a text `×` follows the user's system
+      // font, so its ink size and position drift away from the 28 px hit-area
+      // centre. The 16 px glyph is a flex item of the button, which centres it.
+      h(
+        'svg',
+        {
+          className: 'dshml-picker-close-icon',
+          viewBox: '0 0 24 24',
+          width: 16,
+          height: 16,
+          fill: 'none',
+          focusable: 'false',
+          'aria-hidden': 'true',
+        },
+        h('path', {
+          d: 'M18 6 6 18M6 6l12 12',
+          stroke: 'currentColor',
+          strokeWidth: 2,
+          strokeLinecap: 'round',
+        }),
+      ),
     ),
   ];
 

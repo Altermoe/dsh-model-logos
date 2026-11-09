@@ -564,6 +564,25 @@ describe('generated client bundle', () => {
     }
   });
 
+  it('draws the picker close button as a centred SVG glyph, not a text character', () => {
+    // A typed `×` follows the user's system font, so its ink size and position
+    // drift off the hit-area centre. The close mark is now a fixed 16px SVG and
+    // the button centres it with flex layout: no font-size or line-height.
+    const { doc } = loadClient();
+    const style = expectPresent(doc.styleTags[0], 'the plugin stylesheet must be mounted');
+    const close = cssRule(style, '.dshml-picker-close');
+    expect(close, 'the close button is an inline flex box').toMatch(/display:\s*inline-flex/);
+    expect(close, 'the glyph is centred horizontally').toMatch(/justify-content:\s*center/);
+    expect(close, 'the glyph is centred vertically').toMatch(/align-items:\s*center/);
+    expect(close, 'the hit area stays 28×28 px').toMatch(/width:\s*28px/);
+    expect(close, 'the hit area stays 28×28 px').toMatch(/height:\s*28px/);
+    expect(close, 'the close mark must not depend on a font').not.toMatch(/font-size|line-height|font:/);
+    const icon = cssRule(style, '.dshml-picker-close-icon');
+    expect(icon, 'the drawn icon owns its 16px box').toMatch(/width:\s*16px/);
+    expect(icon, 'the drawn icon owns its 16px box').toMatch(/height:\s*16px/);
+    expect(icon, 'the SVG is block-level inside the flex button').toMatch(/display:\s*block/);
+  });
+
   it('draws input focus and pressed options in the theme blue and animates the state change', () => {
     const { doc } = loadClient();
     const style = expectPresent(doc.styleTags[0], 'the plugin stylesheet must be mounted');

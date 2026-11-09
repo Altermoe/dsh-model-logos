@@ -105,10 +105,17 @@ export const DSHML_UI_CSS: string = `
   border-radius: var(--dsw-radius-sm, 6px);
   background: transparent;
   color: var(--dsw-alias-label-tertiary, #8b93a3);
-  font: inherit;
-  font-size: 17px;
-  line-height: 1;
   cursor: pointer;
+}
+
+/* The close mark is a drawn 16 px glyph, not a text character: no font-size or
+   line-height is involved, so the user's system font cannot move it. It is a
+   flex item of the 28 px button, so its box centre is the hit-area centre. */
+.dshml-picker-close-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
 }
 
 .dshml-picker-close:hover {

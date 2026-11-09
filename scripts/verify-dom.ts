@@ -1562,6 +1562,84 @@ async function browserDriver(config: DriverConfig): Promise<void> {
     }
 
     if (picker !== null) {
+      // The close mark must be a drawn SVG, never a typed character: the `×`
+      // glyph followed the user's system font, so its ink size and position
+      // drifted off the hit-area centre. Pin both halves of that contract: an
+      // SVG-only button, and the 16px icon centred in the 28px hit area.
+      const closeButton = q<HTMLButtonElement>('.dshml-picker-close', picker);
+      const closeIcon = closeButton ? q<SVGSVGElement>('svg', closeButton) : null;
+      const closeLabel = closeButton ? (closeButton.getAttribute('aria-label') ?? '').trim() : '';
+      add(
+        'picker close button draws an SVG and carries no text symbol',
+        true,
+        !!closeButton &&
+          closeButton.tagName === 'BUTTON' &&
+          !!closeIcon &&
+          text(closeButton) === '' &&
+          closeLabel !== '',
+        closeButton
+          ? describeNode(closeButton) +
+              ' label="' +
+              closeLabel +
+              '" icon=' +
+              (closeIcon ? describeNode(closeIcon) : 'none') +
+              ' text="' +
+              text(closeButton) +
+              '"'
+          : 'no .dshml-picker-close inside the picker',
+      );
+      const closeBox = closeButton ? closeButton.getBoundingClientRect() : null;
+      const closeIconBox = closeIcon ? closeIcon.getBoundingClientRect() : null;
+      const centreDeltaX =
+        closeBox && closeIconBox
+          ? Math.abs(closeIconBox.left + closeIconBox.width / 2 - (closeBox.left + closeBox.width / 2))
+          : Infinity;
+      const centreDeltaY =
+        closeBox && closeIconBox
+          ? Math.abs(closeIconBox.top + closeIconBox.height / 2 - (closeBox.top + closeBox.height / 2))
+          : Infinity;
+      add(
+        'picker close glyph is centred in the 28px hit area',
+        true,
+        closeBox !== null &&
+          closeIconBox !== null &&
+          Math.round(closeBox.width) === 28 &&
+          Math.round(closeBox.height) === 28 &&
+          Math.round(closeIconBox.width) === 16 &&
+          Math.round(closeIconBox.height) === 16 &&
+          centreDeltaX <= 1 &&
+          centreDeltaY <= 1,
+        closeBox && closeIconBox
+          ? 'button ' +
+              Math.round(closeBox.width) +
+              '×' +
+              Math.round(closeBox.height) +
+              'px icon ' +
+              Math.round(closeIconBox.width) +
+              '×' +
+              Math.round(closeIconBox.height) +
+              'px dx=' +
+              centreDeltaX.toFixed(2) +
+              ' dy=' +
+              centreDeltaY.toFixed(2)
+          : 'missing close button or SVG box',
+      );
+      const closePath = closeIcon ? q('path', closeIcon) : null;
+      const closeColour = closeButton ? getComputedStyle(closeButton).color : '';
+      const iconColour = closeIcon ? getComputedStyle(closeIcon).color : '';
+      add(
+        'picker close glyph follows the button colour through currentColor',
+        true,
+        closePath !== null && closePath.getAttribute('stroke') === 'currentColor' && closeColour === iconColour,
+        closePath
+          ? 'stroke="' +
+              String(closePath.getAttribute('stroke')) +
+              '" button colour=' +
+              closeColour +
+              ' icon colour=' +
+              iconColour
+          : 'no path inside the close SVG',
+      );
       const pickerMark = picker.querySelector('.dshml-picker-option-mark');
       const pickerMarkBox = pickerMark ? pickerMark.getBoundingClientRect() : null;
       add(
