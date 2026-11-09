@@ -210,12 +210,13 @@ const letterMock = (): string => {
     <div class="letter-row">
       <span class="mark" style="width:36px;height:36px">${svg}</span>
       <span class="mark" style="width:22px;height:22px">${svg}</span>
+      <span class="mark" style="width:20px;height:20px">${svg}</span>
       <span class="letter-label">${escape(name || '(empty)')} → “${escape(entry.title)}”</span>
     </div>`;
   }).join('');
   return `
 <section class="mock mock-light">
-  <h3>Deterministic letter-tile fallback (src/artwork.ts) — 36px + 22px</h3>
+  <h3>Deterministic letter-tile fallback (src/artwork.ts) — 36px + 22px + 20px</h3>
   <div class="letters">${rows}</div>
 </section>`;
 };
@@ -231,8 +232,8 @@ const artworkCard = (key: string): string => {
       <span class="on-dark">${mark(key, 96)}</span>
     </div>
     <div class="small">
-      ${[36, 22, 20, 16].map((size) => `<span class="on-light">${mark(key, size)}</span>`).join('')}
-      ${[36, 22].map((size) => `<span class="on-dark">${mark(key, size)}</span>`).join('')}
+      ${[36, 22, 20].map((size) => `<span class="on-light">${mark(key, size)}</span>`).join('')}
+      ${[36, 22, 20].map((size) => `<span class="on-dark">${mark(key, size)}</span>`).join('')}
     </div>
     <figcaption><b>${escape(key)}</b><span>${escape(entry ? entry.title : 'MISSING')}</span><span>${escape(meta)}</span></figcaption>
   </figure>`;

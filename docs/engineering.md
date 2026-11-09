@@ -275,11 +275,14 @@ that recorded them, not from the current build.
   mutations** on the decorated page, while removing an inserted vendor mark (what a
   React re-render does) still wakes the decorator and the mark is re-inserted on the
   next pass.
-- Visual check of every mark at 20/22/36/96 px: `docs/preview.png`; the vendor
-  marks: `docs/preview-vendors.png`; before/after of Claude, Ollama and Doubao:
-  `docs/preview-corrected-marks.png`. The design sheet also renders the plugin's
-  16 px settings-navigation glyph next to shipped nav icons on light and dark
-  surfaces.
+- Visual check of every mark at the shipped 20 / 22 / 36 px sizes plus a 96 px
+  reference: `docs/preview.png`; the vendor marks and the letter-tile fallback at
+  the same sizes: `docs/preview-vendors.png`. The historical before/after of
+  Claude, Ollama and Doubao (`docs/preview-corrected-marks.png`) is a record from
+  the artwork correction: it still renders the size ladder shipped at that time,
+  so its 16/14 px samples are history, not the current base. The design sheet also
+  renders the plugin's 16 px settings-navigation glyph next to shipped nav icons
+  on light and dark surfaces.
 - The README preview set is generated from the current build, never hand-captured.
   `pnpm exec tsx scripts/verify-dom.ts --screenshot docs/preview-settings.png --open combobox`
   and `... --screenshot docs/preview-picker.png --open picker` render the decorated
