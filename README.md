@@ -65,7 +65,10 @@ harness — channels are chosen by logo, not by route id.
   hand-declared ones. Every model row begins with a model icon in its reserved 22px
   seat (the seat shows a dashed placeholder until an icon is resolved), and a
   logo-bearing combobox replaces the native add-provider `<select>` (the native
-  select stays underneath as the source of truth).
+  select stays underneath as the source of truth). Both seats are in the DOM before
+  the dialog's first paint — the decorator runs from the DOM observer's callback,
+  ahead of layout, not from a timer — so reopening Settings never shows an un-seated
+  row that then jumps sideways.
 - **A Model icons page** — the plugin's own Settings entry lists the models from
   your providers, with their current mark and a way to change it.
 - **A picker you can always reach** — clicking a model's icon in Settings → Models

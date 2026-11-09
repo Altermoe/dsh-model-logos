@@ -82,6 +82,29 @@ function dshmlIsSelfMutation(record: MutationRecord): boolean {
   return element !== null && element.closest('[data-dshml-owner="1"]') !== null;
 }
 
+/**
+ * Whether a page mutation renders (part of) the settings dialog.
+ *
+ * True when the record happened inside the dialog, or when it inserted the dialog
+ * (or a wrapper around it). Such records are decorated synchronously, because a
+ * MutationObserver callback runs in the microtask checkpoint after the task that
+ * made the change — before style, layout and paint. A seat inserted there is
+ * already present on the dialog's first painted frame, so rows do not shift when
+ * the decoration lands a frame or two later.
+ * @param record - a mutation record from the body observer.
+ */
+function dshmlRendersSettingsRoot(record: MutationRecord): boolean {
+  const target = record.target;
+  const element = target instanceof Element ? target : target.parentElement;
+  if (element !== null && element.closest(DSHML_SETTINGS_ROOT) !== null) return true;
+  for (const node of record.addedNodes) {
+    if (!(node instanceof Element)) continue;
+    if (node.matches(DSHML_SETTINGS_ROOT)) return true;
+    if (node.querySelector(DSHML_SETTINGS_ROOT) !== null) return true;
+  }
+  return false;
+}
+
 /** Localized aria-label prefixes the shipped Models page writes on its rows. */
 const DSHML_ACTION_LABEL = /^(?:Edit|Delete|编辑|删除)\s/i;
 const DSHML_MODEL_ID_LABEL = /^(?:Model ID|模型\s*ID|模型ID)\s+\d+$/i;
@@ -799,6 +822,22 @@ function dshmlScheduleDecorate(state: DecorState): void {
   }, 40);
 }
 
+/**
+ * Decorate an open settings dialog now, without waiting for the debounce timer.
+ *
+ * Used for the plugin's own mount and for state changes that are not page
+ * mutations (icon override, provider catalogue). Doing the pass synchronously
+ * from those callbacks keeps the marks on the same frame as the state they show;
+ * the debounce stays for keystroke-driven refreshes, where coalescing a burst of
+ * `input` events is worth more than saving a frame.
+ * @param state - the mounted decorator state.
+ */
+function dshmlPaintSettingsNow(state: DecorState): void {
+  if (state.disposed) return;
+  if (document.querySelector(DSHML_SETTINGS_ROOT) === null) return;
+  dshmlDecorate(state);
+}
+
 /** Remove everything this decorator inserted and restore the native select. */
 function dshmlClearDecorations(state: DecorState): void {
   if (state.combo !== null) {
@@ -848,12 +887,21 @@ export function dshmlMountSettingsDecorator(_ctx: DshContext): () => void {
   const observer = new MutationObserver((records) => {
     // Our own passes write into the nodes they inserted; re-scheduling on those
     // records would loop forever. Only page (React-owned) mutations matter.
+    let relevant = false;
+    let repaint = false;
     for (const record of records) {
-      if (!dshmlIsSelfMutation(record)) {
-        schedule();
-        return;
-      }
+      if (dshmlIsSelfMutation(record)) continue;
+      relevant = true;
+      if (dshmlRendersSettingsRoot(record)) repaint = true;
     }
+    if (!relevant) return;
+    // A page change inside the open dialog is reflected before the browser
+    // paints: this callback is a microtask, so the seats and marks it inserts are
+    // already in the layout of the frame that first shows the changed markup.
+    // Everything outside the dialog keeps the debounce (a closed dialog has
+    // nothing to decorate, and unrelated page churn should not pay for a pass).
+    if (repaint) dshmlDecorate(state);
+    else schedule();
   });
   observer.observe(document.body, { childList: true, subtree: true });
   const onInput = (): void => schedule();
@@ -871,9 +919,12 @@ export function dshmlMountSettingsDecorator(_ctx: DshContext): () => void {
   document.addEventListener('input', onInput, true);
   document.addEventListener('change', onChange, true);
   document.addEventListener('pointerdown', onPointerDown, true);
-  const offIcons = dshmlSubscribeIconState(schedule);
-  const offCatalog = dshmlSubscribeCatalog(schedule);
-  schedule();
+  const offIcons = dshmlSubscribeIconState(() => dshmlPaintSettingsNow(state));
+  const offCatalog = dshmlSubscribeCatalog(() => dshmlPaintSettingsNow(state));
+  // The dialog may already be open when the plugin (re)mounts — a hot reload while
+  // Settings is visible, or the verification fixture. Paint it in the same task
+  // rather than through a timer: the first frame must not show the bare page.
+  dshmlPaintSettingsNow(state);
   return function dispose() {
     state.disposed = true;
     if (dshmlActiveDecorState === state) dshmlActiveDecorState = null;

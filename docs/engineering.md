@@ -216,10 +216,10 @@ that recorded them, not from the current build.
   the settings-section registration, and
   that `apply()` disposers remove the stylesheet, listeners and observer.
 - `scripts/verify-dom.ts` drives the faithful Settings fixture in headless Edge:
-  **55 assertions pass** — vendor logos on official rows/editor titles (including
+  **57 assertions pass** — vendor logos on official rows/editor titles (including
   the localized DeepSeek account row), none on the declared custom provider but its
   empty 22px name seat, the reserved **22px mark base** for provider-name seats and
-  the model-row icon seat (dropping either seat re-inserts it on the next pass, so
+  the model-row icon seat (dropping either seat re-inserts it on the same task, so
   the row's text never moves), the **36px picker preview**, model-row buttons and
   the flex model row, the hidden native select, the custom combobox (option marks,
   write-back, bubbling `change`, face re-sync), the picker groups (vendor before
@@ -231,6 +231,19 @@ that recorded them, not from the current build.
   28px hit area, paint box inside the label line box), the plugin's own settings-nav row
   (marked by label, shipped gear hidden, 16 px `currentColor` mask glyph painted, no
   other row marked), full disposal reversibility and observer disconnection.
+- **Settings decoration lands before the first paint.** The decorator used to defer
+  every pass to a 40 ms `setTimeout`, so the dialog painted one to three frames
+  without its seats and then shifted each provider name / model row sideways when
+  they arrived — the flash this change removes. A `MutationObserver` callback
+  already runs in the microtask checkpoint after the task that made the DOM change,
+  i.e. before style, layout and paint, so the decorator now runs the pass
+  synchronously for records that touch the dialog (and for the plugin's own mount,
+  plus the catalogue / override subscriptions); only unrelated page churn and the
+  keystroke-driven refreshes keep the debounce. `verify:dom` pins both halves: the
+  seats exist when `apply()` returns (before any timer can run), and a seat removed
+  from an open dialog is back one 0 ms task later — the two assertions fail on the
+  timer-based code. The synchronous pass performs no layout reads, so it cannot
+  force a reflow inside React's commit.
 - **The composer mark fills the label's line box, so it needs no optical nudge.** A
   composer label is a 13px/20px line. The mark is a 20px box, exactly the line box,
   inside a `display:flex; align-items:center` row: its centre therefore lands on the

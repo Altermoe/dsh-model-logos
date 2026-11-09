@@ -792,6 +792,11 @@ async function browserDriver(config: DriverConfig): Promise<void> {
   const modelRows = modelEntries
     .map((entry) => q('.jrmgQW_modelRow', entry))
     .filter((row): row is HTMLElement => row !== null);
+  // Decorations this plugin inserts itself, captured before the first `await`
+  // below: `apply()` is synchronous, so a pass deferred to a timer shows up here
+  // as zero and would let the first painted frame show un-seated rows.
+  const seatsAtApply = qa('[data-dshml-seat="1"]').length;
+  const modelSeatsAtApply = qa('[data-dshml-kind="model"]').length;
 
   /* -------------------------- decoration locators -------------------------- */
 
@@ -1002,7 +1007,20 @@ async function browserDriver(config: DriverConfig): Promise<void> {
       'provider rows=' + rowCards.length + ', model rows=' + modelRows.length,
     );
 
-    // Give the decorator's async directory fetch + observer debounce time to land.
+    // The first decoration pass runs synchronously inside `apply()`. If it were
+    // deferred to a timer (as it used to be), an already-open dialog — an HMR
+    // reload, or the fixture — would paint at least one frame with no seats and
+    // then shift every row's text sideways when the seats arrived.
+    add(
+      'apply() decorates synchronously: the seats exist before any timer can run',
+      true,
+      seatsAtApply > 0 && modelSeatsAtApply === config.modelRows,
+      'provider-name seats=' + seatsAtApply + ', model-row seats=' + modelSeatsAtApply + '/' + config.modelRows,
+    );
+
+    // Give the decorator's async directory fetch time to land. It no longer needs
+    // an observer debounce: the catalogue subscription paints the open dialog
+    // synchronously, so the marks replace the reserved seats in the same frame.
     await waitFor(() => vendorMarkers().length > 0, 6000);
     await sleep(150);
 
@@ -1048,6 +1066,27 @@ async function browserDriver(config: DriverConfig): Promise<void> {
       true,
       restoredMarker !== null,
       restoredMarker !== null ? 'restored ' + describeNode(restoredMarker) : 'the removed marker did not come back',
+    );
+
+    // The observer pass is synchronous. A page mutation inside the open dialog is
+    // decorated from the MutationObserver callback — a microtask, i.e. before the
+    // next macrotask and therefore before the browser paints that frame. If the
+    // pass were still deferred by the 40ms debounce, the seat would still be
+    // missing when this 0ms timer fires (and the row text would move on screen).
+    const immediateRow = q<HTMLElement>('[data-dshml-model-row="1"]', root);
+    const immediateSeat = immediateRow ? q<HTMLButtonElement>('.dshml-model-icon-btn', immediateRow) : null;
+    immediateSeat?.remove();
+    await new Promise<void>((done) => {
+      setTimeout(done, 0);
+    });
+    const immediateRestored = immediateRow ? q<HTMLButtonElement>('.dshml-model-icon-btn', immediateRow) : null;
+    add(
+      'page mutations are decorated in the observer callback, before the next task',
+      true,
+      immediateRestored !== null,
+      immediateRestored !== null
+        ? 'seat restored in the observer microtask (no timer wait)'
+        : 'seat still missing one task after the mutation (the pass is still debounced)',
     );
 
     // The model-row icon seat is what reserves the 22px column: if page state

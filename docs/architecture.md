@@ -242,8 +242,11 @@ private primitives internals.
   a mark seat in front of every provider row name / editor title (the vendor mark
   on official channels, empty width on hand-declared providers) and the icon seat at
   the start of every model row (the mark, or the dashed placeholder). Both seats are
-  inserted before the async catalog can resolve them, so a mark that renders late
-  never moves the row's text.
+  inserted on the frame that first paints the row: the decorator runs inside the
+  `MutationObserver` callback (a microtask, ahead of style and paint) and
+  synchronously on plugin mount, never from a timer. A mark that resolves late only
+  fills an already-reserved width, so neither the catalogue latency nor the
+  decoration timing moves a row's text.
 - The picker offers: auto (heuristic), none, a "letter tile" option generated from
   the model name, and the shipped marks split into **vendor icons** (the company or
   channel) and **model icons** (the model product). Company and model marks are
@@ -446,7 +449,13 @@ above.
 1. **Root**: `document.querySelector('[data-shortcut-modal="settings"]')`. Absent
    → nothing happens. MutationObserver on `document.body` (childList+subtree) and
    a debounced `input`/`change` capture listener keep decorations fresh. The
-   observer also disconnects when the plugin disposes. Two invariants keep it from
+   observer also disconnects when the plugin disposes. Records that touch the open
+   dialog (or add it) are decorated synchronously from the observer callback — a
+   microtask, i.e. before the frame is painted — so a row never renders without its
+   seat first; unrelated page churn stays on the 40 ms debounce, as do the
+   keystroke-driven refreshes. Plugin mount and the catalogue / override
+   subscriptions also decorate synchronously when the dialog is open (a hot reload
+   can happen with Settings visible). Two invariants keep the observer from
    observing itself: records whose target sits inside an inserted
    `[data-dshml-owner="1"]` node are ignored (our own writes are output, not page
    state), and every mark/text write is compared against the last value written to
