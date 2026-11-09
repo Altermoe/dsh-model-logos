@@ -13,8 +13,18 @@
  * `ctx.configForms.get(NS)` → `remote.settings.mutate`, which lands in the
  * profile's `cordis.patch.yml` (no localStorage).
  */
-import { letterTextFor, withOverride, withoutOverride, flattenOverrides, resolveModelIcon } from './resolve';
-import { matchVendorLogo } from './match';
+import {
+  flattenOverrides,
+  flattenProviderOverrides,
+  letterTextFor,
+  providerLetterTextFor,
+  resolveModelIcon,
+  resolveProviderIcon,
+  withOverride,
+  withProviderOverride,
+  withoutOverride,
+  withoutProviderOverride,
+} from './resolve';
 import { letterTile } from './artwork';
 import { LOGOS } from './logos';
 import { React } from './runtime';
@@ -34,6 +44,8 @@ import type {
   LocaleService,
   ModelMark,
   OverrideDocument,
+  ProviderIconResolution,
+  ProviderOverrideDocument,
   RemoteLlmService,
   RemoteService,
   SettingsNamespaceView,
@@ -46,11 +58,15 @@ export const DSHML_SETTINGS_NS = 'dsh-model-logos';
 /** Settings field name declared by the host half's volatile Config. */
 export const DSHML_SETTINGS_FIELD = 'modelIcons';
 
+/** Settings field carrying the per-provider (vendor) overrides. */
+export const DSHML_PROVIDER_SETTINGS_FIELD = 'providerIcons';
+
 /** Snapshot store for the icon overrides. */
 const dshmlIconsRef: { snapshot: IconState; listeners: Set<() => void> } = {
   snapshot: {
     status: 'loading',
     overrides: {},
+    providerOverrides: {},
     writable: false,
     error: null,
   },
@@ -187,9 +203,23 @@ export function dshmlResolveFor(
   return resolveModelIcon(dshmlIconState().overrides, provider, model);
 }
 
+/**
+ * Resolve one provider (vendor / channel) identity against the live overrides.
+ * @param providerId - provider route id.
+ * @param fallback - allow the generated letter tile for an unknown channel.
+ */
+export function dshmlResolveProviderFor(providerId: string, fallback?: boolean): ProviderIconResolution {
+  return resolveProviderIcon(dshmlIconState().providerOverrides, providerId, { fallback: fallback === true });
+}
+
 /** Letter-tile source text for the picker preview and DOM fallbacks. */
 export function dshmlLetterTextFor(provider: Identity | null | undefined, model: Identity | null | undefined): string {
   return letterTextFor(provider, model);
+}
+
+/** Letter-tile source text for a provider (display name, then route id). */
+export function dshmlProviderLetterTextFor(providerId: string, displayName?: string | null): string {
+  return providerLetterTextFor(providerId, displayName);
 }
 
 /**
@@ -211,18 +241,25 @@ export function dshmlModelMark(provider: Identity | null | undefined, model: Ide
 
 /**
  * The vendor mark for an official channel row / dropdown option.
- * Unknown official channels fall back to a letter tile; pass allowFallback=false
- * for custom (hand-declared) providers, which get no vendor mark at all.
+ *
+ * The configured per-provider override wins; otherwise an official channel falls
+ * back to its artwork (`matchVendorLogo`) and then to a letter tile. Pass
+ * `allowFallback=false` for custom (hand-declared) providers, which get no
+ * vendor mark at all unless the user configured one explicitly.
  */
 export function dshmlVendorMark(providerId: string, displayName?: string | null, allowFallback?: boolean): VendorMark {
-  const key = matchVendorLogo(providerId);
-  const logo = key !== null ? LOGOS[key] : undefined;
-  if (logo !== undefined) return { key, svg: logo.svg, title: dshmlBrandName(key, logo.title) };
-  if (allowFallback !== false) {
-    const tile = letterTile(displayName || providerId || '?');
-    return { key: null, svg: tile.svg, title: tile.title };
+  // Omitting the flag keeps the historical default (letter tile for unknown
+  // channels); callers must pass `false` explicitly for declared providers.
+  const resolved = dshmlResolveProviderFor(providerId, allowFallback !== false);
+  if (resolved.disabled) return { key: null, svg: null, title: null, resolved };
+  if (resolved.letter) {
+    const tile = letterTile(providerLetterTextFor(providerId, displayName));
+    return { key: null, svg: tile.svg, title: tile.title, resolved };
   }
-  return { key: null, svg: null, title: null };
+  const key = resolved.key;
+  const logo = key !== null ? LOGOS[key] : undefined;
+  if (logo !== undefined) return { key, svg: logo.svg, title: dshmlBrandName(key, logo.title), resolved };
+  return { key: null, svg: null, title: null, resolved };
 }
 
 /** Adopt the settings form snapshot into the icon store. */
@@ -241,6 +278,7 @@ function dshmlAcceptIconForm(form: ConfigForm): void {
     dshmlPublishIcons({
       status: 'unavailable',
       overrides: previous.overrides,
+      providerOverrides: previous.providerOverrides,
       writable: false,
       error: typeof snapshot.error === 'string' ? snapshot.error : dshmlT('picker.unavailable'),
     });
@@ -252,18 +290,30 @@ function dshmlAcceptIconForm(form: ConfigForm): void {
     return;
   }
   const value = snapshot.value;
-  const raw = value !== null && typeof value === 'object' ? dshmlRead(value, DSHML_SETTINGS_FIELD) : undefined;
+  const rawModel = value !== null && typeof value === 'object' ? dshmlRead(value, DSHML_SETTINGS_FIELD) : undefined;
+  const rawProvider =
+    value !== null && typeof value === 'object' ? dshmlRead(value, DSHML_PROVIDER_SETTINGS_FIELD) : undefined;
   const overrides: OverrideDocument =
-    raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? (raw as OverrideDocument) : {};
+    rawModel !== null && typeof rawModel === 'object' && !Array.isArray(rawModel) ? (rawModel as OverrideDocument) : {};
+  const providerOverrides: ProviderOverrideDocument =
+    rawProvider !== null && typeof rawProvider === 'object' && !Array.isArray(rawProvider)
+      ? (rawProvider as ProviderOverrideDocument)
+      : {};
   const previous = dshmlIconState();
+  const writing = dshmlIconFormWriting > 0;
   // Keep an optimistic value while a queued write has not been folded back yet.
   const merged =
-    Object.keys(previous.overrides).length > 0 && previous.status === 'ready' && dshmlIconFormWriting
+    Object.keys(previous.overrides).length > 0 && previous.status === 'ready' && writing
       ? previous.overrides
       : overrides;
+  const mergedProviders =
+    Object.keys(previous.providerOverrides).length > 0 && previous.status === 'ready' && writing
+      ? previous.providerOverrides
+      : providerOverrides;
   dshmlPublishIcons({
     status: 'ready',
     overrides: merged,
+    providerOverrides: mergedProviders,
     writable: snapshot.writable === true,
     error: null,
   });
@@ -329,6 +379,63 @@ export function dshmlSetModelIcon(providerId: string, modelId: string, icon: str
 /** Reset one model to the heuristic initial icon. */
 export function dshmlClearModelIcon(providerId: string, modelId: string): Promise<boolean> {
   return dshmlWriteIcon(providerId, modelId, null);
+}
+
+/**
+ * Write one provider (vendor) override.
+ * @param providerId - provider route id.
+ * @param icon - brand key, 'none', 'letter', or the empty string to clear.
+ * @returns whether the Host accepted the write.
+ */
+async function dshmlWriteProviderIcon(providerId: string, icon: string | null): Promise<boolean> {
+  const provider = typeof providerId === 'string' ? providerId.trim() : '';
+  if (provider === '') return false;
+  const form = dshmlIconForm;
+  if (form === null) {
+    dshmlPublishIcons({ ...dshmlIconState(), error: dshmlT('picker.unavailable') });
+    return false;
+  }
+  if (dshmlIconState().status === 'unavailable') {
+    dshmlPublishIcons({ ...dshmlIconState(), error: dshmlT('picker.unavailable') });
+    return false;
+  }
+  const previous = dshmlIconState();
+  const value = typeof icon === 'string' ? icon.trim() : '';
+  const optimistic =
+    value === ''
+      ? withoutProviderOverride(previous.providerOverrides, provider)
+      : withProviderOverride(previous.providerOverrides, provider, value);
+  dshmlPublishIcons({ ...previous, providerOverrides: optimistic, error: null });
+  dshmlIconFormWriting += 1;
+  try {
+    const ops: ConfigMutateOp[] =
+      value === ''
+        ? [{ op: 'unset', path: [DSHML_PROVIDER_SETTINGS_FIELD, provider] }]
+        : [{ op: 'set', path: [DSHML_PROVIDER_SETTINGS_FIELD, provider], value }];
+    const ok = await form.mutate(ops);
+    if (ok !== true) {
+      dshmlPublishIcons({ ...dshmlIconState(), error: dshmlT('picker.saveFailed') });
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.warn('[dsh-model-logos] provider icon write failed', error);
+    dshmlPublishIcons({ ...dshmlIconState(), error: dshmlT('picker.saveFailed') });
+    return false;
+  } finally {
+    dshmlIconFormWriting = Math.max(0, dshmlIconFormWriting - 1);
+    if (dshmlIconFormWriting === 0) dshmlAcceptIconForm(form);
+  }
+}
+
+/** Set one explicit provider (vendor) icon (brand key, 'none', or 'letter'). */
+export function dshmlSetProviderIcon(providerId: string, icon: string | null): Promise<boolean> {
+  return dshmlWriteProviderIcon(providerId, icon);
+}
+
+/** Reset one provider icon to the automatic (official channel) choice. */
+export function dshmlClearProviderIcon(providerId: string): Promise<boolean> {
+  return dshmlWriteProviderIcon(providerId, null);
 }
 
 /** Unwrap a remote answer: `{ok,value}` envelopes and plain values both work. */
@@ -408,6 +515,7 @@ function dshmlBuildCatalog(
   registered: unknown,
   views: readonly SettingsNamespaceView[],
   overrides: OverrideDocument,
+  providerOverrides: ProviderOverrideDocument,
 ): CatalogProvider[] {
   const providers = new Map<string, DshmlCatalogEntry>();
   const ensureProvider = (
@@ -464,6 +572,11 @@ function dshmlBuildCatalog(
     entry.modelIds.add(row.modelId);
     entry.models.push({ modelId: row.modelId, name: row.modelId, manual: true });
   }
+  // A provider whose only persisted entry is a provider icon still needs a row,
+  // otherwise the Model icons page could never show (or reset) that override.
+  for (const row of flattenProviderOverrides(providerOverrides)) {
+    ensureProvider(row.providerId, row.providerId, false, false);
+  }
   const ordered: CatalogProvider[] = [...providers.values()].map((entry) => ({
     providerId: entry.providerId,
     displayName: entry.displayName,
@@ -517,7 +630,8 @@ export async function dshmlRefreshCatalog(): Promise<void> {
       }
     }
     if (generation !== dshmlCatalogGeneration) return;
-    const providers = dshmlBuildCatalog(directory, registered, views, dshmlIconState().overrides);
+    const state = dshmlIconState();
+    const providers = dshmlBuildCatalog(directory, registered, views, state.overrides, state.providerOverrides);
     if (providers.length === 0 && warnings.length > 0 && dshmlCatalogState().providers.length === 0) {
       dshmlPublishCatalog({ status: 'unavailable', providers: [], error: warnings[0] ?? null });
       return;

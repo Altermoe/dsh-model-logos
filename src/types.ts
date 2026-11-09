@@ -85,6 +85,12 @@ export interface IconResolution {
   letter: boolean;
 }
 
+/** Which identity an override or a picker session targets. */
+export type IconScope = 'model' | 'provider';
+
+/** Result of resolving one provider identity (the channel/company mark). */
+export type ProviderIconResolution = IconResolution;
+
 /**
  * Persisted override document, nested as `providerId → modelId → icon`.
  *
@@ -92,6 +98,16 @@ export interface IconResolution {
  * (generated tile). An absent pair means "auto".
  */
 export type OverrideDocument = Record<string, Record<string, IconKeyValue>>;
+
+/**
+ * Persisted provider override document, flat as `providerId → icon`.
+ *
+ * Same value language as {@link OverrideDocument} (`brand key` | `none` |
+ * `letter`), but one level shorter: a provider has no model dimension. An absent
+ * entry means "auto": the official channel table decides, hand-declared
+ * providers get no invented mark.
+ */
+export type ProviderOverrideDocument = Record<string, IconKeyValue>;
 
 /** One persisted override value. */
 export type IconKeyValue = string;
@@ -108,6 +124,8 @@ export interface VendorMark {
   key: string | null;
   svg: string | null;
   title: string | null;
+  /** How the mark was chosen (`override` / `heuristic` / `none`). */
+  resolved: ProviderIconResolution;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -121,6 +139,8 @@ export type IconStatus = 'loading' | 'ready' | 'unavailable';
 export interface IconState {
   status: IconStatus;
   overrides: OverrideDocument;
+  /** Per-provider (vendor / channel) overrides; flat `providerId → icon`. */
+  providerOverrides: ProviderOverrideDocument;
   writable: boolean;
   error: string | null;
 }

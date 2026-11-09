@@ -14,8 +14,16 @@
  *       volcengine:
  *         doubao-seed-2-1-turbo-260628: doubao
  *
- * A missing entry means "auto" (the heuristic picks the initial icon); the
- * sentinel value `none` means the user explicitly turned the icon off.
+ * `providerIcons` is the per-provider (vendor / channel) override map. It is one
+ * level flat because a provider has no model dimension:
+ *
+ *     providerIcons:
+ *       volcengine: qwen
+ *       my-local-relay: letter
+ *
+ * A missing entry means "auto" (the official channel table decides, and a
+ * hand-declared provider gets no invented mark); the sentinel value `none` means
+ * the user explicitly turned the provider icon off.
  *
  * `pnpm run build` compiles this module into the committed `index.js` entry
  * declared by `package.json` `exports["."]`.
@@ -25,6 +33,8 @@ import z from '@deepseek-ai/schemastery';
 export const Config = z.object({
   /** provider route id → model id → logo key (or `none`). */
   modelIcons: z.dict(z.dict(z.string())).volatile(),
+  /** provider route id → logo key (or `none` / `letter`). */
+  providerIcons: z.dict(z.string()).volatile(),
 });
 
 /** Host body: nothing to mount; the settings document does the persistence. */

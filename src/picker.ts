@@ -13,7 +13,7 @@
  */
 import type { ChangeEvent, ReactElement } from 'react';
 import { h, React, getCreateRoot } from './runtime';
-import type { BrandLogo, IconState } from './types';
+import type { BrandLogo, IconScope, IconState, VendorMark } from './types';
 import { dshmlBrandName, dshmlBrandNameAliases, dshmlT } from './i18n';
 import { letterTile } from './artwork';
 import { LOGOS, filterLogoGroups, groupLogoEntries } from './logos';
@@ -21,11 +21,15 @@ import { LOGO_RANKS } from './logos/ranking';
 import type { GroupedLogoEntry, LogoGroups } from './logos/groups';
 import {
   dshmlClearModelIcon,
+  dshmlClearProviderIcon,
   dshmlIconState,
   dshmlLetterTextFor,
+  dshmlProviderLetterTextFor,
   dshmlResolveFor,
   dshmlSetModelIcon,
+  dshmlSetProviderIcon,
   dshmlUseIconState,
+  dshmlVendorMark,
 } from './overrides';
 
 /** Persisted override value meaning "render a deterministic letter tile". */
@@ -89,7 +93,7 @@ export function dshmlUiCopy(key: string, fallback: string): string {
 
 /** State rendered while the icon store is missing, broken or still loading. */
 function dshmlUiFallbackState(): IconState {
-  return { status: 'loading', overrides: {}, writable: false, error: '' };
+  return { status: 'loading', overrides: {}, providerOverrides: {}, writable: false, error: '' };
 }
 
 /** Current icon-store snapshot, or the safe fallback state. */
@@ -120,7 +124,17 @@ export function dshmlUiOverrides(state: unknown): Record<string, unknown> | null
 }
 
 /**
- * The stored override value of one pair, or null when unset.
+ * The flat provider override map inside an icon-store state, when it is an object.
+ * @param state - icon-store state (defensively treated as unknown).
+ */
+export function dshmlUiProviderOverrides(state: unknown): Record<string, unknown> | null {
+  if (state === null || typeof state !== 'object') return null;
+  const overrides = (state as { providerOverrides?: unknown }).providerOverrides;
+  return overrides !== null && typeof overrides === 'object' ? (overrides as Record<string, unknown>) : null;
+}
+
+/**
+ * The stored model override value of one pair, or null when unset.
  * @param overrides - validated override map (defensively treated as unknown).
  * @param providerId - provider route id.
  * @param modelId - model id.
@@ -132,6 +146,22 @@ export function dshmlUiOverrideValue(overrides: unknown, providerId: string, mod
     const bucket = (overrides as Record<string, unknown>)[providerId];
     if (bucket === null || typeof bucket !== 'object') return null;
     const value = (bucket as Record<string, unknown>)[modelId];
+    return typeof value === 'string' && value !== '' ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The stored provider override value, or null when unset.
+ * @param overrides - validated provider override map (defensively unknown).
+ * @param providerId - provider route id.
+ * @returns `'none'`, `'letter'`, a brand key, or null.
+ */
+export function dshmlUiProviderOverrideValue(overrides: unknown, providerId: string): string | null {
+  if (overrides === null || typeof overrides !== 'object') return null;
+  try {
+    const value = (overrides as Record<string, unknown>)[providerId];
     return typeof value === 'string' && value !== '' ? value : null;
   } catch {
     return null;
@@ -256,6 +286,70 @@ export function dshmlUiUseIconState(): IconState {
   return dshmlUiFallbackState();
 }
 
+/**
+ * The letter tile a provider seat previews (display name → route id), or null.
+ * @param providerId - provider route id.
+ * @param displayName - directory display name.
+ */
+export function dshmlUiProviderLetterTile(providerId: string, displayName?: string | null): DshmlUiLetterTile | null {
+  let text = typeof displayName === 'string' ? displayName.trim() : '';
+  if (text === '') {
+    try {
+      const fallback: unknown = dshmlProviderLetterTextFor(providerId, displayName);
+      if (typeof fallback === 'string' && fallback !== '') text = fallback;
+    } catch {
+      /* fall through to the local mirror */
+    }
+  }
+  if (text === '') text = typeof providerId === 'string' && providerId !== '' ? providerId : '?';
+  try {
+    const tile: unknown = letterTile(text);
+    if (tile !== null && typeof tile === 'object') {
+      const candidate = tile as { title?: unknown; svg?: unknown };
+      if (typeof candidate.svg === 'string' && candidate.svg !== '') {
+        return {
+          title: typeof candidate.title === 'string' && candidate.title !== '' ? candidate.title : text,
+          svg: candidate.svg,
+        };
+      }
+    }
+  } catch {
+    /* fall through */
+  }
+  return null;
+}
+
+/**
+ * Resolve one provider for rendering, normalizing whatever the store returned.
+ * `allowFallback` mirrors the decorator's official/declared split: an official
+ * channel may fall back to a letter tile, a hand-declared provider may not.
+ * @param providerId - provider route id.
+ * @param displayName - directory display name (letter-tile text).
+ * @param allowFallback - enable the generated letter tile.
+ */
+export function dshmlUiResolveProvider(
+  providerId: string,
+  displayName?: string | null,
+  allowFallback?: boolean,
+): DshmlUiResolution {
+  try {
+    const result: VendorMark = dshmlVendorMark(providerId, displayName, allowFallback);
+    const resolved: unknown = result !== null && typeof result === 'object' ? result.resolved : null;
+    if (resolved !== null && typeof resolved === 'object') {
+      const candidate = resolved as { key?: unknown; source?: unknown; disabled?: unknown; letter?: unknown };
+      return {
+        key: typeof candidate.key === 'string' && candidate.key !== '' ? candidate.key : null,
+        source: typeof candidate.source === 'string' ? candidate.source : 'none',
+        disabled: candidate.disabled === true,
+        letter: candidate.letter === true,
+      };
+    }
+  } catch {
+    /* fall through */
+  }
+  return { key: null, source: 'none', disabled: false, letter: false };
+}
+
 /** The props one picker grid cell accepts. */
 interface DshmlPickerOptionProps {
   optionKey: string;
@@ -297,15 +391,21 @@ function DshmlPickerOption(props: DshmlPickerOptionProps): ReactElement {
 
 /** The props the modal content receives from `dshmlOpenIconPicker`. */
 interface DshmlIconPickerAppProps {
+  /** `model` targets `modelIcons[provider][model]`, `provider` targets `providerIcons[provider]`. */
+  scope: IconScope;
   providerId: string;
+  /** Empty in provider scope: a provider has no model dimension. */
   modelId: string;
   displayName: string;
+  /** Whether an unknown official channel may fall back to a letter tile. */
+  fallback?: boolean;
   onChanged?: (() => void) | undefined;
   onClose: () => void;
 }
 
 /** The modal content. Receives already-validated ids from dshmlOpenIconPicker. */
 function DshmlIconPickerApp(props: DshmlIconPickerAppProps): ReactElement {
+  const scope: IconScope = props.scope === 'provider' ? 'provider' : 'model';
   const providerId = props.providerId;
   const modelId = props.modelId;
   const displayName = typeof props.displayName === 'string' ? props.displayName : '';
@@ -357,10 +457,20 @@ function DshmlIconPickerApp(props: DshmlIconPickerAppProps): ReactElement {
   );
 
   const overrides = dshmlUiOverrides(state);
-  const rawOverride = dshmlUiOverrideValue(overrides, providerId, modelId);
-  const resolved = dshmlUiResolve(providerId, modelId, displayName);
+  const providerOverrides = dshmlUiProviderOverrides(state);
+  const rawOverride =
+    scope === 'provider'
+      ? dshmlUiProviderOverrideValue(providerOverrides, providerId)
+      : dshmlUiOverrideValue(overrides, providerId, modelId);
+  const resolved =
+    scope === 'provider'
+      ? dshmlUiResolveProvider(providerId, displayName, props.fallback === true)
+      : dshmlUiResolve(providerId, modelId, displayName);
   const unavailable = state.status === 'unavailable';
-  const letterTileEntry = dshmlUiLetterTile(providerId, modelId, displayName);
+  const letterTileEntry =
+    scope === 'provider'
+      ? dshmlUiProviderLetterTile(providerId, displayName)
+      : dshmlUiLetterTile(providerId, modelId, displayName);
 
   const isAuto = rawOverride === null && resolved.letter !== true;
   const isNone = rawOverride === 'none';
@@ -397,7 +507,13 @@ function DshmlIconPickerApp(props: DshmlIconPickerAppProps): ReactElement {
     setBusy(true);
     let write: Promise<boolean>;
     try {
-      if (kind === 'auto') {
+      if (scope === 'provider') {
+        if (kind === 'auto') write = dshmlClearProviderIcon(providerId);
+        else {
+          const value = kind === 'none' ? 'none' : kind === 'letter' ? DSHML_LETTER_ICON : brandKey;
+          write = dshmlSetProviderIcon(providerId, value ?? '');
+        }
+      } else if (kind === 'auto') {
         write = dshmlClearModelIcon(providerId, modelId);
       } else {
         const value = kind === 'none' ? 'none' : kind === 'letter' ? DSHML_LETTER_ICON : brandKey;
@@ -431,20 +547,30 @@ function DshmlIconPickerApp(props: DshmlIconPickerAppProps): ReactElement {
 
   const disabled = unavailable === true || busy === true;
 
+  // Provider scope names the channel once; model scope keeps the pair subtitle.
+  const subtitleParts: Array<ReactElement | null> = [
+    displayName !== '' ? h('span', { key: 'name', className: 'dshml-picker-subtitle-name' }, displayName) : null,
+    displayName !== '' ? h('span', { key: 'sep1', className: 'dshml-picker-subtitle-sep' }, '·') : null,
+    h('span', { key: 'provider' }, providerId),
+  ];
+  if (scope === 'model') {
+    subtitleParts.push(h('span', { key: 'sep2', className: 'dshml-picker-subtitle-sep' }, '·'));
+    subtitleParts.push(h('span', { key: 'model' }, modelId));
+  }
+  const subtitleChildren = subtitleParts.filter(function present(child) {
+    return child !== null;
+  });
+
   const headChildren: ReactElement[] = [
     h('div', { key: 'heading', className: 'dshml-picker-heading' }, [
       h(
         'h2',
         { key: 'title', className: 'dshml-picker-title', id: titleId },
-        dshmlUiCopy('picker.title', 'Choose model icon'),
+        scope === 'provider'
+          ? dshmlUiCopy('picker.providerTitle', 'Choose vendor icon')
+          : dshmlUiCopy('picker.title', 'Choose model icon'),
       ),
-      h('div', { key: 'subtitle', className: 'dshml-picker-subtitle' }, [
-        displayName !== '' ? h('span', { key: 'name', className: 'dshml-picker-subtitle-name' }, displayName) : null,
-        displayName !== '' ? h('span', { key: 'sep1', className: 'dshml-picker-subtitle-sep' }, '·') : null,
-        h('span', { key: 'provider' }, providerId),
-        h('span', { key: 'sep2', className: 'dshml-picker-subtitle-sep' }, '·'),
-        h('span', { key: 'model' }, modelId),
-      ]),
+      h('div', { key: 'subtitle', className: 'dshml-picker-subtitle' }, subtitleChildren),
     ]),
     h(
       'button',
@@ -486,7 +612,10 @@ function DshmlIconPickerApp(props: DshmlIconPickerAppProps): ReactElement {
       optionKey: 'auto',
       svg: autoSvg,
       label: dshmlUiCopy('picker.auto', 'Auto'),
-      hint: dshmlUiCopy('picker.autoHint', 'Matched from the model name'),
+      hint:
+        scope === 'provider'
+          ? dshmlUiCopy('picker.autoProviderHint', 'Matched from the official channel')
+          : dshmlUiCopy('picker.autoHint', 'Matched from the model name'),
       ariaLabel: dshmlUiCopy('picker.auto', 'Auto'),
       selected: isAuto,
       disabled: disabled,
@@ -512,7 +641,10 @@ function DshmlIconPickerApp(props: DshmlIconPickerAppProps): ReactElement {
       optionKey: 'letter',
       svg: letterSvg,
       label: dshmlUiCopy('picker.letter', 'Letter icon'),
-      hint: dshmlUiCopy('picker.letterHint', 'Generated from the model name'),
+      hint:
+        scope === 'provider'
+          ? dshmlUiCopy('picker.letterProviderHint', 'Generated from the provider name')
+          : dshmlUiCopy('picker.letterHint', 'Generated from the model name'),
       ariaLabel: dshmlUiCopy('picker.letter', 'Letter icon'),
       selected: isLetter,
       disabled: disabled,
@@ -627,31 +759,37 @@ function DshmlIconPickerApp(props: DshmlIconPickerAppProps): ReactElement {
 
 /** Options accepted by {@link dshmlOpenIconPicker}. */
 export interface IconPickerOptions {
+  /** Which override document the picker edits. Defaults to `model`. */
+  scope?: IconScope;
   /** Provider route id. */
   providerId: string;
-  /** Model id. */
-  modelId: string;
+  /** Model id; optional (and ignored) in `provider` scope. */
+  modelId?: string | null;
   /** Catalog display name shown in the modal subtitle. */
   displayName?: string | null;
   /** Element focus is restored to when the modal closes. */
   anchor?: Element | null;
   /** Called after a successful write, before the modal closes. */
   onChanged?: (() => void) | undefined;
+  /** Provider scope only: an unknown official channel may use a letter tile. */
+  fallback?: boolean;
 }
 
 /**
- * Open the centered icon picker for one provider+model pair.
- * @param options - provider/model identity, optional display name, focus anchor
- *   and a change callback.
+ * Open the centered icon picker for one provider+model pair, or for one provider.
+ * @param options - scope, provider/model identity, optional display name, focus
+ *   anchor and a change callback.
  * @returns close function (idempotent; also restores focus).
  */
 export function dshmlOpenIconPicker(options: IconPickerOptions | null): () => void {
   const noop = function noopPicker() {};
   if (typeof document === 'undefined') return noop;
   if (options === null || typeof options !== 'object') return noop;
+  const scope: IconScope = options.scope === 'provider' ? 'provider' : 'model';
   const providerId = typeof options.providerId === 'string' ? options.providerId.trim() : '';
   const modelId = typeof options.modelId === 'string' ? options.modelId.trim() : '';
-  if (providerId === '' || modelId === '') return noop;
+  if (providerId === '') return noop;
+  if (scope === 'model' && modelId === '') return noop;
   const createRoot = getCreateRoot();
   if (createRoot === null) return noop;
 
@@ -709,9 +847,11 @@ export function dshmlOpenIconPicker(options: IconPickerOptions | null): () => vo
   try {
     root.render(
       h(DshmlIconPickerApp, {
+        scope: scope,
         providerId: providerId,
         modelId: modelId,
         displayName: typeof options.displayName === 'string' ? options.displayName : '',
+        fallback: options.fallback === true,
         onChanged: options.onChanged,
         onClose: close,
       }),
