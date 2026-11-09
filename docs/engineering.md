@@ -216,7 +216,7 @@ that recorded them, not from the current build.
   the settings-section registration, and
   that `apply()` disposers remove the stylesheet, listeners and observer.
 - `scripts/verify-dom.ts` drives the faithful Settings fixture in headless Edge:
-  **58 assertions pass** — vendor logos on official rows/editor titles (including
+  **63 assertions pass** — vendor logos on official rows/editor titles (including
   the localized DeepSeek account row), none on the declared custom provider but its
   empty 22px name seat, the reserved **22px mark base** for provider-name seats and
   the model-row icon seat (dropping either seat re-inserts it on the same task, so
@@ -226,7 +226,9 @@ that recorded them, not from the current build.
   model, both populated, official Chinese brand labels (`阿里巴巴`, `谷歌`,
   `千问`, …) instead of a community translation, search keeps only the matching
   group), the picker write
-  path into `configForms.mutate`, the composer label override/`none` rendering, the
+  path into `configForms.mutate`, the picker close button (SVG only, no text
+  symbol, 16 px glyph centred in the 28 px hit area, `currentColor`), the composer
+  label override/`none` rendering, the
   composer mark's geometry in a rebuilt shipped trigger (the 20px box centred on the
   28px hit area, paint box inside the label line box), the plugin's own settings-nav row
   (marked by label, shipped gear hidden, 16 px `currentColor` mask glyph painted, no
@@ -255,6 +257,16 @@ that recorded them, not from the current build.
   shipped trigger (20px box, centre within 1.5px, paint box inside the label line
   box); the bundle test pins the 20px size, the flex label, and that no mark carries
   a paint offset.
+- **The picker close button is a drawn glyph, not a text character.** The modal
+  rendered `×` as the button's own text, so the mark's ink size, weight and
+  position came from whatever system font won the fallback: it could sit off the
+  28px hit-area centre or change shape per platform. The button now holds a 16px
+  SVG (24-unit `viewBox`, `currentColor` stroke) and centres it as a flex item; the
+  stylesheet keeps no `font-size`/`line-height` for the mark. `verify:dom` pins the
+  rendered contract (SVG-only button that keeps an accessible label, a 16×16 icon
+  centred within 1px of the 28×28 hit area, `currentColor` inheriting the button
+  colour); the bundle test pins the flex centring and the absence of font-based
+  sizing in the rule.
 - **Settings model rows become flex rows.** The host ships `.jrmgQW_modelRow` as a
   grid with four tracks; the plugin used to add a fifth `auto` track so the leading
   icon seat could reserve its 22px. The stylesheet now turns the tagged row into
@@ -302,5 +314,5 @@ that recorded them, not from the current build.
   artifact (203,742 bytes served, 56 artwork entries), proving the client HMR
   transport published this exact build without an app restart.
 - `pnpm run verify` on the final tree: typecheck, lint (0 errors; warnings are the
-  pre-existing `verify-dom.ts` style notes), fmt:check, 73 unit/bundle tests,
+  pre-existing `verify-dom.ts` style notes), fmt:check, 75 unit/bundle tests,
   `logo:check`, `rank:check`, build and artifact freshness all pass.
