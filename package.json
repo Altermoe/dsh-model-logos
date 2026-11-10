@@ -1,6 +1,6 @@
 {
   "name": "dsh-model-logos",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Shows each model's brand mark beside its name in the composer model selector and model picker, and vendor/model logos across Settings → Models, with a per-model icon picker.",
   "keywords": [
     "deepseek-harness",

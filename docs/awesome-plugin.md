@@ -90,8 +90,8 @@ submission PR.
 3. **Publish path** — done in v0.5.0: the [`v0.5.0` release](https://github.com/Altermoe/dsh-model-logos/releases/tag/v0.5.0)
    carries the prebuilt `dsh-model-logos.tgz` asset (version-free name, so a
    `latest/download/` URL cannot rot), and both READMEs document that install path. The npm
-   package is now publishable (the `private` flag is gone) but has not been published yet;
-   see §4 and §8.
+   package is published as well — `0.5.0` on 2026-11-07 and `0.6.0` on 2026-11-11 (§8) — so
+   `dsh plugin --profile web add dsh-model-logos` is the primary install path.
 
 ## 4. npm, `repository`, and the metadata proposal
 
@@ -119,7 +119,7 @@ optional). `"prepublishOnly": "pnpm run verify"` runs the full gate before every
 the tarball carries the generated `client.js` / `index.js`, so an npm install needs no local
 build. The LICENSE file exists. Keep `pnpm-lock.yaml` untouched for these metadata-only fields:
 none of them change the dependency graph, so `pnpm install --frozen-lockfile` stays valid.
-The name `dsh-model-logos` and version `0.5.0` are unclaimed on the public registry, and the
+The name `dsh-model-logos` is owned on the public registry (0.5.0 since 2026-11-07) and the
 sole runtime dependency `@deepseek-ai/schemastery` is published there too.
 
 **`@deepseek-ai/schemastery` and peerDependencies.** The contributing doc _recommends_ declaring
@@ -182,8 +182,8 @@ path, publish to npm (preferred) or attach a prebuilt tarball — **done in v0.5
    tarball first and test that path. — **still open**; the prebuilt tarball (§8) is the documented
    path that skips the build.
 6. Optional: publish to npm (only after §4 metadata and `private` are handled) or cut the
-   tarball release and uncomment `tarball:`. — **tarball release done in v0.5.0** (§8); the
-   repo-side npm prep is done too, leaving only the manual `pnpm publish` (npm login + 2FA).
+   tarball release and uncomment `tarball:`. — **done**: the tarball release shipped in v0.5.0
+   (§8), and `pnpm publish` published `0.5.0` on 2026-11-07 and `0.6.0` on 2026-11-11.
 7. Fork `awesome-dsh-plugin`, add exactly `data/plugins/Altermoe__dsh-model-logos.yml` with the
    values in §1, commit that one file, open the PR. Do not edit `README.md` / `README.zh.md` and
    do not regenerate them for the PR. Committing a locally regenerated README is accepted only
@@ -242,4 +242,25 @@ per `provider + model` override picker persisted in the DSH settings document.
 - **npm publication prepared (2026-11-08)** — `private` removed, `publishConfig.access: public`
   and `prepublishOnly: pnpm run verify` added; both READMEs now lead with the npm install command
   and carry the maintainer publish steps. Version stays `0.5.0` to match the `v0.5.0` tag. Not
-  published yet: the manual `pnpm publish` is pending npm auth/2FA.
+  published yet: the manual `pnpm publish` is pending npm auth/2FA. — **published 2026-11-07
+  17:48Z as `0.5.0`**, but from a tree _ahead_ of the tag: the publishable-package commits
+  landed after `v0.5.0` was cut, so the registry tarball and the tag were not the same tree.
+  v0.6.0 (§ below) is the first release where the version, the tag, the tarball and the registry
+  entry are one commit.
+- **v0.6.0** (2026-11-11) — the version bump, the annotated tag, the npm tarball and the release
+  asset all name the same commit (`package.json` `0.6.0`, tag `v0.6.0` on `main`).
+  npm: <https://www.npmjs.com/package/dsh-model-logos/v/0.6.0>; GitHub:
+  <https://github.com/Altermoe/dsh-model-logos/releases/tag/v0.6.0>. The release carries the
+  version-free `dsh-model-logos.tgz`, packed with `pnpm pack` from the tagged commit (same asset
+  name as v0.5.0, so `releases/latest/download/dsh-model-logos.tgz` cannot rot), and the notes
+  record the asset's SHA-256 next to the npm integrity. Gates on that commit: `pnpm run verify`
+  (95/95 tests, lint 0 errors, build + artifact freshness), `pnpm run verify:dom` (89/89
+  assertions), `pnpm run verify:live` (the running GUI served `rev=03054869bb7f`, 230,756
+  bytes) and the `CI` workflow on the pushed `main` commit. No listing re-push: the merged entry
+  carries no version and the catalog follows npm on its daily refresh.
+- **Release procedure from v0.6.0 on** — one commit per release that changes only the
+  `version` field plus this record and the `docs/engineering.md` verification log; push `main`,
+  tag `v<version>` on that commit, `pnpm publish --access public` (the `prepublishOnly` gate
+  re-runs), then pack the same tree and attach it to the release with the SHA-256 in the notes.
+  The npm version, the tag and the asset must agree; a bump published from a later tree is not
+  a release.

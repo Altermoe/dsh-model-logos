@@ -172,7 +172,7 @@ Dependency direction (no cycles): `types` ← `runtime` ← everything;
 
 ## 6. Verification log
 
-This record describes the 0.5.0 tree; byte sizes and revision ids are from the run
+This record describes the 0.6.0 tree; byte sizes and revision ids are from the run
 that recorded them, not from the current build.
 
 - Build validation rejects malformed artwork (missing title, non-`<svg>` string,
@@ -424,3 +424,15 @@ that recorded them, not from the current build.
   assertions were mutation-tested against the bundle: deleting the
   known-but-unmarked branch fails exactly three of them, and renaming the summary
   hook fails exactly one.
+- **The 0.6.0 release run.** `pnpm run verify` on the release tree: typecheck, lint
+  (0 errors; the warnings are the pre-existing `verify-dom.ts` style notes),
+  fmt:check, **95/95 unit/bundle tests**, `logo:check` (44 upstream files + 5
+  aliases → 49 generated marks, 8 manual marks, 57 keys), `derive-marks --check`
+  (2 pinned sources → 3 marks), `rank:check` (57 keys over 5 sources), build
+  (`client.js` 230,684 bytes, `index.js` 448 bytes) and artifact freshness.
+  `pnpm run verify:dom` **89/89 assertions** in headless Edge; `pnpm run verify:live`
+  against the running Web GUI served `rev=03054869bb7f` (230,756 bytes, 57 artwork
+  entries). `package.json` `0.6.0`, the annotated tag `v0.6.0`, the npm tarball
+  (`prepublishOnly` re-ran `verify`) and the release asset packed with `pnpm pack`
+  all come from that one commit: the release commit itself changes nothing but
+  `package.json`, this record and `docs/awesome-plugin.md` §8.

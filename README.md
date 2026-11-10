@@ -231,17 +231,27 @@ pnpm run rank:check   # prove the picker order matches the committed ranking sna
 The npm package is unscoped and public. `pnpm publish` runs `prepublishOnly`
 (the full `verify` gate) and packs the generated `client.js` / `index.js`.
 pnpm checks that the tree is clean, that the branch is `main` and that it is in
-sync with the remote, so commit and push first. With the npm account logged in
-and a 2FA code ready:
+sync with the remote, so commit and push first. A release is one commit that
+changes only the `version`, the `docs/engineering.md` verification log and the
+release record in `docs/awesome-plugin.md` §8; the npm version, the tag and the
+release asset must all name that commit.
 
 ```sh
-pnpm run verify
-pnpm publish --access public   # add --otp <code> when the account requires 2FA
+pnpm run verify                                     # gate on the exact release tree
+git commit -am "chore: bump the version to X"       # version + release record
+git push origin main
+git tag -a vX -m "dsh-model-logos X" && git push origin vX
+pnpm publish --access public                        # prepublishOnly re-runs verify
+pnpm pack                                           # same tree → dsh-model-logos-X.tgz
+gh release create vX dsh-model-logos.tgz --title "dsh-model-logos X" --notes-file notes.md
 ```
 
-Bump `version` and cut a matching `v<version>` tag/release before publishing a
-new version. Afterwards check `pnpm view dsh-model-logos version` and verify a
-clean-profile install with `dsh plugin --profile web add dsh-model-logos`.
+`pnpm pack` names the file `dsh-model-logos-<version>.tgz`; rename it to
+`dsh-model-logos.tgz` before attaching it. That name is version-free on purpose: `latest/download/`
+takes the filename literally, so a version in the name 404s at the next release.
+Record its SHA-256 in the release notes. Afterwards check `pnpm view
+dsh-model-logos version`, the release page, and verify a clean-profile install
+with `dsh plugin --profile web add dsh-model-logos`.
 
 The module map, contribution rules and the verification log are in
 [`docs/engineering.md`](docs/engineering.md); the runtime contract and design
