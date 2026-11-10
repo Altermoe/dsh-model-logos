@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "collectedAt": "2026-11-05T03:36:39.640Z",
+  "collectedAt": "2026-11-10T08:14:17.726Z",
   "window": {
     "start": "2026-05-01",
     "end": "2026-10-31"
@@ -45,7 +45,7 @@
       "title": "Anthropic",
       "group": "vendor",
       "rank": 1,
-      "score": 0.864827,
+      "score": 0.866528,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -91,7 +91,7 @@
       "title": "Google",
       "group": "vendor",
       "rank": 2,
-      "score": 0.863657,
+      "score": 0.866135,
       "lowConfidence": false,
       "inherited": [],
       "missing": [],
@@ -142,7 +142,7 @@
       "title": "OpenAI",
       "group": "vendor",
       "rank": 3,
-      "score": 0.826427,
+      "score": 0.827956,
       "lowConfidence": false,
       "inherited": [],
       "missing": [],
@@ -193,7 +193,7 @@
       "title": "NVIDIA",
       "group": "vendor",
       "rank": 4,
-      "score": 0.810487,
+      "score": 0.813172,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -241,7 +241,7 @@
       "title": "GitHub",
       "group": "vendor",
       "rank": 5,
-      "score": 0.802292,
+      "score": 0.80605,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -287,7 +287,7 @@
       "title": "Meta",
       "group": "vendor",
       "rank": 6,
-      "score": 0.766322,
+      "score": 0.769889,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -335,7 +335,7 @@
       "title": "Microsoft",
       "group": "vendor",
       "rank": 7,
-      "score": 0.758636,
+      "score": 0.764287,
       "lowConfidence": false,
       "inherited": [],
       "missing": [],
@@ -386,7 +386,7 @@
       "title": "Cloudflare",
       "group": "vendor",
       "rank": 8,
-      "score": 0.699257,
+      "score": 0.704552,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -432,7 +432,7 @@
       "title": "Vercel",
       "group": "vendor",
       "rank": 9,
-      "score": 0.631331,
+      "score": 0.637744,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -474,7 +474,7 @@
       "title": "ByteDance",
       "group": "vendor",
       "rank": 10,
-      "score": 0.623286,
+      "score": 0.624408,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -522,7 +522,7 @@
       "title": "AWS",
       "group": "vendor",
       "rank": 11,
-      "score": 0.613934,
+      "score": 0.617233,
       "lowConfidence": false,
       "inherited": [],
       "missing": [],
@@ -573,7 +573,7 @@
       "title": "Hugging Face",
       "group": "vendor",
       "rank": 12,
-      "score": 0.57489,
+      "score": 0.579378,
       "lowConfidence": false,
       "inherited": [],
       "missing": [],
@@ -620,59 +620,11 @@
       }
     },
     {
-      "key": "moonshot",
-      "title": "Moonshot AI",
-      "group": "vendor",
-      "rank": 13,
-      "score": 0.557841,
-      "lowConfidence": false,
-      "inherited": [],
-      "missing": [
-        "npm"
-      ],
-      "sources": {
-        "github": {
-          "value": 10076,
-          "handle": "MoonshotAI",
-          "url": "https://api.github.com/orgs/MoonshotAI"
-        },
-        "wikipedia": {
-          "value": 185344,
-          "handle": "en:Moonshot_AI | zh:月之暗面",
-          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Moonshot_AI/monthly/20260501/20261031",
-          "detail": {
-            "en": {
-              "title": "Moonshot_AI",
-              "views": 183319
-            },
-            "zh": {
-              "title": "月之暗面",
-              "views": 2025
-            }
-          }
-        },
-        "huggingface": {
-          "value": 2155351,
-          "likes": 27456,
-          "downloads": 2127895,
-          "handle": "moonshotai",
-          "url": "https://huggingface.co/api/models?author=moonshotai&limit=1000"
-        },
-        "bilibili": {
-          "value": 1297651,
-          "numResults": 1000,
-          "sumTop20Plays": 1297651,
-          "handle": "月之暗面",
-          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=%E6%9C%88%E4%B9%8B%E6%9A%97%E9%9D%A2"
-        }
-      }
-    },
-    {
       "key": "azure",
       "title": "Microsoft Azure",
       "group": "vendor",
-      "rank": 14,
-      "score": 0.557466,
+      "rank": 13,
+      "score": 0.566943,
       "lowConfidence": false,
       "inherited": [
         "huggingface"
@@ -722,11 +674,59 @@
       }
     },
     {
+      "key": "moonshot",
+      "title": "Moonshot AI",
+      "group": "vendor",
+      "rank": 14,
+      "score": 0.565429,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "npm"
+      ],
+      "sources": {
+        "github": {
+          "value": 10076,
+          "handle": "MoonshotAI",
+          "url": "https://api.github.com/orgs/MoonshotAI"
+        },
+        "wikipedia": {
+          "value": 185344,
+          "handle": "en:Moonshot_AI | zh:月之暗面",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Moonshot_AI/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Moonshot_AI",
+              "views": 183319
+            },
+            "zh": {
+              "title": "月之暗面",
+              "views": 2025
+            }
+          }
+        },
+        "huggingface": {
+          "value": 2155351,
+          "likes": 27456,
+          "downloads": 2127895,
+          "handle": "moonshotai",
+          "url": "https://huggingface.co/api/models?author=moonshotai&limit=1000"
+        },
+        "bilibili": {
+          "value": 1297651,
+          "numResults": 1000,
+          "sumTop20Plays": 1297651,
+          "handle": "月之暗面",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=%E6%9C%88%E4%B9%8B%E6%9A%97%E9%9D%A2"
+        }
+      }
+    },
+    {
       "key": "alibaba",
       "title": "Alibaba",
       "group": "vendor",
       "rank": 15,
-      "score": 0.550753,
+      "score": 0.556434,
       "lowConfidence": false,
       "inherited": [],
       "missing": [],
@@ -777,7 +777,7 @@
       "title": "Tencent",
       "group": "vendor",
       "rank": 16,
-      "score": 0.527709,
+      "score": 0.538369,
       "lowConfidence": false,
       "inherited": [],
       "missing": [],
@@ -828,7 +828,7 @@
       "title": "Ollama",
       "group": "vendor",
       "rank": 17,
-      "score": 0.503237,
+      "score": 0.513412,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -874,7 +874,7 @@
       "title": "Zhipu AI",
       "group": "vendor",
       "rank": 18,
-      "score": 0.489805,
+      "score": 0.498488,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -922,7 +922,7 @@
       "title": "Xiaomi",
       "group": "vendor",
       "rank": 19,
-      "score": 0.450515,
+      "score": 0.454853,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -970,7 +970,7 @@
       "title": "OpenCode",
       "group": "vendor",
       "rank": 20,
-      "score": 0.385408,
+      "score": 0.397426,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -1008,11 +1008,53 @@
       }
     },
     {
+      "key": "openrouter",
+      "title": "OpenRouter",
+      "group": "vendor",
+      "rank": 21,
+      "score": 0.370228,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "huggingface"
+      ],
+      "sources": {
+        "github": {
+          "value": 4487,
+          "handle": "OpenRouterTeam",
+          "url": "https://api.github.com/orgs/OpenRouterTeam"
+        },
+        "npm": {
+          "value": 4236037,
+          "handle": "@openrouter/ai-sdk-provider",
+          "url": "https://api.npmjs.org/downloads/point/last-week/%40openrouter%2Fai-sdk-provider"
+        },
+        "wikipedia": {
+          "value": 25221,
+          "handle": "en:OpenRouter",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/OpenRouter/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "OpenRouter",
+              "views": 25221
+            }
+          }
+        },
+        "bilibili": {
+          "value": 160290,
+          "numResults": 1000,
+          "sumTop20Plays": 160290,
+          "handle": "OpenRouter",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=OpenRouter"
+        }
+      }
+    },
+    {
       "key": "baidu",
       "title": "Baidu",
       "group": "vendor",
-      "rank": 21,
-      "score": 0.362274,
+      "rank": 22,
+      "score": 0.36762,
       "lowConfidence": false,
       "inherited": [],
       "missing": [],
@@ -1059,53 +1101,11 @@
       }
     },
     {
-      "key": "openrouter",
-      "title": "OpenRouter",
-      "group": "vendor",
-      "rank": 22,
-      "score": 0.357643,
-      "lowConfidence": false,
-      "inherited": [],
-      "missing": [
-        "huggingface"
-      ],
-      "sources": {
-        "github": {
-          "value": 4487,
-          "handle": "OpenRouterTeam",
-          "url": "https://api.github.com/orgs/OpenRouterTeam"
-        },
-        "npm": {
-          "value": 4236037,
-          "handle": "@openrouter/ai-sdk-provider",
-          "url": "https://api.npmjs.org/downloads/point/last-week/%40openrouter%2Fai-sdk-provider"
-        },
-        "wikipedia": {
-          "value": 25221,
-          "handle": "en:OpenRouter",
-          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/OpenRouter/monthly/20260501/20261031",
-          "detail": {
-            "en": {
-              "title": "OpenRouter",
-              "views": 25221
-            }
-          }
-        },
-        "bilibili": {
-          "value": 160290,
-          "numResults": 1000,
-          "sumTop20Plays": 160290,
-          "handle": "OpenRouter",
-          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=OpenRouter"
-        }
-      }
-    },
-    {
       "key": "groq",
       "title": "Groq",
       "group": "vendor",
       "rank": 23,
-      "score": 0.349271,
+      "score": 0.362084,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -1151,7 +1151,7 @@
       "title": "Cohere",
       "group": "vendor",
       "rank": 24,
-      "score": 0.335357,
+      "score": 0.343236,
       "lowConfidence": false,
       "inherited": [],
       "missing": [],
@@ -1198,7 +1198,7 @@
       "title": "Ant Group",
       "group": "vendor",
       "rank": 25,
-      "score": 0.305666,
+      "score": 0.31265,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -1246,7 +1246,7 @@
       "title": "xAI",
       "group": "vendor",
       "rank": 26,
-      "score": 0.300696,
+      "score": 0.308039,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -1290,39 +1290,11 @@
       }
     },
     {
-      "key": "typesafe",
-      "title": "TypeSafe",
-      "group": "vendor",
-      "rank": 27,
-      "score": 0.2258,
-      "lowConfidence": false,
-      "inherited": [],
-      "missing": [
-        "npm",
-        "wikipedia",
-        "huggingface"
-      ],
-      "sources": {
-        "github": {
-          "value": 1738,
-          "handle": "typesafe-ai",
-          "url": "https://api.github.com/orgs/typesafe-ai"
-        },
-        "bilibili": {
-          "value": 59459,
-          "numResults": 1000,
-          "sumTop20Plays": 59459,
-          "handle": "TypeSafe AI",
-          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=TypeSafe%20AI"
-        }
-      }
-    },
-    {
       "key": "cerebras",
       "title": "Cerebras",
       "group": "vendor",
-      "rank": 28,
-      "score": 0.222027,
+      "rank": 27,
+      "score": 0.234039,
       "lowConfidence": false,
       "inherited": [],
       "missing": [],
@@ -1365,11 +1337,89 @@
       }
     },
     {
+      "key": "typesafe",
+      "title": "TypeSafe",
+      "group": "vendor",
+      "rank": 28,
+      "score": 0.233888,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "npm",
+        "wikipedia",
+        "huggingface"
+      ],
+      "sources": {
+        "github": {
+          "value": 1738,
+          "handle": "typesafe-ai",
+          "url": "https://api.github.com/orgs/typesafe-ai"
+        },
+        "bilibili": {
+          "value": 59459,
+          "numResults": 1000,
+          "sumTop20Plays": 59459,
+          "handle": "TypeSafe AI",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=TypeSafe%20AI"
+        }
+      }
+    },
+    {
+      "key": "baiducloud",
+      "title": "BaiduCloud",
+      "group": "vendor",
+      "rank": 29,
+      "score": 0.194975,
+      "lowConfidence": false,
+      "inherited": [
+        "huggingface"
+      ],
+      "missing": [],
+      "sources": {
+        "github": {
+          "value": 237,
+          "handle": "baidubce",
+          "url": "https://api.github.com/orgs/baidubce"
+        },
+        "npm": {
+          "value": 6275,
+          "handle": "@baiducloud/qianfan",
+          "url": "https://api.npmjs.org/downloads/point/last-week/%40baiducloud%2Fqianfan"
+        },
+        "wikipedia": {
+          "value": 980,
+          "handle": "zh:百度智能云",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/zh.wikipedia/all-access/user/%E7%99%BE%E5%BA%A6%E6%99%BA%E8%83%BD%E4%BA%91/monthly/20260501/20261031",
+          "detail": {
+            "zh": {
+              "title": "百度智能云",
+              "views": 980
+            }
+          }
+        },
+        "huggingface": {
+          "value": 4974334,
+          "likes": 10639,
+          "downloads": 4963695,
+          "handle": "baidu",
+          "url": "https://huggingface.co/api/models?author=baidu&limit=1000",
+          "inheritedFrom": "baidu"
+        },
+        "bilibili": {
+          "value": 147554,
+          "numResults": 1000,
+          "sumTop20Plays": 147554,
+          "handle": "百度智能云",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=%E7%99%BE%E5%BA%A6%E6%99%BA%E8%83%BD%E4%BA%91"
+        }
+      }
+    },
+    {
       "key": "together",
       "title": "Together AI",
       "group": "vendor",
-      "rank": 29,
-      "score": 0.157864,
+      "rank": 30,
+      "score": 0.168577,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -1406,8 +1456,8 @@
       "key": "fireworks",
       "title": "Fireworks",
       "group": "vendor",
-      "rank": 30,
-      "score": 0.108566,
+      "rank": 31,
+      "score": 0.113316,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -1450,8 +1500,8 @@
       "key": "baseten",
       "title": "Baseten",
       "group": "vendor",
-      "rank": 31,
-      "score": 0.091438,
+      "rank": 32,
+      "score": 0.097469,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -1484,8 +1534,8 @@
       "key": "radius",
       "title": "Radius",
       "group": "vendor",
-      "rank": 32,
-      "score": 0.299107,
+      "rank": 33,
+      "score": 0.298246,
       "lowConfidence": true,
       "inherited": [],
       "missing": [
@@ -1509,7 +1559,7 @@
       "title": "GPT",
       "group": "model",
       "rank": 1,
-      "score": 0.848637,
+      "score": 0.85126,
       "lowConfidence": false,
       "inherited": [
         "github",
@@ -1565,7 +1615,7 @@
       "title": "Claude",
       "group": "model",
       "rank": 2,
-      "score": 0.838814,
+      "score": 0.841019,
       "lowConfidence": false,
       "inherited": [
         "github",
@@ -1616,7 +1666,7 @@
       "title": "DeepSeek",
       "group": "model",
       "rank": 3,
-      "score": 0.830947,
+      "score": 0.833332,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -1664,7 +1714,7 @@
       "title": "Gemini",
       "group": "model",
       "rank": 4,
-      "score": 0.735361,
+      "score": 0.740217,
       "lowConfidence": false,
       "inherited": [
         "github",
@@ -1722,7 +1772,7 @@
       "title": "Qwen",
       "group": "model",
       "rank": 5,
-      "score": 0.629922,
+      "score": 0.638306,
       "lowConfidence": false,
       "inherited": [],
       "missing": [],
@@ -1773,7 +1823,7 @@
       "title": "Mistral",
       "group": "model",
       "rank": 6,
-      "score": 0.570543,
+      "score": 0.578965,
       "lowConfidence": false,
       "inherited": [],
       "missing": [],
@@ -1824,7 +1874,7 @@
       "title": "Llama",
       "group": "model",
       "rank": 7,
-      "score": 0.541827,
+      "score": 0.549507,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -1872,7 +1922,7 @@
       "title": "Grok",
       "group": "model",
       "rank": 8,
-      "score": 0.522838,
+      "score": 0.526044,
       "lowConfidence": false,
       "inherited": [
         "github"
@@ -1923,7 +1973,7 @@
       "title": "Doubao",
       "group": "model",
       "rank": 9,
-      "score": 0.502106,
+      "score": 0.505521,
       "lowConfidence": false,
       "inherited": [
         "github",
@@ -1976,7 +2026,7 @@
       "title": "Kimi",
       "group": "model",
       "rank": 10,
-      "score": 0.48472,
+      "score": 0.493646,
       "lowConfidence": false,
       "inherited": [
         "github"
@@ -2027,7 +2077,7 @@
       "title": "Nemotron",
       "group": "model",
       "rank": 11,
-      "score": 0.481977,
+      "score": 0.489254,
       "lowConfidence": false,
       "inherited": [
         "github"
@@ -2074,7 +2124,7 @@
       "title": "Phi",
       "group": "model",
       "rank": 12,
-      "score": 0.475344,
+      "score": 0.48654,
       "lowConfidence": false,
       "inherited": [
         "github",
@@ -2126,7 +2176,7 @@
       "title": "MiniMax",
       "group": "model",
       "rank": 13,
-      "score": 0.43378,
+      "score": 0.443602,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -2170,11 +2220,55 @@
       }
     },
     {
+      "key": "perplexity",
+      "title": "Perplexity",
+      "group": "model",
+      "rank": 14,
+      "score": 0.421911,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "npm"
+      ],
+      "sources": {
+        "github": {
+          "value": 2677,
+          "handle": "perplexityai",
+          "url": "https://api.github.com/orgs/perplexityai"
+        },
+        "wikipedia": {
+          "value": 466786,
+          "handle": "en:Perplexity_AI",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Perplexity_AI/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Perplexity_AI",
+              "views": 466786
+            }
+          }
+        },
+        "huggingface": {
+          "value": 405764,
+          "likes": 1288,
+          "downloads": 404476,
+          "handle": "perplexity-ai",
+          "url": "https://huggingface.co/api/models?author=perplexity-ai&limit=1000"
+        },
+        "bilibili": {
+          "value": 127809,
+          "numResults": 1000,
+          "sumTop20Plays": 127809,
+          "handle": "Perplexity AI",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=Perplexity%20AI"
+        }
+      }
+    },
+    {
       "key": "nova",
       "title": "Nova",
       "group": "model",
-      "rank": 14,
-      "score": 0.419668,
+      "rank": 15,
+      "score": 0.421876,
       "lowConfidence": false,
       "inherited": [
         "github",
@@ -2224,55 +2318,11 @@
       }
     },
     {
-      "key": "perplexity",
-      "title": "Perplexity",
-      "group": "model",
-      "rank": 15,
-      "score": 0.418636,
-      "lowConfidence": false,
-      "inherited": [],
-      "missing": [
-        "npm"
-      ],
-      "sources": {
-        "github": {
-          "value": 2677,
-          "handle": "perplexityai",
-          "url": "https://api.github.com/orgs/perplexityai"
-        },
-        "wikipedia": {
-          "value": 466786,
-          "handle": "en:Perplexity_AI",
-          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Perplexity_AI/monthly/20260501/20261031",
-          "detail": {
-            "en": {
-              "title": "Perplexity_AI",
-              "views": 466786
-            }
-          }
-        },
-        "huggingface": {
-          "value": 405764,
-          "likes": 1288,
-          "downloads": 404476,
-          "handle": "perplexity-ai",
-          "url": "https://huggingface.co/api/models?author=perplexity-ai&limit=1000"
-        },
-        "bilibili": {
-          "value": 127809,
-          "numResults": 1000,
-          "sumTop20Plays": 127809,
-          "handle": "Perplexity AI",
-          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=Perplexity%20AI"
-        }
-      }
-    },
-    {
       "key": "glm",
       "title": "GLM",
       "group": "model",
       "rank": 16,
-      "score": 0.406811,
+      "score": 0.417085,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -2320,7 +2370,7 @@
       "title": "StepFun",
       "group": "model",
       "rank": 17,
-      "score": 0.358615,
+      "score": 0.364658,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -2368,7 +2418,7 @@
       "title": "Hailuo",
       "group": "model",
       "rank": 18,
-      "score": 0.356342,
+      "score": 0.361737,
       "lowConfidence": false,
       "inherited": [
         "github",
@@ -2417,7 +2467,7 @@
       "title": "Hunyuan",
       "group": "model",
       "rank": 19,
-      "score": 0.305621,
+      "score": 0.316238,
       "lowConfidence": false,
       "inherited": [
         "github",
@@ -2473,7 +2523,7 @@
       "title": "Command",
       "group": "model",
       "rank": 20,
-      "score": 0.298462,
+      "score": 0.307138,
       "lowConfidence": false,
       "inherited": [
         "github",
@@ -2527,7 +2577,7 @@
       "title": "Xiaomi MiMo",
       "group": "model",
       "rank": 21,
-      "score": 0.29776,
+      "score": 0.304952,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -2575,7 +2625,7 @@
       "title": "ERNIE",
       "group": "model",
       "rank": 22,
-      "score": 0.247722,
+      "score": 0.253303,
       "lowConfidence": false,
       "inherited": [
         "github",
@@ -2631,7 +2681,7 @@
       "title": "Yi",
       "group": "model",
       "rank": 23,
-      "score": 0.214292,
+      "score": 0.221355,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -2675,7 +2725,7 @@
       "title": "Ant Ling",
       "group": "model",
       "rank": 24,
-      "score": 0.157843,
+      "score": 0.161752,
       "lowConfidence": false,
       "inherited": [
         "github"

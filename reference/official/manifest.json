@@ -88,6 +88,18 @@
         }
       ]
     },
+    "baiducloud": {
+      "title": "BaiduCloud",
+      "group": "vendor",
+      "slug": "baiducloud-color",
+      "file": "baiducloud-color.svg",
+      "sha256": "2269f4c82a3a810f42691c82d0d5086961c2b684a2dcc1e7523cd9f8564e2f35",
+      "mode": "color",
+      "tile": "#FFFFFF",
+      "glyph": "official",
+      "scale": 0.8,
+      "aliases": []
+    },
     "baseten": {
       "title": "Baseten",
       "group": "vendor",
@@ -196,18 +208,6 @@
       "scale": 0.8,
       "aliases": []
     },
-    "gemini": {
-      "title": "Gemini",
-      "group": "model",
-      "slug": "gemini",
-      "file": "gemini.svg",
-      "sha256": "87d5b3c4be75a66f54c1936482a263df68185545b741129badd1b7c2449c18d3",
-      "mode": "mono",
-      "tile": "#1A73E8",
-      "glyph": "#FFFFFF",
-      "scale": 0.8,
-      "aliases": []
-    },
     "github": {
       "title": "GitHub",
       "group": "vendor",
@@ -218,18 +218,6 @@
       "tile": "#181717",
       "glyph": "#FFFFFF",
       "scale": 0.74,
-      "aliases": []
-    },
-    "glm": {
-      "title": "GLM",
-      "group": "model",
-      "slug": "glmv",
-      "file": "glmv.svg",
-      "sha256": "86be708f61eb7bddabe2ed6df35c215d34b66ec15f47eb12959fbd82febd53cc",
-      "mode": "mono",
-      "tile": "#0039C6",
-      "glyph": "#FFFFFF",
-      "scale": 0.8,
       "aliases": []
     },
     "google": {
@@ -579,18 +567,6 @@
       "glyph": "#FFFFFF",
       "scale": 0.8,
       "aliases": []
-    },
-    "zhipu": {
-      "title": "Zhipu AI",
-      "group": "vendor",
-      "slug": "zhipu",
-      "file": "zhipu.svg",
-      "sha256": "d4c3fe5ff92820b2ae5e3ddaaa30e6fc622cb746b75baad97f4bb2428fa25c5d",
-      "mode": "mono",
-      "tile": "#1F5AE0",
-      "glyph": "#FFFFFF",
-      "scale": 0.8,
-      "aliases": []
     }
   },
   "manual": [
@@ -605,6 +581,18 @@
       "title": "DeepSeek",
       "group": "model",
       "reason": "the official whale path in reference/deepseek-whale.svg is the canonical mark"
+    },
+    {
+      "key": "gemini",
+      "title": "Gemini",
+      "group": "model",
+      "reason": "a flat reconstruction of the official Lobe gemini-color.svg aurora: inlined tiles may not carry ids or gradient definitions"
+    },
+    {
+      "key": "glm",
+      "title": "GLM",
+      "group": "model",
+      "reason": "the Lobe glmv.svg reads as a small animal; reuses the official zai-org/GLM-5 Z mark shared with zhipu"
     },
     {
       "key": "nova",
@@ -623,6 +611,12 @@
       "title": "Xiaomi",
       "group": "vendor",
       "reason": "the Simple Icons \"mi\" counters on the official orange tile"
+    },
+    {
+      "key": "zhipu",
+      "title": "Zhipu AI",
+      "group": "vendor",
+      "reason": "the Lobe zhipu.svg swirl reads as several dots; keep the official zai-org/GLM-5 black tile with the white Z"
     }
   ]
 }

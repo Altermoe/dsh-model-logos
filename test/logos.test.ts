@@ -18,6 +18,7 @@ const VENDOR_KEYS = [
   'aws',
   'azure',
   'baidu',
+  'baiducloud',
   'baseten',
   'bytedance',
   'cerebras',
@@ -195,6 +196,9 @@ describe('logo prominence', () => {
       ['nemotron', 'nvidia'],
       ['nova', 'aws'],
       ['ernie', 'baidu'],
+      // The Zhipu/GLM correction: the company mark and the model mark are the
+      // same official black-tile Z, so the shared glyph is deliberate.
+      ['glm', 'zhipu'],
     ] as const) {
       expect(LOGOS[modelKey]?.svg, `${modelKey} must reuse ${vendorKey}'s official glyph`).toBe(LOGOS[vendorKey]?.svg);
       expect(LOGOS[modelKey]?.title).not.toBe(LOGOS[vendorKey]?.title);

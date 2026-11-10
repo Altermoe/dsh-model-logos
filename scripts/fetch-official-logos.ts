@@ -9,9 +9,9 @@
  * alias keys that reuse the same glyph. `scripts/import-logos.ts` turns that
  * manifest into the TypeScript artwork module; it never touches the network.
  *
- * Network access uses Node's built-in fetch with environment proxy support. This
- * repository's test environment requires the local proxy, which must be passed
- * through the environment and never committed:
+ * Network access uses Node's built-in fetch with environment proxy support. A
+ * machine that needs a proxy must pass it through the environment and never
+ * commit it:
  *
  *   $env:NODE_USE_ENV_PROXY='1'
  *   $env:HTTPS_PROXY='http://127.0.0.1:10090'
@@ -113,6 +113,7 @@ export const SOURCE_MARKS: readonly SourceMark[] = [
   mono('antgroup', 'antgroup', 'Ant Group', 'vendor', '#1677FF'),
   mono('azure', 'azure', 'Microsoft Azure', 'vendor', '#0078D4'),
   mono('baidu', 'baidu', 'Baidu', 'vendor', '#2932E1', { aliases: [alias('ernie', 'ERNIE')] }),
+  color('baiducloud', 'baiducloud-color', 'BaiduCloud', 'vendor', '#FFFFFF'),
   mono('baseten', 'baseten', 'Baseten', 'vendor', '#0B0F0C', { glyph: '#17D465' }),
   mono('bytedance', 'bytedance', 'ByteDance', 'vendor', '#325AB4'),
   mono('cerebras', 'cerebras', 'Cerebras', 'vendor', '#F15A29'),
@@ -139,14 +140,11 @@ export const SOURCE_MARKS: readonly SourceMark[] = [
   mono('typesafe', 'typesafeai', 'TypeSafe', 'vendor', '#0F766E'),
   mono('vercel', 'vercel', 'Vercel', 'vendor', '#000000'),
   mono('xai', 'xai', 'xAI', 'vendor', '#0B0B0C'),
-  mono('zhipu', 'zhipu', 'Zhipu AI', 'vendor', '#1F5AE0'),
 
   mono('antling', 'ling', 'Ant Ling', 'model', '#0B0B0C'),
   mono('claude', 'claude', 'Claude', 'model', '#D97757'),
   mono('command', 'commanda', 'Command', 'model', '#39594D'),
   mono('doubao', 'doubao', 'Doubao', 'model', '#2A64FF'),
-  mono('gemini', 'gemini', 'Gemini', 'model', '#1A73E8'),
-  mono('glm', 'glmv', 'GLM', 'model', '#0039C6'),
   mono('grok', 'grok', 'Grok', 'model', '#0B0B0C'),
   mono('hailuo', 'hailuo', 'Hailuo', 'model', '#0B0B0C'),
   mono('hunyuan', 'hunyuan', 'Hunyuan', 'model', '#0055E9'),
@@ -177,6 +175,11 @@ export interface ManualMark {
  * and reuses the AWS glyph). `deepseek`: the official whale path from
  * `reference/deepseek-whale.svg`. `radius`: no official mark, hand-drawn "R".
  * `xiaomi`: the Simple Icons "mi" counters on the official orange tile.
+ * `zhipu`/`glm`: the Lobe `zhipu.svg` swirl reads as a few white dots and
+ * `glmv.svg` as a small animal, so both keep the official zai-org/GLM-5 vector
+ * (the black tile with the white "Z") from `reference/derived/zhipu-z.svg`.
+ * `gemini`: an inlined tile may not carry ids or gradient definitions, so the
+ * Lobe `gemini-color.svg` aurora is flattened into id-free colour bands.
  */
 export const MANUAL_MARKS: readonly ManualMark[] = [
   {
@@ -190,6 +193,19 @@ export const MANUAL_MARKS: readonly ManualMark[] = [
     title: 'DeepSeek',
     group: 'model',
     reason: 'the official whale path in reference/deepseek-whale.svg is the canonical mark',
+  },
+  {
+    key: 'gemini',
+    title: 'Gemini',
+    group: 'model',
+    reason:
+      'a flat reconstruction of the official Lobe gemini-color.svg aurora: inlined tiles may not carry ids or gradient definitions',
+  },
+  {
+    key: 'glm',
+    title: 'GLM',
+    group: 'model',
+    reason: 'the Lobe glmv.svg reads as a small animal; reuses the official zai-org/GLM-5 Z mark shared with zhipu',
   },
   {
     key: 'nova',
@@ -209,6 +225,13 @@ export const MANUAL_MARKS: readonly ManualMark[] = [
     group: 'vendor',
     reason: 'the Simple Icons "mi" counters on the official orange tile',
   },
+  {
+    key: 'zhipu',
+    title: 'Zhipu AI',
+    group: 'vendor',
+    reason:
+      'the Lobe zhipu.svg swirl reads as several dots; keep the official zai-org/GLM-5 black tile with the white Z',
+  },
 ];
 
 /** Required vendor keys, in the task's order. */
@@ -219,6 +242,7 @@ export const REQUIRED_VENDOR_KEYS: readonly string[] = Object.freeze([
   'aws',
   'azure',
   'baidu',
+  'baiducloud',
   'baseten',
   'bytedance',
   'cerebras',
@@ -305,7 +329,7 @@ function assertSourceMark(mark: SourceMark): void {
 }
 
 /**
- * Assert the configuration covers exactly the required 56 keys: every source
+ * Assert the configuration covers exactly the required 57 keys: every source
  * mark, every alias and every manual exception, each in exactly one group.
  */
 export function assertConfigCoverage(): void {

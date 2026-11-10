@@ -20,6 +20,7 @@ const OFFICIAL_ZH: Readonly<Record<string, string>> = {
   antling: '蚂蚁百灵',
   aws: '亚马逊云科技',
   baidu: '百度',
+  baiducloud: '百度智能云',
   bytedance: '字节跳动',
   doubao: '豆包',
   ernie: '文心',
@@ -78,6 +79,10 @@ describe('brand names', () => {
     ] as const) {
       expect(dshmlBrandName(key, title), `${key} must stay official English`).toBe(title);
     }
+    // Two Baidu marks, two Baidu names: the cloud business does not inherit the
+    // search brand's short form, and vice versa.
+    expect(dshmlBrandName('baidu', 'Baidu')).toBe('百度');
+    expect(dshmlBrandName('baiducloud', 'BaiduCloud')).toBe('百度智能云');
     // Unknown or malformed keys never invent a name.
     expect(dshmlBrandName('no-such-brand', 'No Such Brand')).toBe('No Such Brand');
     expect(dshmlBrandName(null, 'Null Brand')).toBe('Null Brand');

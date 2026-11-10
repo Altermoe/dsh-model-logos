@@ -2,10 +2,18 @@
  * Hand-authored exceptions to the generated official artwork set.
  *
  * Everything else lives in `src/logos/official.generated.ts`, which is produced
- * from the committed upstream files in `reference/official/`. These five keys are
- * deliberate exceptions; their provenance is recorded in THIRD_PARTY_LICENSES.md
- * and `reference/official/manifest.json` lists them as manual marks.
+ * from the committed upstream files in `reference/official/`. This module adds
+ * eight keys: three rebuilt from pinned sources by `scripts/derive-marks.ts` into
+ * `src/logos/derived.generated.ts` (re-exported below), and five drawn here.
+ * Their provenance is recorded in THIRD_PARTY_LICENSES.md, and
+ * `reference/official/manifest.json` lists the local ones as manual marks.
  *
+ *   - `zhipu` / `glm`: one official Zhipu plate — the zai-org/GLM-5 black tile
+ *     with the white Z, fitted by the derivation script. Both re-export the same
+ *     tile from `derived.generated.ts` and keep their own titles and picker
+ *     groups, exactly as `nova` shares `AWS_SVG` with `aws`.
+ *   - `gemini`: the official Lobe aurora, flattened into id-free colour bands
+ *     because an inlined tile may not carry gradient definitions.
  *   - `aws`: the Lobe AWS asset is the full wordmark and is illegible at 14px, so
  *     the official smile-arrow symbol is kept. `nova` reuses it because there is
  *     no distinct official Nova model mark.
@@ -18,6 +26,7 @@
  * external references.
  */
 import type { LogoSet } from '../types';
+import { GEMINI, GLM, ZHIPU } from './derived.generated';
 
 /** Official AWS smile-arrow symbol on the dark navy tile. */
 const AWS_SVG =
@@ -38,7 +47,10 @@ const XIAOMI_SVG =
 export const LOGOS: LogoSet = {
   aws: { title: 'AWS', group: 'vendor', svg: AWS_SVG },
   deepseek: { title: 'DeepSeek', group: 'model', svg: DEEPSEEK_SVG },
+  gemini: GEMINI,
+  glm: GLM,
   nova: { title: 'Nova', group: 'model', svg: AWS_SVG },
   radius: { title: 'Radius', group: 'vendor', svg: RADIUS_SVG },
   xiaomi: { title: 'Xiaomi', group: 'vendor', svg: XIAOMI_SVG },
+  zhipu: ZHIPU,
 };

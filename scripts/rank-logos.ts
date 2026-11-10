@@ -206,7 +206,7 @@ interface ComputedKey {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Catalog: the exact 56 keys, their groups and per-source query handles      */
+/* Catalog: the exact 57 keys, their groups and per-source query handles      */
 /* -------------------------------------------------------------------------- */
 
 /** Handles for one signal of one key. */
@@ -299,6 +299,28 @@ const CATALOG: readonly CatalogEntry[] = [
       wikipedia: { en: 'Baidu', zh: '百度' },
       huggingface: { author: 'baidu' },
       bilibili: '百度',
+    },
+  },
+  {
+    key: 'baiducloud',
+    title: 'BaiduCloud',
+    group: 'vendor',
+    parent: 'baidu',
+    sources: {
+      // Baidu AI Cloud / 百度智能云 is its own brand, so every signal is resolved
+      // to its own handle: the `baidubce` organisation (display name 百度智能云)
+      // is not Baidu's consumer `baidu` org, the `@baiducloud/*` scope is not
+      // `baidu-aip-sdk`, and the zh.wikipedia article 百度智能云 and the Bilibili
+      // keyword 百度智能云 are not their consumer namesakes (百度 / 百度云). Only
+      // `huggingface` falls back to the parent: the distinct `BaiduBCE-Qianfan`
+      // organisation exists but publishes no models, so the signal has no
+      // measurable identity of its own and inherits from `baidu`, where the
+      // Qianfan model cards actually live. English Wikipedia is deliberately
+      // unset: `Baidu Cloud` redirects to the consumer Netdisk article.
+      github: 'baidubce',
+      npm: ['@baiducloud/qianfan', '@baiducloud/sdk', '@baiducloud/qianfan-cli', '@baiducloud/bos-uploader'],
+      wikipedia: { zh: '百度智能云' },
+      bilibili: '百度智能云',
     },
   },
   {

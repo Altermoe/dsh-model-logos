@@ -10,7 +10,7 @@
  * module against the rebuilt entries (`--check`, whitespace-insensitive).
  *
  * The generated module and the hand-authored `src/logos/manual.ts` together must
- * cover the required 56 keys exactly once, each in exactly one picker group; the
+ * cover the required 57 keys exactly once, each in exactly one picker group; the
  * script validates that merged coverage in both modes.
  *
  * Usage (run from the repository root):
@@ -480,7 +480,7 @@ function validateCoverage(expected: Map<string, ExpectedLogo>, problems: Problem
     if (entry.group !== group) problems.push(`key "${key}" must be in group "${group ?? 'unknown'}"`);
   }
   for (const key of merged.keys()) {
-    if (!required.includes(key)) problems.push(`artwork key "${key}" is outside the required 56-key set`);
+    if (!required.includes(key)) problems.push(`artwork key "${key}" is outside the required 57-key set`);
   }
   const generatedCount = expected.size;
   const manualCount = MANUAL_MARKS.length;

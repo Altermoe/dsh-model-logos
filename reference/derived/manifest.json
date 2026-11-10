@@ -1,0 +1,25 @@
+{
+  "directory": "reference/derived",
+  "readme": "Pinned upstream sources for the derived manual marks in src/logos/manual.ts. `scripts/derive-marks.ts` reads only these files (never the network) and verifies every sha256 below before rebuilding the derived tiles.",
+  "files": {
+    "zhipu-z.svg": {
+      "url": "https://raw.githubusercontent.com/zai-org/GLM-5/83c03d317378f86f0a012f7c4cd48b6243c7e69b/resources/logo.svg",
+      "repository": "https://github.com/zai-org/GLM-5",
+      "commit": "83c03d317378f86f0a012f7c4cd48b6243c7e69b",
+      "licence": "Apache-2.0",
+      "sha256": "e60742a0b37f805e654249dedb7b6ca11c785a60a2dd9ae33864668dce217693",
+      "marks": ["zhipu", "glm"],
+      "note": "Official zai-org/GLM-5 tile: a #2D2D2D rounded plate with the white Z glyph, drawn on a 30-unit grid. The <style> block is dead (only .st15 and .st23 are ever referenced) and is dropped along with the empty 图层_2 group; the plate rect is replaced by the repository's own rounded tile while the three Z shapes are kept verbatim."
+    },
+    "gemini-aurora.svg": {
+      "url": "https://unpkg.com/@lobehub/icons-static-svg@1.102.0/icons/gemini-color.svg",
+      "repository": "https://github.com/lobehub/lobe-icons",
+      "package": "@lobehub/icons-static-svg",
+      "version": "1.102.0",
+      "licence": "MIT",
+      "sha256": "8ab0a9bafec11f7e69bcb9fc4ffd8f1bc927d1ddcbbb6ff36dee5ae8b5a9d602",
+      "marks": ["gemini"],
+      "note": "Official Lobe Gemini colour mark: one sparkle path painted four times, a flat #3186FF base plus green (#08B962), red (#F94543) and yellow (#FABC12) userSpaceOnUse ramps. Inlined tiles may not carry ids, so the composite is flattened into sampled flat regions over the unchanged official outline."
+    }
+  }
+}

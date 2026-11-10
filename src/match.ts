@@ -61,6 +61,7 @@ export const LOGO_KEYS: readonly string[] = Object.freeze([
   'aws',
   'azure',
   'baidu',
+  'baiducloud',
   'baseten',
   'bytedance',
   'cerebras',
@@ -97,9 +98,15 @@ export const LOGO_KEYS: readonly string[] = Object.freeze([
  * Microsoft/Phi). Their company mark is still real and belongs in the picker's
  * vendor group; no channel rule may return it because a custom provider should
  * never be decorated with a vendor mark it did not declare.
+ *
+ * Baidu Cloud is the same case one level further out: it is a real Baidu
+ * product mark with its own name and its own tri-colour cube, but it is not the
+ * model route either — a qianfan channel, if one ever ships, is served by
+ * `baidu`/`ernie`, so nothing may map to `baiducloud` by pattern.
  */
 export const PICKER_ONLY_KEYS: readonly string[] = Object.freeze([
   'baidu',
+  'baiducloud',
   'bytedance',
   'cohere',
   'microsoft',

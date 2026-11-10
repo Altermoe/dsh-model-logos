@@ -58,7 +58,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "logo:check": "tsx scripts/import-logos.ts --check",
+    "logo:check": "tsx scripts/import-logos.ts --check && tsx scripts/derive-marks.ts --check",
     "rank": "tsx scripts/rank-logos.ts --collect",
     "rank:check": "tsx scripts/rank-logos.ts --check",
     "preview": "tsx scripts/preview-logos.ts",

@@ -207,4 +207,52 @@ describe('match', () => {
       expect(withoutNamespace, `${key}.svg must not reference external resources`).not.toMatch(/https?:/i);
     }
   });
+
+  it('keeps Baidu Cloud a picker-only vendor mark no channel rule can return', () => {
+    // A company mark with no shipped DSH provider route: it must be reachable
+    // from the picker, never from a matcher rule.
+    expect(LOGO_KEYS).toContain('baiducloud');
+    expect(PICKER_ONLY_KEYS).toContain('baiducloud');
+    const ruleKeys = new Set<string>([
+      ...MODEL_RULES.map(([key]) => key),
+      ...PROVIDER_RULES.map(([key]) => key),
+      ...VENDOR_RULES.map(([key]) => key),
+      ...Object.values(VENDOR_CHANNELS),
+    ]);
+    expect(ruleKeys.has('baiducloud'), 'baiducloud must not be a rule target').toBe(false);
+    // No picker-only key is ever a channel answer: the table must stay silent for
+    // all of them, including the new one.
+    for (const key of PICKER_ONLY_KEYS) expect(matchVendorLogo(key), `${key} must be picker-only`).toBe(null);
+    expect(matchVendorLogo('baiducloud')).toBe(null);
+    expect(matchVendorLogo('baidu-cloud')).toBe(null);
+    expect(matchVendorLogo('bce')).toBe(null);
+    // The model matcher never returns a picker-only key either.
+    expect(matchModelLogo(pair('baiducloud', 'baiducloud', 'Baidu Cloud'))).not.toBe('baiducloud');
+    // Baidu Cloud keeps its own group and title: the vendor group, next to Baidu.
+    const artwork = LOGOS['baiducloud'];
+    expect(artwork?.group).toBe('vendor');
+    expect(artwork?.title).toBe('BaiduCloud');
+
+    // Picker-only artwork still obeys the flat-tile contract: no inlined DOM id,
+    // no external reference and no gradient/<defs> machinery, because the tile is
+    // inlined six times over and its markup is compared for write-idempotence.
+    const svg = artwork?.svg ?? '';
+    expect(svg).not.toMatch(/\sid\s*=/);
+    expect(svg).not.toMatch(/url\(/i);
+    expect(svg).not.toMatch(/<(?:defs|linearGradient|radialGradient|clipPath|mask|filter|style|script)\b/i);
+  });
+
+  it('resolves GLM and Zhipu to the same official Z tile but keeps their own titles', () => {
+    // The correction: Zhipu's mark is the official black-tile white Z, and GLM
+    // (its model) now uses the same glyph — like `ernie` reusing `baidu`.
+    expect(matchVendorLogo('zai')).toBe('zhipu');
+    expect(matchVendorLogo('zai-coding-cn')).toBe('zhipu');
+    expect(matchModelLogo(pair('zai-coding-cn', 'glm-5.3-flash', 'GLM-5.3-Flash'))).toBe('glm');
+    const zhipu = LOGOS['zhipu'];
+    const glm = LOGOS['glm'];
+    expect(glm?.svg, 'glm must reuse the Zhipu official glyph').toBe(zhipu?.svg);
+    expect(glm?.title).not.toBe(zhipu?.title);
+    expect(zhipu?.group).toBe('vendor');
+    expect(glm?.group).toBe('model');
+  });
 });

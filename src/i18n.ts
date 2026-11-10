@@ -203,6 +203,7 @@ export const DSHML_BRAND_NAMES: Readonly<Record<DshmlLang, Readonly<Record<strin
     antgroup: '蚂蚁集团',
     aws: '亚马逊云科技',
     baidu: '百度',
+    baiducloud: '百度智能云',
     bytedance: '字节跳动',
     google: '谷歌',
     microsoft: '微软',

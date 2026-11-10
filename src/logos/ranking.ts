@@ -18,7 +18,7 @@ export interface RankingSource {
 }
 
 /** Collection date of the snapshot (UTC). */
-export const RANKING_DATE = '2026-11-05';
+export const RANKING_DATE = '2026-11-10';
 
 /** The five weighted signals behind the ranks. */
 export const RANKING_SOURCES: readonly RankingSource[] = Object.freeze([
@@ -31,7 +31,7 @@ export const RANKING_SOURCES: readonly RankingSource[] = Object.freeze([
 
 /** 1-based prominence rank within each group; unranked keys are absent. */
 export const LOGO_RANKS: Readonly<Record<string, number>> = Object.freeze({
-  // vendor (32 keys)
+  // vendor (33 keys)
   anthropic: 1,
   google: 2,
   openai: 3,
@@ -44,26 +44,27 @@ export const LOGO_RANKS: Readonly<Record<string, number>> = Object.freeze({
   bytedance: 10,
   aws: 11,
   huggingface: 12,
-  moonshot: 13,
-  azure: 14,
+  azure: 13,
+  moonshot: 14,
   alibaba: 15,
   tencent: 16,
   ollama: 17,
   zhipu: 18,
   xiaomi: 19,
   opencode: 20,
-  baidu: 21,
-  openrouter: 22,
+  openrouter: 21,
+  baidu: 22,
   groq: 23,
   cohere: 24,
   antgroup: 25,
   xai: 26,
-  typesafe: 27,
-  cerebras: 28,
-  together: 29,
-  fireworks: 30,
-  baseten: 31,
-  radius: 32,
+  cerebras: 27,
+  typesafe: 28,
+  baiducloud: 29,
+  together: 30,
+  fireworks: 31,
+  baseten: 32,
+  radius: 33,
   // model (24 keys)
   gpt: 1,
   claude: 2,
@@ -78,8 +79,8 @@ export const LOGO_RANKS: Readonly<Record<string, number>> = Object.freeze({
   nemotron: 11,
   phi: 12,
   minimax: 13,
-  nova: 14,
-  perplexity: 15,
+  perplexity: 14,
+  nova: 15,
   glm: 16,
   stepfun: 17,
   hailuo: 18,
