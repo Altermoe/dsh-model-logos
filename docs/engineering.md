@@ -102,11 +102,12 @@ src/resolve.ts      overrideIcon, withOverride, withoutOverride, flattenOverride
                     withoutProviderOverride, flattenProviderOverrides,
                     providerLetterTextFor, resolveProviderIcon
 src/logos/official.generated.ts   LOGOS — marks imported from the pinned Lobe Icons set
-src/logos/manual.ts               LOGOS — DeepSeek, Xiaomi, AWS, Radius exceptions
+src/logos/manual.ts               LOGOS — the eight derived and hand-drawn exceptions
 src/logos/groups.ts               groupLogoEntries, filterLogoGroups, SHARED_VENDOR_MARKS
 src/logos/ranking.ts              LOGO_RANKS, RANKING_DATE — generated snapshot summary
 src/logos/index.ts                LOGOS — the merged set every renderer reads
 scripts/import-logos.ts           offline importer/checker for the official artwork
+scripts/derive-marks.ts           --check for reference/derived/ (the Z and the aurora)
 scripts/rank-logos.ts             --collect/--check for reference/rankings.json
 ```
 
@@ -203,11 +204,11 @@ that recorded them, not from the current build.
   legacy override keys, and the closed `LOGO_KEYS`/artwork invariants.
 - Artwork tests pin the letter-tile generator (determinism, safe SVG, CJK text,
   escaping) and the brand marks' inlining rules.
-- Grouping tests pin the exact 32 vendor / 24 model key sets, the absence of
+- Grouping tests pin the exact 33 vendor / 24 model key sets, the absence of
   overlaps, search filtering across both groups, caller-supplied localized search
   aliases, the alias glyphs
   (`gpt/openai`, `llama/meta`, `phi/microsoft`, `nemotron/nvidia`, `nova/aws`,
-  `ernie/baidu`), and the ranking sanity relations.
+  `ernie/baidu`, `glm/zhipu`), and the ranking sanity relations.
 - Brand-name tests pin the reviewed official-Chinese-name table (`千问`,
   `蚂蚁百灵`, `亚马逊云科技`, …), that every localized key has artwork and differs
   from the English title, that names without an official Chinese form stay
@@ -331,6 +332,76 @@ that recorded them, not from the current build.
   (including the element-name case a real browser reports for SVG children), and
   `scripts/build.ts` refuses a glyph or a stylesheet rule that breaks those
   invariants.
+- **Four artwork corrections: two wrong glyphs, one wrong palette, one missing
+  brand.** `zhipu` shipped the Lobe swirl (white dots that read as noise at 22px)
+  and `glm` the Lobe `glmv.svg` animal; both now render the official Zhipu mark —
+  the zai-org/GLM-5 `resources/logo.svg` black tile (`#2D2D2D`, `rx 6`) with the
+  white Z. They share one tile, like `ernie`/`baidu`, but keep their own titles and
+  groups (`Zhipu AI` vendor, `GLM` model). `gemini` shipped a flat white star; it
+  now carries the official Lobe `gemini-color.svg` aurora quantised into flat,
+  id-free cells, because an inlined tile may not carry ids or gradient definitions. `baiducloud` (BaiduCloud, 百度智能云) is new: a vendor mark from Lobe
+  `baiducloud-color.svg`, the tri-colour cube with no wordmark. The key set grows
+  56 → 57 (33 vendor / 24 model).
+- **Three keys moved out of the Lobe import into a pinned derived set.** `zhipu`,
+  `glm` and `gemini` are no longer `SOURCE_MARKS`: they are rebuilt offline by
+  `scripts/derive-marks.ts` from `reference/derived/`, whose `manifest.json` records
+  each file's url, pinned commit or version, sha256 and licence. The Z source is
+  `zhipu-z.svg`, the zai-org/GLM-5 `resources/logo.svg` pinned to commit
+  `83c03d317378f86f0a012f7c4cd48b6243c7e69b` (Apache-2.0); the aurora source is
+  `gemini-aurora.svg`, Lobe `gemini-color.svg` at 1.102.0 (MIT). They are
+  hand-derived rather than imported because Lobe 1.102.0 does not carry the Z at
+  all, and the Lobe aurora would need the gradient definitions an inlined tile may
+  not hold. Both derived files are committed byte-exact against their upstream
+  sha256 — one `curl` of the pinned blob would otherwise be the only way to notice a
+  silent upstream change.
+- `pnpm exec tsx scripts/derive-marks.ts --check` is wired into `pnpm run
+  logo:check`: it re-reads the two sources, rebuilds both tiles (the Z and the
+  aurora) and fails on drift, so no derived mark can change without its source
+  changing. Its guards are numeric, like the Lobe importer's: the Z fit must put the
+  mapped glyph bbox centre on (12,12) and inside 0..24, and the aurora quantisation
+  must cover every silhouette sample, stay under a per-pixel error bound and keep
+  every colour family — asserted in the script, not eyeballed from the assets.
+- The Gemini reconstruction is a measured quantisation, not "bands that look
+  right". `scripts/derive-marks.ts` reads the pinned aurora, flattens its four-arc
+  star outline, and parses the three `userSpaceOnUse` opacity ramps — green
+  `#08B962` and red `#F94543` fade to zero over their full axis, yellow `#FABC12`
+  over 0.46 of it. It composites them over the `#3186FF` base in document order,
+  then quarters the cell with the widest colour spread until the silhouette is
+  covered by 40 flat cells (mean colour per cell, adjacent cells overlapping by
+  0.06 units so no seam can show the white plate). The script asserts coverage, a
+  mean |ΔRGB| bound (9.6 by its own 0.05-unit sampling, hard limit 12) and a
+  minimum share for each of the red, yellow, green and blue families, so a
+  flat-blue or half-size reconstruction fails the build instead of passing a
+  score. Measured independently from the
+  shipped `client.js` in a headless browser: mean |ΔRGB| **7.65** at 96 px and
+  **7.87** at 384 px, mean ΔE76 **9.5**, silhouette IoU **0.991** against the
+  placed source, and every hue family present. The first attempt at this tile
+  scored only the pixels it covered, and shipped a star at half the intended size
+  whose bands left the green ramp and most of the outline white — the guard is
+  therefore coverage plus a full-silhouette error, never a score over covered
+  pixels only.
+- The arithmetic is now 46 − `zhipu` − `glm` − `gemini` + `baiducloud` = 44 upstream
+  files, + 5 aliases = 49 generated marks, + the 8 `manual.ts` exceptions (`aws`,
+  `deepseek`, `gemini`, `glm`, `nova`, `radius`, `xiaomi`, `zhipu`) = **57 keys**
+  (33 vendor / 24 model), which `MANUAL_MARKS` in `scripts/fetch-official-logos.ts`
+  pins as an exact set and `assertConfigCoverage` enforces as `generated + manual ==
+  required`. `pnpm exec tsx scripts/fetch-official-logos.ts` reproduces all 45 files
+  under `reference/official/` (44 `.svg` + `manifest.json`) byte-identically; the 43
+  entries whose sha256 did not change are upstream immutability, not stale pins,
+  while `baiducloud-color.svg` is the one new fetch.
+- `zhipu` staying group `vendor` is what keeps `SHARED_VENDOR_MARKS` untouched:
+  `glm` sharing its glyph with `zhipu` is a model mark reusing a vendor mark, the
+  reverse of the `deepseek`/`mistral`/`minimax` exception the build validates, and
+  `zhipu` is not in `VENDOR_CHANNELS` at all, so no vendor channel points at a
+  model-only mark. Verified by the build and by the grouping test rather than by
+  adding an entry no check reads.
+- `baiducloud` is **picker-only**, like `radius` and `typesafe`: a real Baidu
+  product mark that no shipped DSH route resolves to. It is therefore in
+  `LOGO_KEYS` and in `PICKER_ONLY_KEYS`, and deliberately in no rule target set —
+  `matchVendorLogo('baiducloud')`, `'baidu-cloud'` and `'bce'` all return null. If a
+  Qianfan channel is ever added, `baidu`/`ernie` remain its marks; nothing may map
+  to `baiducloud` by pattern. `test/match.test.ts` pins that closure for every
+  picker-only key, not just the new one.
 - Live bundle check with `scripts/verify-live.ts` against the running Web GUI:
   `/plugins/??dsh-model-logos/client.js&rev=e81788b19a12` returned the freshly built
   artifact (203,742 bytes served, 56 artwork entries), proving the client HMR

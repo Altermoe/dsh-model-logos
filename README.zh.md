@@ -101,7 +101,7 @@ plugin_manager action=install_bundle target=<指向本目录的绝对路径>
 
 每一枚标记都是自包含的 24×24 SVG 方块 —— 品牌色的圆角方块，加上在实际使用尺寸（输入区模型按钮旁的 20 px，设置行旁的 22 px，图标选择器预览里的 36 px）下仍然清晰可辨的图形。运行时不拉取任何东西，所以这些图标不需要网络，也不依赖外部资源。
 
-图形不是靠肉眼重画的，而是来自固定版本的官方矢量集 —— [`@lobehub/icons-static-svg`](https://github.com/lobehub/lobe-icons) 1.102.0（MIT），加上 Simple Icons（CC0）的 Xiaomi，以及取自本应用 Web 前端的 DeepSeek 官方鲸鱼 —— 由入库的导入脚本统一收进同样的方块。构建检查会把生成的路径数据与已提交的上游文件逐条比对，所以想改一枚标记，只能改它的来源。少数例外在源码里注明：Radius 没有官方图形；AWS 保留官方 smile 符号，因为完整字标在图标尺寸下不可读；Xiaomi 保留 Simple Icons 的「mi」。
+图形不是靠肉眼重画的，而是来自固定版本的官方矢量集 —— [`@lobehub/icons-static-svg`](https://github.com/lobehub/lobe-icons) 1.102.0（MIT），加上 Simple Icons（CC0）的 Xiaomi，以及取自本应用 Web 前端的 DeepSeek 官方鲸鱼 —— 由入库的导入脚本统一收进同样的方块。构建检查会把生成的路径数据与已提交的上游文件逐条比对，所以想改一枚标记，只能改它的来源。少数例外在源码里注明：Radius 没有官方图形；AWS 保留官方 smile 符号，因为完整字标在图标尺寸下不可读；Xiaomi 保留 Simple Icons 的「mi」。其中两枚标记不是从该包导入，而是由各自的固定来源重建：智谱的 Z 取自 [zai-org/GLM-5](https://github.com/zai-org/GLM-5) 官方 logo（Apache-2.0，GLM 共用），Gemini 的极光配色取自 Lobe 的彩色标记。两者都提交在 `reference/derived/` 下并有离线重建校验，所以同样只能通过改来源来改图。
 
 原先偏差最明显的标记从来源层修正：Claude 换成官方不规则实心放射状、Ollama 换成正面看镜头的羊驼、豆包换成官方女性形象，替换掉旧的齿轮、侧脸剪影和聊天气泡。MiniMax 2025 年的波形与 Mistral 的像素方块 M 保留此前校正过的形状。品牌 Logo 是其所有者的商标，在此仅用于标识实际使用的提供商或模型。
 

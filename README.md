@@ -195,7 +195,12 @@ end — and a checked-in import script fits them into the shared tile. A build c
 compares the generated path data with the committed upstream files, so a mark can
 only change by changing its source. A few exceptions are marked in the source: Radius
 has no official mark, AWS keeps its official smile symbol because the full wordmark
-is unreadable at icon sizes, and Xiaomi keeps the Simple Icons "mi".
+is unreadable at icon sizes, and Xiaomi keeps the Simple Icons "mi". Two marks are
+re-derived from their own pinned sources instead of imported: the Zhipu Z from the
+official [zai-org/GLM-5](https://github.com/zai-org/GLM-5) logo (Apache-2.0, shared
+with GLM) and the Gemini aurora from Lobe's colour mark. Both are committed under
+`reference/derived/` and rebuilt offline, so each can only change by changing its
+pinned source.
 
 The marks that used to be most wrong were fixed at the source: Claude's irregular
 solid burst, Ollama's front-facing llama and Doubao's official female figure replace
