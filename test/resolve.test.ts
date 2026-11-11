@@ -126,7 +126,7 @@ describe('resolve', () => {
       { id: 'deepseek-account', name: 'DeepSeek Account' },
       { id: 'deepseek-flash', name: 'DeepSeek-V4.1-Flash' },
     );
-    expect(resolved).toEqual({ key: 'claude', source: 'override', disabled: false, letter: false });
+    expect(resolved).toEqual({ key: 'claude', source: 'override', disabled: false, letter: false, custom: null });
   });
 
   it('the none sentinel disables the mark even when the heuristic would match', () => {
@@ -135,7 +135,42 @@ describe('resolve', () => {
       { id: 'deepseek-account', name: 'DeepSeek Account' },
       { id: 'deepseek-flash', name: 'DeepSeek-V4.1-Flash' },
     );
-    expect(resolved).toEqual({ key: null, source: 'override', disabled: true, letter: false });
+    expect(resolved).toEqual({ key: null, source: 'override', disabled: true, letter: false, custom: null });
+  });
+
+  it('a custom:<id> override resolves to the custom sentinel', () => {
+    const resolved = resolve({ acme: { 'acme-chat-1': 'custom:c-demo' } });
+    expect(resolved).toEqual({
+      key: null,
+      source: 'override',
+      disabled: false,
+      letter: false,
+      custom: 'c-demo',
+    });
+  });
+
+  it('a malformed custom value is ignored and the heuristic still decides', () => {
+    expect(resolve({ acme: { 'acme-chat-1': 'custom:' } })).toEqual({
+      key: null,
+      source: 'none',
+      disabled: false,
+      letter: false,
+      custom: null,
+    });
+    expect(resolve({ acme: { 'acme-chat-1': 'custom:bad id' } })).toEqual({
+      key: null,
+      source: 'none',
+      disabled: false,
+      letter: false,
+      custom: null,
+    });
+    expect(
+      resolveModelIcon(
+        { 'deepseek-account': { 'deepseek-flash': 'custom:' } },
+        { id: 'deepseek-account' },
+        { id: 'deepseek-flash' },
+      ),
+    ).toEqual({ key: 'deepseek', source: 'heuristic', disabled: false, letter: false, custom: null });
   });
 
   it('the letter sentinel asks for a generated tile and wins over the heuristic', () => {
@@ -144,7 +179,7 @@ describe('resolve', () => {
       { id: 'deepseek-account', name: 'DeepSeek Account' },
       { id: 'deepseek-flash', name: 'DeepSeek-V4.1-Flash' },
     );
-    expect(resolved).toEqual({ key: null, source: 'override', disabled: false, letter: true });
+    expect(resolved).toEqual({ key: null, source: 'override', disabled: false, letter: true, custom: null });
   });
 
   it('an unknown or stale override value is ignored in favour of the heuristic', () => {
@@ -154,7 +189,7 @@ describe('resolve', () => {
       { id: 'deepseek-account', name: 'DeepSeek Account' },
       { id: 'deepseek-flash', name: 'DeepSeek-V4.1-Flash' },
     );
-    expect(resolved).toEqual({ key: 'deepseek', source: 'heuristic', disabled: false, letter: false });
+    expect(resolved).toEqual({ key: 'deepseek', source: 'heuristic', disabled: false, letter: false, custom: null });
   });
 
   it('no override falls back to the heuristic initial icon', () => {
@@ -163,17 +198,19 @@ describe('resolve', () => {
       source: 'heuristic',
       disabled: false,
       letter: false,
+      custom: null,
     });
-    expect(resolve(undefined)).toEqual({ key: null, source: 'none', disabled: false, letter: false });
+    expect(resolve(undefined)).toEqual({ key: null, source: 'none', disabled: false, letter: false, custom: null });
   });
 
   it('nothing matches → source none with no mark', () => {
-    expect(resolve({})).toEqual({ key: null, source: 'none', disabled: false, letter: false });
+    expect(resolve({})).toEqual({ key: null, source: 'none', disabled: false, letter: false, custom: null });
     expect(resolveModelIcon({}, null, null)).toEqual({
       key: null,
       source: 'none',
       disabled: false,
       letter: false,
+      custom: null,
     });
   });
 
@@ -279,13 +316,14 @@ describe('provider override resolution', () => {
 
   it('a known brand override wins over the official channel', () => {
     const resolved = resolveProviderIcon({ anthropic: 'openai' }, 'anthropic');
-    expect(resolved).toEqual({ key: 'openai', source: 'override', disabled: false, letter: false });
+    expect(resolved).toEqual({ key: 'openai', source: 'override', disabled: false, letter: false, custom: null });
     // Without the override the official channel table would pick Anthropic itself.
     expect(resolveProviderIcon({}, 'anthropic')).toEqual({
       key: 'anthropic',
       source: 'heuristic',
       disabled: false,
       letter: false,
+      custom: null,
     });
   });
 
@@ -295,6 +333,7 @@ describe('provider override resolution', () => {
       source: 'override',
       disabled: true,
       letter: false,
+      custom: null,
     });
   });
 
@@ -304,6 +343,25 @@ describe('provider override resolution', () => {
       source: 'override',
       disabled: false,
       letter: true,
+      custom: null,
+    });
+  });
+
+  it('a custom:<id> provider override resolves to the custom sentinel', () => {
+    expect(resolveProviderIcon({ anthropic: 'custom:c-demo' }, 'anthropic')).toEqual({
+      key: null,
+      source: 'override',
+      disabled: false,
+      letter: false,
+      custom: 'c-demo',
+    });
+    // A malformed/stale sentinel is ignored, so the channel table still wins.
+    expect(resolveProviderIcon({ anthropic: 'custom:' }, 'anthropic')).toEqual({
+      key: 'anthropic',
+      source: 'heuristic',
+      disabled: false,
+      letter: false,
+      custom: null,
     });
   });
 
@@ -313,11 +371,12 @@ describe('provider override resolution', () => {
       source: 'heuristic',
       disabled: false,
       letter: false,
+      custom: null,
     });
   });
 
   it('a declared provider gets no mark unless the letter fallback is allowed', () => {
-    const none = { key: null, source: 'none', disabled: false, letter: false };
+    const none = { key: null, source: 'none', disabled: false, letter: false, custom: null };
     expect(resolveProviderIcon({}, 'acme')).toEqual(none);
     expect(resolveProviderIcon({}, 'acme', { fallback: false })).toEqual(none);
     expect(resolveProviderIcon({}, 'acme', { allowFallback: false })).toEqual(none);
@@ -327,6 +386,7 @@ describe('provider override resolution', () => {
       source: 'none',
       disabled: false,
       letter: true,
+      custom: null,
     });
     // `allowFallback` is the legacy spelling of the same flag.
     expect(resolveProviderIcon({}, 'acme', { allowFallback: true })).toEqual({
@@ -334,6 +394,7 @@ describe('provider override resolution', () => {
       source: 'none',
       disabled: false,
       letter: true,
+      custom: null,
     });
     // An explicit override still beats either fallback spelling.
     expect(resolveProviderIcon({ acme: 'qwen' }, 'acme', { fallback: true })).toEqual({
@@ -341,11 +402,12 @@ describe('provider override resolution', () => {
       source: 'override',
       disabled: false,
       letter: false,
+      custom: null,
     });
   });
 
   it('empty and non-string provider ids resolve to no icon, even with a fallback', () => {
-    const none = { key: null, source: 'none', disabled: false, letter: false };
+    const none = { key: null, source: 'none', disabled: false, letter: false, custom: null };
     for (const providerId of ['', '   ', 42, null, undefined, {}, []]) {
       expect(resolveProviderIcon({ '': 'qwen' }, providerId), String(providerId)).toEqual(none);
       expect(resolveProviderIcon({ '': 'qwen' }, providerId, { fallback: true }), String(providerId)).toEqual(none);

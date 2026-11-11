@@ -19,6 +19,8 @@
  *   - the custom combobox painted over the native provider `<select>`
  *   - clicking a model-row logo opens the picker modal
  *   - picking a brand writes the nested override through `configForms.mutate`
+ *   - the custom-icon editor creates, applies, renames and deletes a local icon
+ *     (type tabs, real cropper, settings write, row mark, fallback after delete)
  *   - the Settings navigation row of this plugin's section draws the plugin glyph
  *   - dispose removes every inserted node, the nav marker and restores the native select
  *
@@ -29,6 +31,8 @@
  *                                                                # decorated page screenshot
  *   pnpm exec tsx scripts/verify-dom.ts --screenshot docs/preview-settings.png --open picker
  *                                                                # ... with the picker modal open
+ *   pnpm exec tsx scripts/verify-dom.ts --screenshot docs/preview-custom-icon.png --open custom
+ *                                                                # ... with the custom-icon editor open
  *   pnpm exec tsx scripts/verify-dom.ts --harness <path>         # keep the generated page
  *
  * Requires Edge (`EDGE` env var may point at msedge.exe).
@@ -252,6 +256,8 @@ interface ReactDomUmd {
 /** One settings document value the fake config form stores. */
 interface SettingsValue {
   modelIcons: OverrideMap;
+  /** User-created icons; written by the picker's create/rename/delete editor. */
+  customIcons?: Record<string, unknown>;
   [key: string]: unknown;
 }
 
@@ -455,7 +461,7 @@ async function browserDriver(config: DriverConfig): Promise<void> {
   // host plugin's `modelIcons` volatile field on top. Path ops arrive relative to
   // this root (`['modelIcons', providerId, modelId]`), so the harness applies
   // them here — `H.overrides` always stays the inner dict the plugin reads.
-  const settingsValue: SettingsValue = { modelIcons: H.overrides };
+  const settingsValue: SettingsValue = { modelIcons: H.overrides, customIcons: {} };
 
   function setPath(root: Record<string, unknown>, path: readonly unknown[], value: unknown): void {
     let node: Record<string, unknown> = root;
@@ -479,7 +485,11 @@ async function browserDriver(config: DriverConfig): Promise<void> {
       node = child as Record<string, unknown>;
     }
     delete node[String(path[path.length - 1])];
-    for (let index = parents.length - 1; index >= 0; index--) {
+    // Prune emptied inner buckets, but never the top-level settings field: the
+    // harness keeps a live reference to `settingsValue.modelIcons` (`H.overrides`),
+    // and deleting/recreating that key would silently detach the reference the
+    // model-override count reads.
+    for (let index = parents.length - 1; index >= 1; index--) {
       const parent = parents[index];
       if (parent === undefined) continue;
       const [target, key] = parent;
@@ -1135,6 +1145,44 @@ async function browserDriver(config: DriverConfig): Promise<void> {
       const button = findModelRowButton(0);
       if (button) button.click();
       await waitFor(findPicker, 5000);
+    } else if (OPEN === 'custom') {
+      // The custom-icon editor, with a cropped image already in place so the
+      // screenshot shows the tabs, the real cropper and the zoom slider.
+      const button = findModelRowButton(0);
+      if (button) button.click();
+      const customPicker = await waitFor(findPicker, 5000);
+      const createCell = customPicker !== null ? q<HTMLButtonElement>('.dshml-picker-create', customPicker) : null;
+      if (createCell) createCell.click();
+      const editor = customPicker !== null ? await waitFor(() => q('.dshml-custom-editor', customPicker), 3000) : null;
+      const nameInput = editor !== null ? q<HTMLInputElement>('.dshml-custom-input', editor) : null;
+      const fileInput = editor !== null ? q<HTMLInputElement>('.dshml-custom-file', editor) : null;
+      if (nameInput) setInputValue(nameInput, '我的本地模型');
+      if (fileInput) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 128;
+        canvas.height = 96;
+        const context = canvas.getContext('2d');
+        if (context !== null) {
+          context.fillStyle = '#3b6ef0';
+          context.fillRect(0, 0, canvas.width, canvas.height);
+          context.fillStyle = '#ffffff';
+          context.beginPath();
+          context.arc(64, 48, 30, 0, Math.PI * 2);
+          context.fill();
+          context.fillStyle = '#3b6ef0';
+          context.beginPath();
+          context.arc(64, 48, 16, 0, Math.PI * 2);
+          context.fill();
+        }
+        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+        if (blob !== null) {
+          const transfer = new DataTransfer();
+          transfer.items.add(new File([blob], 'preview.png', { type: 'image/png' }));
+          fileInput.files = transfer.files;
+          fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+          await waitFor(() => (editor !== null ? q('.reactEasyCrop_CropArea', editor) : null), 4000);
+        }
+      }
     }
     await sleep(350);
     const screenshotResult: ScreenshotResult = {
@@ -1156,6 +1204,35 @@ async function browserDriver(config: DriverConfig): Promise<void> {
     document.body.appendChild(pre);
   } else {
     /* ------------------------------ assertions ------------------------------ */
+
+    // A thrown assertion step would otherwise leave the dumped DOM without a
+    // result block, which tells the caller nothing. The watchdog publishes the
+    // assertions completed so far plus the page errors when the regular write
+    // never happens (thrown driver step or an exhausted virtual-time budget).
+    window.setTimeout(() => {
+      if (document.getElementById('dshml-result') !== null) return;
+      const watchdogResult: VerifyResult = {
+        ok: false,
+        mode: 'verify',
+        lang: config.lang,
+        assertions,
+        pageErrors,
+        consoleIssues,
+        mutateCalls: H.mutateCalls,
+        setCalls: H.setCalls,
+        slotRequests: H.slotRequests,
+        injected: H.injected,
+        overrides: H.overrides,
+        vendorMarkers: [],
+        modelRowMarkers: qa('[data-dshml-model-row]').length,
+      };
+      const pre = document.createElement('pre');
+      pre.id = 'dshml-result';
+      pre.dataset.watchdog = '1';
+      pre.textContent = JSON.stringify(watchdogResult, null, 2);
+      pre.style.display = 'none';
+      document.body.appendChild(pre);
+    }, 25000);
 
     add(
       'fixture: settings dialog root present',
@@ -2166,41 +2243,47 @@ async function browserDriver(config: DriverConfig): Promise<void> {
       const pickerNode = picker;
       const groupTitles = pickerGroupTitles(pickerNode);
       const grids = pickerGroupGrids(pickerNode);
-      const vendorTitle = groupTitles[0] ?? '';
-      const modelTitle = groupTitles[1] ?? '';
+      const customTitle = groupTitles[0] ?? '';
+      const vendorTitle = groupTitles[1] ?? '';
+      const modelTitle = groupTitles[2] ?? '';
+      const customGrid = grids[0] ?? null;
+      const vendorGrid = grids[1] ?? null;
+      const modelGrid = grids[2] ?? null;
       add(
-        'picker splits vendor marks above model marks',
+        'picker puts the custom group above vendor and model marks',
         true,
-        groupTitles.length === 2 &&
-          grids.length === 2 &&
+        groupTitles.length === 3 &&
+          grids.length === 3 &&
+          (customTitle === '自定义图标' || customTitle === 'Custom icons') &&
           (vendorTitle === '厂商图标' || vendorTitle === 'Vendor icons') &&
           (modelTitle === '模型图标' || modelTitle === 'Model icons'),
         'groups=' + JSON.stringify(groupTitles) + ' grids=' + grids.length,
       );
+      const createCell = q<HTMLButtonElement>('.dshml-picker-create', customGrid);
+      add(
+        'custom group offers the create-icon cell',
+        true,
+        createCell !== null && createCell.tagName === 'BUTTON' && text(createCell).trim() !== '',
+        createCell ? describeNode(createCell) + ' text="' + text(createCell) + '"' : 'no .dshml-picker-create cell',
+      );
       add(
         'vendor group contains Alibaba/Anthropic/Google/OpenAI',
         true,
-        pickerGroupHas(grids[0] ?? null, brandLabel('阿里巴巴', 'Alibaba')) &&
-          pickerGroupHas(grids[0] ?? null, 'Anthropic') &&
-          pickerGroupHas(grids[0] ?? null, brandLabel('谷歌', 'Google')) &&
-          pickerGroupHas(grids[0] ?? null, 'OpenAI'),
-        'vendor=' +
-          pickerOptionsInGrid(grids[0] ?? null)
-            .map(pickerOptionLabel)
-            .join(','),
+        pickerGroupHas(vendorGrid, brandLabel('阿里巴巴', 'Alibaba')) &&
+          pickerGroupHas(vendorGrid, 'Anthropic') &&
+          pickerGroupHas(vendorGrid, brandLabel('谷歌', 'Google')) &&
+          pickerGroupHas(vendorGrid, 'OpenAI'),
+        'vendor=' + pickerOptionsInGrid(vendorGrid).map(pickerOptionLabel).join(','),
       );
       add(
         'model group contains Qwen/Claude/Gemini/GPT/DeepSeek',
         true,
-        pickerGroupHas(grids[1] ?? null, brandLabel('千问', 'Qwen')) &&
-          pickerGroupHas(grids[1] ?? null, 'Claude') &&
-          pickerGroupHas(grids[1] ?? null, 'Gemini') &&
-          pickerGroupHas(grids[1] ?? null, 'GPT') &&
-          pickerGroupHas(grids[1] ?? null, 'DeepSeek'),
-        'model=' +
-          pickerOptionsInGrid(grids[1] ?? null)
-            .map(pickerOptionLabel)
-            .join(','),
+        pickerGroupHas(modelGrid, brandLabel('千问', 'Qwen')) &&
+          pickerGroupHas(modelGrid, 'Claude') &&
+          pickerGroupHas(modelGrid, 'Gemini') &&
+          pickerGroupHas(modelGrid, 'GPT') &&
+          pickerGroupHas(modelGrid, 'DeepSeek'),
+        'model=' + pickerOptionsInGrid(modelGrid).map(pickerOptionLabel).join(','),
       );
       // The zh picker must show the vendor's own official names and must never
       // fall back to a community translation or the retired 「通义千问」 brand.
@@ -2208,19 +2291,15 @@ async function browserDriver(config: DriverConfig): Promise<void> {
         'brand titles use the official Chinese names',
         config.lang === 'zh',
         config.lang !== 'zh' ||
-          (pickerGroupHas(grids[0] ?? null, '阿里巴巴') &&
-            pickerGroupHas(grids[0] ?? null, '谷歌') &&
-            pickerGroupHas(grids[1] ?? null, '千问') &&
-            !pickerGroupHas(grids[0] ?? null, 'Alibaba') &&
-            !pickerGroupHas(grids[1] ?? null, '通义千问')),
+          (pickerGroupHas(vendorGrid, '阿里巴巴') &&
+            pickerGroupHas(vendorGrid, '谷歌') &&
+            pickerGroupHas(modelGrid, '千问') &&
+            !pickerGroupHas(vendorGrid, 'Alibaba') &&
+            !pickerGroupHas(modelGrid, '通义千问')),
         'vendor=' +
-          pickerOptionsInGrid(grids[0] ?? null)
-            .map(pickerOptionLabel)
-            .join(',') +
+          pickerOptionsInGrid(vendorGrid).map(pickerOptionLabel).join(',') +
           ' model=' +
-          pickerOptionsInGrid(grids[1] ?? null)
-            .map(pickerOptionLabel)
-            .join(','),
+          pickerOptionsInGrid(modelGrid).map(pickerOptionLabel).join(','),
       );
 
       const search = q<HTMLInputElement>('.dshml-picker-search', pickerNode);
@@ -2236,7 +2315,7 @@ async function browserDriver(config: DriverConfig): Promise<void> {
           'titles=' + JSON.stringify(filteredTitles),
         );
         setInputValue(search, '');
-        await waitFor(() => pickerGroupTitles(pickerNode).length === 2, 2000);
+        await waitFor(() => pickerGroupTitles(pickerNode).length === 3, 2000);
       } else {
         add('picker search keeps only the matching group', true, false, 'no search input');
       }
@@ -2310,6 +2389,332 @@ async function browserDriver(config: DriverConfig): Promise<void> {
         refreshedMark ? 'mark changed (' + refreshedMark.length + ' bytes)' : 'mark did not change',
       );
     }
+
+    /* ------------- custom icons: create, apply, rename, delete ----------- */
+    // The picker's `自定义` group is the only way to create an icon. This drives
+    // the whole user flow through the rendered UI: pick a file, wait for the
+    // real cropper to compute its square area, save, end up with a custom mark
+    // on the row, rename it, then delete it and see the row fall back to auto.
+    const makePngFile = (name: string): Promise<File> =>
+      new Promise<File>((resolve, reject) => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 96;
+        canvas.height = 72;
+        const context = canvas.getContext('2d');
+        if (context === null) {
+          reject(new Error('no 2d context'));
+          return;
+        }
+        context.fillStyle = '#e0473e';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.fillStyle = '#ffffff';
+        context.fillRect(20, 16, 56, 40);
+        canvas.toBlob((blob) => {
+          if (blob === null) {
+            reject(new Error('no png blob'));
+            return;
+          }
+          resolve(new File([blob], name, { type: 'image/png' }));
+        }, 'image/png');
+      });
+    const previewValue = (value: unknown, limit: number): string => {
+      try {
+        const encoded = JSON.stringify(value);
+        return (encoded === undefined ? String(value) : encoded).slice(0, limit);
+      } catch {
+        return String(value).slice(0, limit);
+      }
+    };
+    const openModelPicker = async (): Promise<HTMLElement | null> => {
+      if (!iconButton) return null;
+      iconButton.click();
+      return await waitFor(findPicker, 5000);
+    };
+    const findSetOp = (calls: readonly unknown[], field: string, depth: number) => {
+      for (const call of calls) {
+        if (!Array.isArray(call)) continue;
+        for (const candidate of call) {
+          if (!isRecord(candidate) || candidate.op !== 'set' || !Array.isArray(candidate.path)) continue;
+          if (candidate.path.length === depth && candidate.path[0] === field) return candidate;
+        }
+      }
+      return null;
+    };
+
+    const customFlowStart = H.mutateCalls.length;
+    const customPicker = await openModelPicker();
+    let customId = '';
+    if (customPicker !== null) {
+      const createCell = q<HTMLButtonElement>('.dshml-picker-create', customPicker);
+      if (createCell) clickable(createCell).click();
+      const editor = customPicker.isConnected
+        ? await waitFor(() => q('.dshml-custom-editor', customPicker), 4000)
+        : null;
+      add(
+        'the create cell opens the custom-icon editor',
+        true,
+        editor !== null,
+        editor !== null ? describeNode(editor) : 'no .dshml-custom-editor after clicking .dshml-picker-create',
+      );
+      const tabs = editor !== null ? qa('.dshml-custom-tab', editor) : [];
+      add(
+        'the editor switches icon types through tabs, with the image type active',
+        true,
+        tabs.length === 3 && tabs[0]?.getAttribute('aria-selected') === 'true',
+        'tabs=' + JSON.stringify(tabs.map((tab) => text(tab))),
+      );
+      add(
+        'animated and video tabs are disabled and carry the coming-soon hint',
+        true,
+        tabs.length === 3 &&
+          tabs[1]?.getAttribute('aria-disabled') === 'true' &&
+          tabs[2]?.getAttribute('aria-disabled') === 'true' &&
+          text(tabs[1]).indexOf('即将实现') >= 0 &&
+          text(tabs[2]).indexOf('即将实现') >= 0,
+        'tabs=' + tabs.map((tab) => text(tab)).join(' | '),
+      );
+      const nameInput = editor !== null ? q<HTMLInputElement>('.dshml-custom-input', editor) : null;
+      const fileInput = editor !== null ? q<HTMLInputElement>('.dshml-custom-file', editor) : null;
+      add(
+        'the editor offers a name field and a hidden image input',
+        true,
+        nameInput !== null && fileInput !== null && fileInput.type === 'file',
+        nameInput !== null && fileInput !== null
+          ? 'name=' + describeNode(nameInput) + ' file accept="' + String(fileInput.accept) + '"'
+          : 'missing name field or file input',
+      );
+      if (nameInput) setInputValue(nameInput, '本地测试图标');
+      if (fileInput) {
+        const file = await makePngFile('local-icon.png');
+        const transfer = new DataTransfer();
+        transfer.items.add(file);
+        fileInput.files = transfer.files;
+        fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      const cropArea =
+        editor !== null ? await waitFor(() => q('.dshml-custom-cropper .reactEasyCrop_CropArea', editor), 6000) : null;
+      add(
+        'choosing a file opens the real cropper with a square crop area',
+        true,
+        cropArea !== null,
+        cropArea !== null ? describeNode(cropArea) : 'no .reactEasyCrop_CropArea inside .dshml-custom-cropper',
+      );
+      const saveButton = editor !== null ? q<HTMLButtonElement>('.dshml-custom-btn-primary', editor) : null;
+      if (saveButton) clickable(saveButton).click();
+      const createClosed = await waitFor(() => !customPicker.isConnected || !visible(customPicker), 8000);
+      add(
+        'saving a custom icon writes it and closes the picker',
+        true,
+        createClosed !== null,
+        createClosed !== null
+          ? 'picker removed'
+          : 'picker still visible; calls=' + JSON.stringify(H.mutateCalls.slice(customFlowStart)),
+      );
+      const createCall = H.mutateCalls
+        .slice(customFlowStart)
+        .find((call) => JSON.stringify(call).indexOf('customIcons') >= 0);
+      const createOp = findSetOp(Array.isArray(createCall) ? [createCall] : [], 'customIcons', 2);
+      const createPath = createOp !== null && Array.isArray(createOp.path) ? createOp.path : null;
+      customId = createPath !== null && createPath[1] !== undefined ? String(createPath[1]) : '';
+      const iconValue = createOp !== null && isRecord(createOp.value) ? createOp.value : null;
+      const imageValue = iconValue !== null && typeof iconValue.image === 'string' ? iconValue.image : '';
+      const overrideOp =
+        Array.isArray(createCall) &&
+        createCall.some((op) => isRecord(op) && Array.isArray(op.path) && op.path[0] === 'modelIcons')
+          ? (createCall as unknown[]).find(
+              (op) => isRecord(op) && Array.isArray(op.path) && op.path[0] === 'modelIcons',
+            )
+          : null;
+      add(
+        'creating writes customIcons[id] together with the model override',
+        true,
+        createOp !== null &&
+          overrideOp !== null &&
+          iconValue !== null &&
+          iconValue.name === '本地测试图标' &&
+          /^data:image\/(?:png|webp);base64,/.test(imageValue),
+        createOp !== null
+          ? 'id=' + customId + ' name="' + String(iconValue?.name ?? '') + '" image=' + previewValue(imageValue, 32)
+          : 'no customIcons set op in ' + JSON.stringify(H.mutateCalls.slice(customFlowStart)),
+      );
+      add(
+        'the new icon is applied to the current model as custom:<id>',
+        true,
+        isRecord(overrideOp) && overrideOp.value === 'custom:' + customId && customId !== '',
+        overrideOp !== null ? JSON.stringify(overrideOp) : 'no modelIcons op',
+      );
+      const customDoc = settingsValue.customIcons;
+      add(
+        'the custom icon persists in the settings document (not localStorage)',
+        true,
+        customId !== '' && isRecord(customDoc) && isRecord(customDoc[customId]),
+        'customIcons=' + previewValue(customDoc, 200),
+      );
+      const imageMark = await waitFor(() => {
+        const html = iconButton !== null ? (q('.dshml-model-mark', iconButton)?.innerHTML ?? '') : '';
+        return html.indexOf('<image href="data:image/') >= 0 ? html : null;
+      }, 6000);
+      add(
+        'the model row draws the created raster icon',
+        true,
+        imageMark !== null,
+        imageMark !== null ? previewValue(imageMark, 80) : 'mark never contained an <image> element',
+      );
+    } else {
+      add('the create cell opens the custom-icon editor', true, false, 'no picker after clicking the row icon');
+    }
+
+    let renamePicker: HTMLElement | null = null;
+    if (customId !== '') {
+      renamePicker = await openModelPicker();
+      const cells = renamePicker !== null ? qa('.dshml-picker-custom-cell', renamePicker) : [];
+      add(
+        'the custom group lists the created icon with its name',
+        true,
+        cells.length === 1 && text(q('.dshml-picker-option-label', cells[0])) === '本地测试图标',
+        'cells=' + JSON.stringify(cells.map((cell) => text(cell))),
+      );
+      add(
+        'the applied custom icon is marked as the current option',
+        true,
+        cells.length === 1 && q('.dshml-picker-option', cells[0])?.getAttribute('aria-pressed') === 'true',
+        cells.length === 1
+          ? 'aria-pressed=' + String(q('.dshml-picker-option', cells[0])?.getAttribute('aria-pressed'))
+          : 'no cell',
+      );
+      const editButton = cells.length === 1 ? q<HTMLButtonElement>('.dshml-picker-custom-edit', cells[0]) : null;
+      add(
+        'a custom cell exposes the rename control',
+        true,
+        editButton !== null && editButton.tagName === 'BUTTON',
+        editButton !== null ? describeNode(editButton) : 'no .dshml-picker-custom-edit',
+      );
+      if (renamePicker !== null && editButton !== null) {
+        clickable(editButton).click();
+        const renameEditor = await waitFor(() => q('.dshml-custom-editor', renamePicker), 4000);
+        const renameTitle = pickerTitle(renamePicker);
+        const renameInput = renameEditor !== null ? q<HTMLInputElement>('.dshml-custom-input', renameEditor) : null;
+        add(
+          'rename opens the editor with the current name pre-filled',
+          true,
+          renameEditor !== null &&
+            renameTitle.indexOf('重命名自定义图标') >= 0 &&
+            renameInput !== null &&
+            renameInput.value === '本地测试图标',
+          'title="' + renameTitle + '" value="' + String(renameInput?.value ?? '') + '"',
+        );
+        const renameStart = H.mutateCalls.length;
+        if (renameInput) setInputValue(renameInput, '重命名后的图标');
+        const renameSave =
+          renameEditor !== null ? q<HTMLButtonElement>('.dshml-custom-btn-primary', renameEditor) : null;
+        if (renameSave) clickable(renameSave).click();
+        const editorGone = await waitFor(
+          () => (renamePicker !== null ? !q('.dshml-custom-editor', renamePicker) : true),
+          5000,
+        );
+        const renameCall = H.mutateCalls
+          .slice(renameStart)
+          .find((call) => JSON.stringify(call).indexOf('customIcons') >= 0);
+        const renameOp = Array.isArray(renameCall)
+          ? renameCall.find(
+              (op) => isRecord(op) && Array.isArray(op.path) && op.path.length === 3 && op.path[2] === 'name',
+            )
+          : null;
+        add(
+          'renaming writes only customIcons[id].name',
+          true,
+          editorGone !== null &&
+            isRecord(renameOp) &&
+            renameOp.value === '重命名后的图标' &&
+            Array.isArray(renameOp.path) &&
+            String(renameOp.path[1]) === customId,
+          renameOp !== null ? JSON.stringify(renameOp) : 'renamed editor stayed open / no name op',
+        );
+        const renamedLabel =
+          renamePicker !== null ? q('.dshml-picker-custom-cell .dshml-picker-option-label', renamePicker) : null;
+        add(
+          'the renamed custom icon label updates in the picker',
+          true,
+          renamedLabel !== null && text(renamedLabel) === '重命名后的图标',
+          'label="' + text(renamedLabel) + '"',
+        );
+        // Delete: pencil → danger action → inline confirmation.
+        const editAgain =
+          renamePicker !== null ? q<HTMLButtonElement>('.dshml-picker-custom-edit', renamePicker) : null;
+        if (editAgain) clickable(editAgain).click();
+        const deleteEditor =
+          renamePicker !== null ? await waitFor(() => q('.dshml-custom-editor', renamePicker), 4000) : null;
+        const askDelete =
+          deleteEditor !== null ? q<HTMLButtonElement>('.dshml-custom-btn-danger-ghost', deleteEditor) : null;
+        if (askDelete) clickable(askDelete).click();
+        const confirmDelete =
+          deleteEditor !== null
+            ? await waitFor(() => q<HTMLButtonElement>('.dshml-custom-btn-danger', deleteEditor), 4000)
+            : null;
+        add(
+          'deleting asks for an inline confirmation naming the icon',
+          true,
+          confirmDelete !== null && deleteEditor !== null && text(deleteEditor).indexOf('重命名后的图标') >= 0,
+          confirmDelete !== null ? describeNode(confirmDelete) : 'no confirmation button',
+        );
+        const deleteStart = H.mutateCalls.length;
+        if (confirmDelete) clickable(confirmDelete).click();
+        const deleteCall = await waitFor(() => {
+          const calls = H.mutateCalls.slice(deleteStart);
+          return calls.find((call) => JSON.stringify(call).indexOf('customIcons') >= 0) ?? null;
+        }, 5000);
+        const deleteOps = Array.isArray(deleteCall) ? deleteCall.filter(isRecord) : [];
+        const unsetIcon = deleteOps.find(
+          (op) => op.op === 'unset' && Array.isArray(op.path) && op.path[0] === 'customIcons',
+        );
+        const unsetOverride = deleteOps.find(
+          (op) =>
+            op.op === 'unset' &&
+            Array.isArray(op.path) &&
+            op.path[0] === 'modelIcons' &&
+            String(op.path[1]) === config.firstModel.providerId &&
+            String(op.path[2]) === config.firstModel.modelId,
+        );
+        add(
+          'deleting removes the icon and clears every override reference in one write',
+          true,
+          unsetIcon !== undefined && unsetOverride !== undefined,
+          deleteCall !== null ? JSON.stringify(deleteCall) : 'no delete write',
+        );
+        add(
+          'the deleted icon leaves the stored document and the custom group',
+          true,
+          isRecord(settingsValue.customIcons) &&
+            !Object.prototype.hasOwnProperty.call(settingsValue.customIcons, customId) &&
+            isRecord(settingsValue.customIcons) &&
+            Object.keys(settingsValue.customIcons).length === 0 &&
+            renamePicker !== null &&
+            qa('.dshml-picker-custom-cell', renamePicker).length === 0,
+          'customIcons=' + previewValue(settingsValue.customIcons, 120),
+        );
+        const fallbackMark = await waitFor(() => {
+          const html = iconButton !== null ? (q('.dshml-model-mark', iconButton)?.innerHTML ?? '') : '';
+          return html !== '' && html.indexOf('<image href="data:image/') === -1 ? html : null;
+        }, 6000);
+        add(
+          'the model row falls back to the automatic mark after deletion',
+          true,
+          fallbackMark !== null,
+          fallbackMark !== null ? previewValue(fallbackMark, 60) : 'mark stayed on the deleted custom image',
+        );
+      }
+    } else {
+      add('the custom group lists the created icon with its name', true, false, 'create flow did not produce an id');
+    }
+
+    // Never leave an extra picker mounted: the later section-page scenario opens
+    // pickers of its own and `findPicker()` must not resolve this one.
+    for (const leftover of qa('[data-dshml-picker]')) {
+      if (!leftover.isConnected || !visible(leftover)) continue;
+      const closeButton = q<HTMLButtonElement>('.dshml-picker-close', leftover);
+      if (closeButton) clickable(closeButton).click();
+    }
+    await waitFor(() => qa('[data-dshml-picker]').filter(visible).length === 0, 4000);
 
     // Composer label contribution: still registered, and it honours the override.
     const labelRegistration = H.registrations.filter(
@@ -2504,6 +2909,40 @@ async function browserDriver(config: DriverConfig): Promise<void> {
             : 'declared row still has no svg after providerIcons[' + config.customProvider.id + '] was written',
         );
 
+        // The page previews a user-created icon exactly like a brand mark: the
+        // row resolver returns the custom id and the page looks the stored raster
+        // tile up. Replacing the pair's `openai` value keeps the override counts
+        // unchanged for the summary assertion below.
+        const sectionCustomId = 'c-section-demo';
+        const sectionCustomImage = 'data:image/png;base64,iVBORw0KGgo=';
+        form.mutate([
+          {
+            op: 'set',
+            path: ['customIcons', sectionCustomId],
+            value: { name: '页面测试图标', kind: 'image', image: sectionCustomImage, createdAt: 3 },
+          },
+          {
+            op: 'set',
+            path: ['modelIcons', config.firstModel.providerId, config.firstModel.modelId],
+            value: 'custom:' + sectionCustomId,
+          },
+        ]);
+        const sectionCustomPreview = await waitFor(() => {
+          const row = qa('.dshml-section-row', host).find(
+            (candidate) => text(candidate).indexOf(config.firstModel.modelId) >= 0,
+          );
+          const mark = row !== undefined ? q('.dshml-section-mark', row) : null;
+          return mark !== null && q('image', mark) !== null ? mark : null;
+        }, 4000);
+        add(
+          'Model icons page previews a user-created icon in the model row',
+          true,
+          sectionCustomPreview !== null &&
+            q('image', sectionCustomPreview)?.getAttribute('href') === sectionCustomImage,
+          sectionCustomPreview !== null
+            ? 'custom image preview present'
+            : 'no row mark with an <image> element for ' + config.firstModel.modelId,
+        );
         // Reset is offered exactly while a persisted override exists, and clears it
         // with an `unset` on the same flat path.
         const resetButton = q<HTMLButtonElement>(
@@ -2538,7 +2977,10 @@ async function browserDriver(config: DriverConfig): Promise<void> {
           resetGone ? 'reset button removed' : 'reset button still present after the unset',
         );
         // Leave the settings document as the later disposal probes expect it.
-        form.mutate([{ op: 'unset', path: ['modelIcons', config.firstModel.providerId, config.firstModel.modelId] }]);
+        form.mutate([
+          { op: 'unset', path: ['modelIcons', config.firstModel.providerId, config.firstModel.modelId] },
+          { op: 'unset', path: ['customIcons', sectionCustomId] },
+        ]);
       } catch (error) {
         add(
           'Model icons page lists a provider row for the official and the declared channel',
@@ -3050,7 +3492,7 @@ async function main(): Promise<void> {
       const url = pathToFileURL(harnessPath).href + query;
       rmSync(pngPath, { force: true });
       const width = 1280;
-      const height = openMode === 'picker' ? 1100 : 1500;
+      const height = openMode === 'picker' || openMode === 'custom' ? 1100 : 1500;
       const run = runEdge(
         edge,
         [
@@ -3098,7 +3540,7 @@ async function main(): Promise<void> {
     const url = pathToFileURL(harnessPath).href + '?mode=verify';
     const run = runEdge(
       edge,
-      [...edgeArgsBase, `--user-data-dir=${profileDir}`, '--virtual-time-budget=12000', '--dump-dom', url],
+      [...edgeArgsBase, `--user-data-dir=${profileDir}`, '--virtual-time-budget=30000', '--dump-dom', url],
       150000,
     );
     const result = parseResult(run.stdout);

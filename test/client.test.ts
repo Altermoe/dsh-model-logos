@@ -44,8 +44,21 @@ const createElement = (type: unknown, props?: FakeProps | null, ...children: unk
     children: children.length === 1 && Array.isArray(single) ? (single as unknown[]) : children,
   };
 };
+class FakeComponent {
+  props: FakeProps;
+  state: unknown;
+  constructor(props: FakeProps) {
+    this.props = props;
+    this.state = {};
+  }
+  setState(next: unknown): void {
+    this.state = next;
+  }
+}
+
 const fakeReact = {
   createElement,
+  Component: FakeComponent,
   // The label and the settings section subscribe to the icon/catalog stores.
   useSyncExternalStore: <T>(_subscribe: () => void, getSnapshot: () => T): T => getSnapshot(),
   useState: <T>(initial: T | (() => T)): [T, (value: T) => void] => [
@@ -178,11 +191,13 @@ function createMirror() {
   };
 }
 
-/** Settings value the fake form mirrors: both override fields the bundle reads. */
+/** Settings value the fake form mirrors: every field the bundle reads. */
 interface FakeFormValue {
   modelIcons: Record<string, Record<string, string>>;
   /** Absent in a legacy profile that never stored a provider override. */
   providerIcons?: Record<string, string>;
+  /** Absent in a legacy profile that never stored a custom icon. */
+  customIcons?: Record<string, unknown>;
 }
 
 /** Snapshot shape the fake settings form returns to the bundle. */
@@ -211,6 +226,8 @@ interface FakeForm {
 interface FakeFormOptions {
   /** Persisted provider overrides; omit for a legacy document that predates them. */
   providerIcons?: Record<string, string>;
+  /** Persisted custom icons; omit for a legacy document that predates them. */
+  customIcons?: Record<string, unknown>;
 }
 
 function createForm(overrides: Record<string, Record<string, string>>, options: FakeFormOptions = {}): FakeForm {
@@ -219,10 +236,11 @@ function createForm(overrides: Record<string, Record<string, string>>, options: 
     mutateCalls: [],
     snapshot: {
       status: 'ready',
-      value:
-        options.providerIcons === undefined
-          ? { modelIcons: overrides }
-          : { modelIcons: overrides, providerIcons: options.providerIcons },
+      value: {
+        modelIcons: overrides,
+        ...(options.providerIcons === undefined ? {} : { providerIcons: options.providerIcons }),
+        ...(options.customIcons === undefined ? {} : { customIcons: options.customIcons }),
+      },
       base: {},
       user: {},
       revision: 1,
@@ -278,6 +296,31 @@ function createForm(overrides: Record<string, Record<string, string>>, options: 
             revision: form.snapshot.revision + 1,
             value: { ...form.snapshot.value, providerIcons: providers },
           };
+          continue;
+        }
+        // Custom icons: ['customIcons', id] set/unset, or ['customIcons', id, 'name'].
+        if (path[0] === 'customIcons' && path.length === 2) {
+          const iconId = String(path[1]);
+          const icons = { ...(form.snapshot.value.customIcons ?? {}) };
+          if (op.op === 'unset') delete icons[iconId];
+          else icons[iconId] = op.value;
+          form.snapshot = {
+            ...form.snapshot,
+            revision: form.snapshot.revision + 1,
+            value: { ...form.snapshot.value, customIcons: icons },
+          };
+          continue;
+        }
+        if (path[0] === 'customIcons' && path.length === 3 && path[2] === 'name' && op.op === 'set') {
+          const iconId = String(path[1]);
+          const icons = { ...(form.snapshot.value.customIcons ?? {}) };
+          const current = icons[iconId];
+          if (isRecord(current)) icons[iconId] = { ...current, name: String(op.value) };
+          form.snapshot = {
+            ...form.snapshot,
+            revision: form.snapshot.revision + 1,
+            value: { ...form.snapshot.value, customIcons: icons },
+          };
         }
       }
       for (const listener of [...form.listeners]) listener();
@@ -308,6 +351,8 @@ interface ContextOptions {
   overrides?: Record<string, Record<string, string>>;
   /** Persisted provider overrides; omit for a document written before they existed. */
   providerIcons?: Record<string, string>;
+  /** Persisted custom icons; omit for a document written before they existed. */
+  customIcons?: Record<string, unknown>;
   missing?: string[];
   /** Active DSH locale (`en` unless a test forces another language). */
   lang?: string;
@@ -334,13 +379,16 @@ interface FakeContext {
  * Build a plugin context with the services the bundle injects.
  * `missing` names services to withhold (e.g. `['configForms']`).
  */
-function createContext({ overrides = {}, providerIcons, missing = [], lang = 'en' }: ContextOptions = {}) {
+function createContext({ overrides = {}, providerIcons, customIcons, missing = [], lang = 'en' }: ContextOptions = {}) {
   const registrations: Registration[] = [];
   const injectedSlots: string[] = [];
   const effects: Array<{ label: string | undefined; off: unknown }> = [];
   const disposers: unknown[] = [];
   const events: Array<{ event: string; handler: unknown; off: () => void }> = [];
-  const form = createForm(overrides, providerIcons === undefined ? {} : { providerIcons });
+  const form = createForm(overrides, {
+    ...(providerIcons === undefined ? {} : { providerIcons }),
+    ...(customIcons === undefined ? {} : { customIcons }),
+  });
   const mirror = createMirror();
   const services: Record<string, unknown> = {
     configForms: { get: (id: string) => (id === 'dsh-model-logos' ? form : form), describe: () => mirror },
@@ -482,6 +530,7 @@ interface DiagnosticsIconState {
   status: string;
   overrides: Record<string, Record<string, string>>;
   providerOverrides: Record<string, string>;
+  customIcons: Record<string, { id: string; name: string; image: string }>;
   writable: boolean;
   error: string | null;
 }
@@ -679,6 +728,29 @@ describe('generated client bundle', () => {
     );
   });
 
+  it('styles the custom-icon group and editor', () => {
+    const { doc } = loadClient();
+    const style = expectPresent(doc.styleTags[0], 'the plugin stylesheet must be mounted');
+    for (const selector of [
+      '.dshml-picker-back',
+      '.dshml-picker-custom-edit',
+      '.dshml-picker-create',
+      '.dshml-custom-tabs',
+      '.dshml-custom-tab-soon',
+      '.dshml-custom-drop',
+      '.dshml-custom-cropper',
+      '.dshml-custom-btn-primary',
+    ]) {
+      expect(cssRule(style, selector), selector + ' must carry a style block').not.toBe('');
+    }
+    expect(cssRule(style, '.dshml-custom-tab-soon'), 'disabled type tabs must not look clickable').toMatch(
+      /cursor:\s*not-allowed/,
+    );
+    expect(cssRule(style, '.dshml-custom-file'), 'the file input stays out of the visual flow').toMatch(
+      /display:\s*none/,
+    );
+  });
+
   it('draws the brand mark before the catalog name', () => {
     const { registrations } = loadClient();
     const component = labelRegistration(registrations).component;
@@ -742,6 +814,66 @@ describe('generated client bundle', () => {
     expect(expectPresent(findText(tree), 'expected a label text element').children[0]).toBe('My Local Qwen');
   });
 
+  it('renders a user-created icon for the custom sentinel', () => {
+    const image =
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+    const { registrations } = loadClient({
+      customIcons: { 'c-demo': { name: 'My Local Model', kind: 'image', image, createdAt: 1 } },
+      overrides: { acme: { 'acme-chat-1': 'custom:c-demo' } },
+    });
+    const component = labelRegistration(registrations).component;
+    const tree = component(labelProps('acme', 'Acme', 'acme-chat-1', 'Acme Chat 1'));
+    const mark = expectPresent(findMark(tree), 'a custom override must draw the user-created icon');
+    expect(mark.props.title, 'the custom name is the mark title').toBe('My Local Model');
+    const html = mark.props.dangerouslySetInnerHTML?.__html ?? '';
+    expect(html).toMatch(/^<svg/);
+    expect(html, 'the raster payload rides an SVG <image>').toContain('<image href="' + image + '"');
+    expect(html, 'the tile fills its viewBox').toContain('preserveAspectRatio="xMidYMid slice"');
+  });
+
+  it('renders no mark for a stale custom reference', () => {
+    const { registrations } = loadClient({
+      overrides: { acme: { 'acme-chat-1': 'custom:c-missing' } },
+    });
+    const component = labelRegistration(registrations).component;
+    const tree = component(labelProps('acme', 'Acme', 'acme-chat-1', 'Acme Chat 1'));
+    expect(tree, 'a reference to a deleted icon must fall back to the bare name').toBe('Acme Chat 1');
+  });
+
+  it('adopts persisted custom icons from the settings document', () => {
+    loadClient({
+      customIcons: {
+        'c-demo': {
+          name: 'My Local Model',
+          kind: 'image',
+          image: 'data:image/png;base64,iVBORw0KGgo=',
+          createdAt: 1,
+        },
+      },
+    });
+    const state = diagnostics().iconState();
+    expect(Object.keys(state.customIcons)).toEqual(['c-demo']);
+    expect(state.customIcons['c-demo']?.name).toBe('My Local Model');
+  });
+
+  it('folds a custom icon written through the settings form into the icon state', async () => {
+    const loaded = loadClient();
+    const image = 'data:image/png;base64,iVBORw0KGgo=';
+    const ok = await loaded.form.mutate([
+      {
+        op: 'set',
+        path: ['customIcons', 'c-new'],
+        value: { name: 'New Icon', kind: 'image', image, createdAt: 2 },
+      },
+    ]);
+    expect(ok, 'the settings form must accept the custom icon write').toBe(true);
+    expect(diagnostics().iconState().customIcons['c-new']?.name).toBe('New Icon');
+    await loaded.form.mutate([{ op: 'set', path: ['modelIcons', 'acme', 'acme-chat-1'], value: 'custom:c-new' }]);
+    const component = labelRegistration(loaded.registrations).component;
+    const tree = component(labelProps('acme', 'Acme', 'acme-chat-1', 'Acme Chat 1'));
+    expect(expectPresent(findMark(tree), 'the written custom icon must render').props.title).toBe('New Icon');
+  });
+
   it('picks up an override written through the settings form', async () => {
     const loaded = loadClient();
     const component = labelRegistration(loaded.registrations).component;
@@ -778,6 +910,7 @@ describe('generated client bundle', () => {
     const state = diagnostics().iconState();
     expect(state.status).toBe('ready');
     expect(state.providerOverrides).toEqual({});
+    expect(state.customIcons).toEqual({});
     expect(state.overrides).toEqual({ 'deepseek-account': { 'deepseek-flash': 'deepseek' } });
   });
 
