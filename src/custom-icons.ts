@@ -12,6 +12,13 @@
  * artwork. Future animated/video kinds will replace this wrapper with a media
  * mark instead of widening this one.
  *
+ * The tile keeps the shared rounded-square silhouette: brand artwork is a
+ * `rect rx="6"` on the 24-unit canvas, and the `<image>` is clipped by the same
+ * 25% corner radius (`6 / 24`), so a custom icon rounds by 5px at 20px, 5.5px at
+ * 22px and 9px at 36px — the ratio scales with the box instead of hard-coding a
+ * pixel radius. The clip lives in the SVG itself (no stylesheet or wrapper
+ * class), so every current and future surface gets it for free.
+ *
  * The module is pure: no DOM, no side effects. A custom icon is persisted in the
  * plugin's settings namespace (`customIcons`), and an override references it as
  * `custom:<id>`.
@@ -33,6 +40,15 @@ export const DSHML_CUSTOM_MAX_NAME = 24;
 
 /** Square edge length the picker renders a cropped icon into. */
 export const DSHML_CUSTOM_ICON_PX = 128;
+
+/**
+ * Corner-radius ratio of the shared mark tile: every brand mark is a 24-unit
+ * square with `rx="6"`, so a custom icon rounds by 6/24 of its rendered box.
+ */
+const DSHML_CUSTOM_TILE_RADIUS = '25%';
+
+/** Inline clip that gives the raster tile the same rounded corners as artwork. */
+const DSHML_CUSTOM_TILE_CLIP = 'clip-path: inset(0 round ' + DSHML_CUSTOM_TILE_RADIUS + ')';
 
 /**
  * Upper bound on the stored data-URL string (128 KiB of characters).
@@ -289,8 +305,9 @@ export function dshmlCustomMarkFor(icons: CustomIconDocument, value: unknown): D
 
 /**
  * The inline SVG tile a custom icon renders as: one 24×24 `<svg>` whose `<image>`
- * fills the viewBox with the cropped data URL. No ids, scripts, event handlers
- * or external references; the data URL is XML-escaped.
+ * fills the viewBox with the cropped data URL, clipped to the shared rounded
+ * corners. No ids, scripts, event handlers or external references; the data URL
+ * is XML-escaped and the clip is a constant.
  * @param icon - stored custom icon (or any object carrying its `image`).
  */
 export function dshmlCustomMarkSvg(icon: Pick<CustomIcon, 'image'> | null | undefined): string {
@@ -299,7 +316,9 @@ export function dshmlCustomMarkSvg(icon: Pick<CustomIcon, 'image'> | null | unde
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">' +
     '<image href="' +
     escapeXml(image) +
-    '" x="0" y="0" width="24" height="24" preserveAspectRatio="xMidYMid slice"/>' +
+    '" x="0" y="0" width="24" height="24" preserveAspectRatio="xMidYMid slice" style="' +
+    DSHML_CUSTOM_TILE_CLIP +
+    '"/>' +
     '</svg>'
   );
 }

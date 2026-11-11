@@ -229,6 +229,9 @@ describe('custom mark tile', () => {
     expect(svg).toContain('width="24"');
     expect(svg).toContain('height="24"');
     expect(svg).toContain('preserveAspectRatio="xMidYMid slice"');
+    expect(svg, 'the raster tile keeps the shared 6/24 rounded corners').toContain(
+      'style="clip-path: inset(0 round 25%)"',
+    );
     expect(svg).not.toMatch(/\sid\s*=/);
     expect(svg).not.toMatch(/<script/);
   });

@@ -434,9 +434,12 @@ that recorded them, not from the current build.
   canvas encode, then writes `customIcons[id]` and the overriding `custom:<id>` value
   in one settings write. The icon is stored in the same volatile-config document as
   the overrides (never localStorage), rendered as a 24×24 `<svg><image href="data:…">`
-  so every mark surface keeps its string contract, and removable together with every
-  reference in one `mutate` batch. Type tabs for animated images and video are
-  rendered disabled with the `即将实现` label; the persisted `kind` field reserves their
+  whose image is clipped by `clip-path: inset(0 round 25%)` — the same 6/24 corner
+  radius as every brand plate, so the tile rounds by 5px at 20px, 5.5px at 22px and
+  9px at 36px. Every mark surface keeps its string contract, and the icon is
+  removable together with every reference in one `mutate` batch. Type tabs for
+  animated images and video are rendered disabled with the `即将实现` label; the
+  persisted `kind` field reserves their
   document shape. The crop rectangle is clamped and the payload validated in
   `src/custom-icons.ts`; `test/custom-icons.test.ts` pins the id/sentinel parsing,
   name rules, document hardening (hostile shapes, `__proto__`, unknown kinds),
@@ -454,7 +457,7 @@ that recorded them, not from the current build.
   and its model reference, the fallback mark afterwards, and the Model icons page
   preview of a stored custom icon. The harness also publishes a watchdog result when
   a driver step throws, so a broken run reports its collected assertions instead of an
-  empty dump. `pnpm run verify:dom` passes **111 assertions** on the final tree.
+  empty dump. `pnpm run verify:dom` passes **112 assertions** on the final tree.
 - The provider-icon contract is pinned from four sides. `test/resolve.test.ts` pins
   the precedence matrix (override → official channel → letter tile, and a declared
   provider resolving to nothing), the flat document's immutable edits and its

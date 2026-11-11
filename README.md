@@ -109,10 +109,13 @@ a square viewport before saving a 128×128 square. The cropped PNG (WebP when it
 would exceed the payload budget) is stored in the DSH settings document's
 `customIcons` field, and an override references it as `custom:<id>` — the same
 document as `modelIcons` / `providerIcons`, so the icons travel with the rest of the
-user settings instead of a browser-local store, and no network request is made. A
-custom icon works for any model or provider exactly like a brand mark; the pencil on
-its cell renames it, and the editor's delete action asks for confirmation and clears
-every override that referenced it in the same write, so those rows fall back to auto.
+user settings instead of a browser-local store, and no network request is made. The
+tile keeps the same rounded-square silhouette as the brand marks — a 6/24 corner
+radius that scales with the box, so it rounds by 5px at 20px, 5.5px at 22px and 9px
+at 36px — and a custom icon works for any model or provider exactly like a brand
+mark; the pencil on its cell renames it, and the editor's delete action asks for
+confirmation and clears every override that referenced it in the same write, so
+those rows fall back to auto.
 
 The type tabs at the top of the editor already reserve the follow-up formats:
 **Image** works, **Animated** and **Video** are disabled and labelled "Coming soon".

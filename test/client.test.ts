@@ -829,6 +829,7 @@ describe('generated client bundle', () => {
     expect(html).toMatch(/^<svg/);
     expect(html, 'the raster payload rides an SVG <image>').toContain('<image href="' + image + '"');
     expect(html, 'the tile fills its viewBox').toContain('preserveAspectRatio="xMidYMid slice"');
+    expect(html, 'the custom tile rounds like brand artwork').toContain('clip-path: inset(0 round 25%)');
   });
 
   it('renders no mark for a stale custom reference', () => {

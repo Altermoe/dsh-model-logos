@@ -279,7 +279,10 @@ private primitives internals.
   picker renders the result as a self-contained 24×24 `<svg>` whose `<image>` element
   carries the cropped data URL, so every existing mark surface (composer label,
   Settings decoration, picker previews, Model icons page) keeps its single `svg`
-  string contract and the 20 / 22 / 36 px size ladder. The editor is reached from
+  string contract and the 20 / 22 / 36 px size ladder. The image is clipped by
+  `clip-path: inset(0 round 25%)` on the image element: the tile therefore keeps the
+  same 6/24 corner radius as the brand plates, scaling to 5 / 5.5 / 9 px at the three
+  shipped mark sizes instead of hard-coding one pixel radius. The editor is reached from
   the picker's `自定义` group: `+` opens create, the pencil on a cell opens rename,
   and the rename editor carries the confirm-then-delete action. Delete clears the
   icon and every override that referenced it in the same `configForms.mutate` call,

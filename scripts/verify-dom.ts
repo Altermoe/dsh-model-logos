@@ -2590,6 +2590,12 @@ async function browserDriver(config: DriverConfig): Promise<void> {
         imageMark !== null,
         imageMark !== null ? previewValue(imageMark, 80) : 'mark never contained an <image> element',
       );
+      add(
+        'the custom tile is clipped to the shared rounded corners',
+        true,
+        imageMark !== null && imageMark.indexOf('clip-path: inset(0 round 25%)') >= 0,
+        imageMark !== null ? previewValue(imageMark, 80) : 'no custom raster mark to inspect',
+      );
     } else {
       add('the create cell opens the custom-icon editor', true, false, 'no picker after clicking the row icon');
     }

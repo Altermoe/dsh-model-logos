@@ -208,6 +208,9 @@ function validateCustomIcons(): void {
   const sample = dshmlCustomMarkSvg({ image: 'data:image/png;base64,iVBORw0KGgo=' });
   if (!sample.trim().startsWith('<svg')) problems.push('src/custom-icons.ts: a custom mark must start with <svg');
   if (/\sid\s*=/.test(sample)) problems.push('src/custom-icons.ts: a custom mark must not use id attributes');
+  if (!sample.includes('clip-path: inset(0 round 25%)')) {
+    problems.push('src/custom-icons.ts: a custom mark must clip its image to the shared 6/24 rounded tile');
+  }
   if (/<script|\son[a-z]+\s*=|https?:/i.test(sample.replace(/\sxmlns[^=]*="[^"]*"/gi, ''))) {
     problems.push('src/custom-icons.ts: a custom mark must stay self-contained');
   }
