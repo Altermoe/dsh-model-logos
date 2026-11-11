@@ -270,9 +270,15 @@ gh release create vX dsh-model-logos.tgz --title "dsh-model-logos X" --notes-fil
 `pnpm pack` names the file `dsh-model-logos-<version>.tgz`; rename it to
 `dsh-model-logos.tgz` before attaching it. That name is version-free on purpose: `latest/download/`
 takes the filename literally, so a version in the name 404s at the next release.
-Record its SHA-256 in the release notes. Afterwards check `pnpm view
-dsh-model-logos version`, the release page, and verify a clean-profile install
-with `dsh plugin --profile web add dsh-model-logos`.
+Record its SHA-256 in the release notes.
+
+Bump `version` and cut a matching annotated `v<version>` tag with its GitHub
+release before publishing a new version (`v0.6.0`, `0.7.0`, ...). The tag and
+the `package.json` version must agree, or the storefront and `dshmarket` show a
+version that does not exist on npm.
+
+Afterwards check `pnpm view dsh-model-logos version`, the release page, and verify a
+clean-profile install with `dsh plugin --profile web add dsh-model-logos`.
 
 The module map, contribution rules and the verification log are in
 [`docs/engineering.md`](docs/engineering.md); the runtime contract and design

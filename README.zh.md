@@ -138,7 +138,7 @@ pnpm run verify
 pnpm publish --access public   # 账号开启 2FA 时加 --otp <验证码>
 ```
 
-发布新版本前先提升 `version`，并建立对应的 `v<version>` tag 与 release。发布后用
+发布新版本前先提升 `version`，并建立对应的附注 `v<version>` tag 与 release（`v0.6.0`、`0.7.0`……）；tag 必须与 `package.json` 的版本一致，否则商店与 `dshmarket` 会显示一个 npm 上并不存在的版本。发布后用
 `pnpm view dsh-model-logos version` 确认版本，再用
 `dsh plugin --profile web add dsh-model-logos` 在干净配置档里验证安装。
 
