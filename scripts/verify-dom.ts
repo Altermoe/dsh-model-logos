@@ -95,6 +95,8 @@ interface DriverConfig {
   accountProvider: { id: string; displayName: string };
   customProvider: { id: string; displayName: string };
   firstModel: { providerId: string; modelId: string; displayName: string };
+  /** Models the Host-generation catalog advertises for the signed-in account route. */
+  accountModels: Array<{ id: string; name: string }>;
 }
 
 /**
@@ -162,6 +164,13 @@ const DRIVER_CONFIG: DriverConfig = {
   accountProvider: { id: 'deepseek-account', displayName: 'DeepSeek 账号' },
   customProvider: { id: 'volcengine', displayName: '火山 Coding Plan' },
   firstModel: { providerId: 'anthropic', modelId: 'claude-sonnet-4.5', displayName: 'Claude Sonnet 4.5' },
+  // The account route has no settings-document model list: these are what the
+  // Host-generation catalog advertises, and the only names the Model icons page
+  // can show for it.
+  accountModels: [
+    { id: 'deepseek-flash', name: 'DeepSeek-V4.1-Flash' },
+    { id: 'deepseek-v4-pro', name: 'DeepSeek-V4.1-Pro' },
+  ],
 };
 
 /* -------------------------------------------------------------------------- */
@@ -545,6 +554,25 @@ async function browserDriver(config: DriverConfig): Promise<void> {
     return null;
   }
 
+  /** The first recorded `modelIcons[providerId][modelId]` operation of one kind. */
+  function dshmlModelOp(
+    providerId: string,
+    modelId: string,
+    op: 'set' | 'unset',
+    from?: number,
+  ): Record<string, unknown> | null {
+    const calls = H.mutateCalls.slice(from === undefined ? 0 : from);
+    for (const call of calls) {
+      for (const candidate of Array.isArray(call) ? call : []) {
+        if (!isRecord(candidate)) continue;
+        const path = candidate.path;
+        if (candidate.op !== op || !Array.isArray(path)) continue;
+        if (path[0] === 'modelIcons' && path[1] === providerId && path[2] === modelId) return candidate;
+      }
+    }
+    return null;
+  }
+
   const fieldPath = (field: unknown): unknown[] => (Array.isArray(field) ? field : String(field).split('.'));
 
   let cachedSnapshot: FormSnapshot | null = null;
@@ -651,8 +679,22 @@ async function browserDriver(config: DriverConfig): Promise<void> {
       return Promise.resolve([]);
     },
   };
+  const session = {
+    /** The Host-generation catalog: the only source for the account model list. */
+    modelCatalog(): Promise<unknown> {
+      const provider = config.accountProvider.id;
+      const models = config.accountModels.map((model) => ({ id: model.id, name: model.name }));
+      return Promise.resolve({
+        default: { provider, model: models[0]?.id ?? '' },
+        routableProviders: models.length > 0 ? [provider] : [],
+        groups: models.length > 0 ? [{ id: provider, name: 'DeepSeek Account', models }] : [],
+        failures: [],
+      });
+    },
+  };
   const remote = {
     llm,
+    session,
     settings: {
       get(): Promise<undefined> {
         return Promise.resolve(undefined);
@@ -703,7 +745,9 @@ async function browserDriver(config: DriverConfig): Promise<void> {
     // injects `remote.llm` (not `remote`) because property reads of a folded name
     // are refused on a context that did not inject it. Resolve the exact key.
     'remote.llm': llm,
+    'remote.session': session,
     llm,
+    session,
     theme: {
       getSnapshot(): { mode: string; appearance: string } {
         return { mode: 'light', appearance: 'light' };
@@ -2845,6 +2889,74 @@ async function browserDriver(config: DriverConfig): Promise<void> {
               ? Math.round(sectionDeclaredBox.width) + '×' + Math.round(sectionDeclaredBox.height)
               : 'no box'),
         );
+
+        // `deepseek-account` keeps no model list in its settings namespace: the
+        // signed-in account listing is the only source, reached through the
+        // Host-generation catalog. Without this merge the provider row above is
+        // the only row the account route ever gets, so no per-model icon can be
+        // chosen for `deepseek-flash` / `deepseek-v4-pro`.
+        const accountModel = config.accountModels[0] ?? { id: '', name: '' };
+        const accountModelRow =
+          accountModel.id === ''
+            ? null
+            : await waitFor(() => {
+                const rows = qa<HTMLElement>('.dshml-section-row', host);
+                return rows.find((row) => text(row).indexOf(accountModel.id) >= 0) ?? null;
+              }, 6000);
+        add(
+          'Model icons page lists a live-catalog account model with its advertised name',
+          true,
+          accountModelRow !== null && text(accountModelRow).indexOf(accountModel.name) >= 0,
+          accountModelRow !== null
+            ? 'row text "' + text(accountModelRow) + '"'
+            : 'no row for ' + (accountModel.id === '' ? '<no account model>' : accountModel.id),
+        );
+
+        // The per-model write the request is about: choose an icon on that account
+        // row and prove it lands under `modelIcons[deepseek-account][<model id>]`.
+        let accountPicker: HTMLElement | null = null;
+        const accountChoose = accountModelRow ? q<HTMLButtonElement>('.dshml-section-btn', accountModelRow) : null;
+        if (accountChoose !== null) {
+          clickable(accountChoose).click();
+          accountPicker = await waitFor(() => findPicker(), 5000);
+        }
+        add(
+          'Model icons page opens the model picker for an account model',
+          true,
+          accountPicker !== null,
+          accountPicker !== null
+            ? 'title "' + pickerTitle(accountPicker) + '"'
+            : 'choose button=' + describeNode(accountChoose) + ', picker=' + describeNode(findPicker()),
+        );
+        if (accountPicker !== null && accountModel.id !== '') {
+          const accountWriteStart = H.mutateCalls.length;
+          const accountBrand = findPickerOption(accountPicker, 'OpenAI');
+          if (accountBrand !== null) clickable(accountBrand).click();
+          const accountWrite = await waitFor(
+            () => dshmlModelOp(config.accountProvider.id, accountModel.id, 'set', accountWriteStart),
+            5000,
+          );
+          const accountPath =
+            accountWrite !== null && Array.isArray(accountWrite.path) ? (accountWrite.path as unknown[]) : null;
+          add(
+            'Model icons page writes modelIcons[deepseek-account][model] for the account model',
+            true,
+            accountBrand !== null &&
+              accountPath !== null &&
+              accountPath.length === 3 &&
+              accountPath[0] === 'modelIcons' &&
+              accountPath[1] === config.accountProvider.id &&
+              accountPath[2] === accountModel.id &&
+              accountWrite?.value === 'openai',
+            accountWrite !== null
+              ? 'op=' + JSON.stringify(accountWrite)
+              : 'mutate calls=' + JSON.stringify(H.mutateCalls.slice(accountWriteStart)),
+          );
+          await waitFor(() => !accountPicker.isConnected || !visible(accountPicker), 4000);
+          // The summary assertion below pins the override counts, so leave the
+          // document exactly as this probe found it.
+          form.mutate([{ op: 'unset', path: ['modelIcons', config.accountProvider.id, accountModel.id] }]);
+        }
 
         // Choose → the same provider-scope picker the Settings seat opens, and the
         // write lands under `providerIcons[<route id>]`, not under a model pair.

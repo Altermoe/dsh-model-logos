@@ -180,13 +180,13 @@ function createObserverRegistry() {
 }
 
 /** A configForms mirror (used by the section catalog, irrelevant to the label). */
-function createMirror() {
+function createMirror(namespaces: unknown[] = []) {
   return {
     ensure: (): Promise<void> => Promise.resolve(),
     subscribe: (): (() => void) => () => {},
     getSnapshot: (): { status: string; view: { namespaces: unknown[] } } => ({
       status: 'ready',
-      view: { namespaces: [] },
+      view: { namespaces },
     }),
   };
 }
@@ -356,6 +356,10 @@ interface ContextOptions {
   missing?: string[];
   /** Active DSH locale (`en` unless a test forces another language). */
   lang?: string;
+  /** Provider groups the fake `remote.session.modelCatalog()` advertises. */
+  liveGroups?: unknown[];
+  /** Settings-document namespaces the fake mirror exposes to the catalog reader. */
+  namespaces?: unknown[];
 }
 
 interface FakeScope {
@@ -379,7 +383,15 @@ interface FakeContext {
  * Build a plugin context with the services the bundle injects.
  * `missing` names services to withhold (e.g. `['configForms']`).
  */
-function createContext({ overrides = {}, providerIcons, customIcons, missing = [], lang = 'en' }: ContextOptions = {}) {
+function createContext({
+  overrides = {},
+  providerIcons,
+  customIcons,
+  missing = [],
+  lang = 'en',
+  liveGroups = [],
+  namespaces = [],
+}: ContextOptions = {}) {
   const registrations: Registration[] = [];
   const injectedSlots: string[] = [];
   const effects: Array<{ label: string | undefined; off: unknown }> = [];
@@ -389,7 +401,13 @@ function createContext({ overrides = {}, providerIcons, customIcons, missing = [
     ...(providerIcons === undefined ? {} : { providerIcons }),
     ...(customIcons === undefined ? {} : { customIcons }),
   });
-  const mirror = createMirror();
+  const mirror = createMirror(namespaces);
+  const session = {
+    modelCatalog: async () => ({
+      groups: liveGroups,
+      failures: [],
+    }),
+  };
   const services: Record<string, unknown> = {
     configForms: { get: (id: string) => (id === 'dsh-model-logos' ? form : form), describe: () => mirror },
     remote: {
@@ -401,9 +419,11 @@ function createContext({ overrides = {}, providerIcons, customIcons, missing = [
         ],
         listProviders: async () => [{ id: 'deepseek-account', name: 'DeepSeek Account' }],
       },
+      session,
       settings: { mutate: async () => true },
       $on: () => () => {},
     },
+    'remote.session': session,
     locale: {
       getSnapshot: () => ({ active: lang }),
       subscribe: () => () => {},
@@ -535,9 +555,24 @@ interface DiagnosticsIconState {
   error: string | null;
 }
 
+/** Catalog snapshot the bundle publishes for the Model icons page. */
+interface DiagnosticsCatalog {
+  status: string;
+  providers: Array<{
+    providerId: string;
+    displayName: string;
+    official: boolean;
+    declared: boolean;
+    models: Array<{ modelId: string; name: string }>;
+  }>;
+  error: string | null;
+}
+
 /** The read-only diagnostics surface `apply()` publishes on `globalThis`. */
 interface Diagnostics {
   iconState(): DiagnosticsIconState;
+  catalog(): DiagnosticsCatalog;
+  refreshCatalog(): Promise<void>;
 }
 
 /** Read the diagnostics surface, failing loudly when `apply()` never set it. */
@@ -562,9 +597,13 @@ const flatten = (node: unknown): Array<FakeElement | string> => {
   if (Array.isArray(node)) return node.flatMap((item) => flatten(item));
   if (typeof node !== 'object') return [];
   const element = node as FakeElement;
+  // The fake React never renders function components; expand them here so a
+  // rendered section's rows (not just the page chrome) are inspectable.
+  const rendered =
+    typeof element.type === 'function' ? flatten((element.type as (props: FakeProps) => unknown)(element.props)) : [];
   const own = flatten(element.children ?? []);
   const nested = element.props?.children === undefined ? [] : flatten(element.props.children);
-  return [element, ...own, ...nested];
+  return [element, ...own, ...nested, ...rendered];
 };
 
 const labelProps = (providerId: string, providerName: string, modelId: string, modelName: string): LabelProps => ({
@@ -619,6 +658,64 @@ describe('generated client bundle', () => {
     if (sectionLabel === undefined) throw new Error('the section needs a nav label');
     expect(typeof sectionLabel()).toBe('string');
     expect(sectionLabel().trim() !== '', 'the section nav label must not be empty').toBeTruthy();
+  });
+
+  it('merges the live session catalog so account models get their own rows', async () => {
+    // `deepseek-account` keeps its models in the account listing, not in a
+    // settings document: the directory names the provider, but only the
+    // Host-generation catalog can name its models. Without this merge the Model
+    // icons page could never offer a per-model row for it.
+    const { registrations } = loadClient({
+      namespaces: [
+        {
+          ns: 'llm-deepseek',
+          value: { models: [{ id: 'deepseek-flash', name: 'Settings Flash' }] },
+        },
+      ],
+      liveGroups: [
+        {
+          id: 'deepseek-official',
+          name: 'DeepSeek',
+          models: [
+            { id: 'deepseek-flash', name: 'Live Flash' },
+            { id: 'deepseek-live-only', name: 'Live Only' },
+          ],
+        },
+        {
+          id: 'deepseek-account',
+          name: 'DeepSeek Account',
+          models: [
+            { id: 'deepseek-flash', name: 'DeepSeek-V4.1-Flash' },
+            { id: 'deepseek-reasoner', name: 'DeepSeek-V4.1-Reasoner' },
+          ],
+        },
+      ],
+    });
+    await diagnostics().refreshCatalog();
+    const catalog = diagnostics().catalog();
+    const official = catalog.providers.find((provider) => provider.providerId === 'deepseek-official');
+    // A settings-document model keeps its configured name and comes first; the
+    // live catalog only appends the models it is uniquely able to name.
+    expect(official?.models.map(({ modelId, name }) => ({ modelId, name }))).toEqual([
+      { modelId: 'deepseek-flash', name: 'Settings Flash' },
+      { modelId: 'deepseek-live-only', name: 'Live Only' },
+    ]);
+    const account = catalog.providers.find((provider) => provider.providerId === 'deepseek-account');
+    expect(account, 'the live catalog must contribute the account provider').toBeTruthy();
+    expect(account?.models.map((model) => model.modelId)).toEqual(['deepseek-flash', 'deepseek-reasoner']);
+    expect(account?.models[0]?.name, 'the advertised name, not the bare id').toBe('DeepSeek-V4.1-Flash');
+
+    const section = expectPresent(
+      registrations.find((entry) => entry.options.name === 'settings.section'),
+      'the Model icons section must be registered',
+    );
+    const tree = section.component({});
+    const texts = flatten(tree).filter((node): node is string => typeof node === 'string');
+    expect(texts.includes('DeepSeek-V4.1-Flash'), 'the account model name must render').toBe(true);
+    expect(
+      texts.some((text) => text.includes('deepseek-flash')),
+      'the account model id must render on its row',
+    ).toBe(true);
   });
 
   it('sizes the composer mark at 20px, the Settings marks on the 22px base and the picker preview at 36px', () => {

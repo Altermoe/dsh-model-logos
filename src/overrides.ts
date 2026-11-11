@@ -8,6 +8,12 @@
  * through the same snapshot store, so an override set anywhere is reflected
  * everywhere immediately.
  *
+ * The catalog joins the provider directory, the settings-document model lists
+ * (`llm-pi-ai`, `llm-deepseek`) and the Host-generation catalog exposed by
+ * `remote.session.modelCatalog()`. The last source is what gives a signed-in
+ * `deepseek-account` route (whose models live in the account listing, not in a
+ * settings namespace) its per-model rows on the Model icons page.
+ *
  * Persistence: the Host plugin's Config declares the volatile `modelIcons`,
  * `providerIcons` and `customIcons` fields, so the settings document mirror
  * carries them. Writes go through `ctx.configForms.get(NS)` →
@@ -65,6 +71,7 @@ import type {
   ProviderOverrideDocument,
   RemoteLlmService,
   RemoteService,
+  RemoteSessionService,
   SettingsNamespaceView,
   VendorMark,
 } from './types';
@@ -113,6 +120,7 @@ let dshmlCatalogGeneration = 0;
 /** Services captured while mounting. */
 let dshmlRemoteService: RemoteService | null = null;
 let dshmlRemoteLlm: RemoteLlmService | null = null;
+let dshmlRemoteSession: RemoteSessionService | null = null;
 let dshmlConfigFormsService: ConfigFormsService | null = null;
 
 /**
@@ -689,6 +697,46 @@ function dshmlModelsFromView(view: SettingsNamespaceView | null | undefined): Ds
   return out;
 }
 
+/** One provider group read from `remote.session.modelCatalog()`. */
+interface DshmlLiveCatalogGroup {
+  providerId: string;
+  displayName: string;
+  models: DshmlCatalogModelRow[];
+}
+
+/**
+ * Read the Host-generation model catalog (`session.modelCatalog()`) into the
+ * same `{providerId, modelId, name}` rows the settings-document readers produce.
+ *
+ * This is the only source for routes whose catalog is not stored in settings:
+ * `deepseek-account` keeps its models in the account listing, so without this
+ * reader the Model icons page could show the provider row but never a model row
+ * to pick an icon for. Unknown shapes degrade to an empty list.
+ * @param catalog - raw `modelCatalog()` answer (host-shaped, so unbounded).
+ */
+function dshmlLiveCatalogGroups(catalog: unknown): DshmlLiveCatalogGroup[] {
+  const groups: DshmlLiveCatalogGroup[] = [];
+  for (const group of dshmlListOf(dshmlRead(catalog, 'groups'))) {
+    const rawProvider = dshmlRead(group, 'id');
+    const providerId = typeof rawProvider === 'string' ? rawProvider.trim() : '';
+    if (providerId === '') continue;
+    const rawGroupName = dshmlRead(group, 'name');
+    const displayName =
+      typeof rawGroupName === 'string' && rawGroupName.trim() !== '' ? rawGroupName.trim() : providerId;
+    const models: DshmlCatalogModelRow[] = [];
+    for (const model of dshmlListOf(dshmlRead(group, 'models'))) {
+      const id = dshmlRead(model, 'id');
+      const modelId = typeof id === 'string' ? id.trim() : '';
+      if (modelId === '') continue;
+      const rawName = dshmlRead(model, 'name');
+      const name = typeof rawName === 'string' && rawName.trim() !== '' ? rawName.trim() : modelId;
+      models.push({ providerId, modelId, name });
+    }
+    groups.push({ providerId, displayName, models });
+  }
+  return groups;
+}
+
 /** One provider entry while the catalog is assembled. */
 interface DshmlCatalogEntry {
   providerId: string;
@@ -699,13 +747,23 @@ interface DshmlCatalogEntry {
   modelIds: Set<string>;
 }
 
-/** Join the provider directory with the settings-document model lists. */
+/**
+ * Join the provider directory with the settings-document model lists and the
+ * Host-generation model catalog.
+ * @param directory - `listConfigurableProviders()` answer.
+ * @param registered - `listProviders()` answer.
+ * @param views - settings-document namespaces (`llm-pi-ai`, `llm-deepseek`, …).
+ * @param overrides - persisted model overrides.
+ * @param providerOverrides - persisted provider overrides.
+ * @param live - `session.modelCatalog()` answer: models that have no settings entry.
+ */
 function dshmlBuildCatalog(
   directory: unknown,
   registered: unknown,
   views: readonly SettingsNamespaceView[],
   overrides: OverrideDocument,
   providerOverrides: ProviderOverrideDocument,
+  live: unknown,
 ): CatalogProvider[] {
   const providers = new Map<string, DshmlCatalogEntry>();
   const ensureProvider = (
@@ -756,6 +814,21 @@ function dshmlBuildCatalog(
       entry.models.push({ modelId: model.modelId, name: model.name, manual: false });
     }
   }
+  // Live catalog rows come after the settings-document rows so a configured
+  // display name/order always wins, but before the override rows: an account
+  // model the user already iconised must still be listed with its advertised
+  // name instead of falling back to the bare model id.
+  for (const group of dshmlLiveCatalogGroups(live)) {
+    const entry = ensureProvider(group.providerId, group.displayName, true, false);
+    if (entry.displayName === group.providerId && group.displayName !== group.providerId) {
+      entry.displayName = group.displayName;
+    }
+    for (const model of group.models) {
+      if (entry.modelIds.has(model.modelId)) continue;
+      entry.modelIds.add(model.modelId);
+      entry.models.push({ modelId: model.modelId, name: model.name, manual: false });
+    }
+  }
   for (const row of flattenOverrides(overrides)) {
     const entry = ensureProvider(row.providerId, row.providerId, false, false);
     if (entry.modelIds.has(row.modelId)) continue;
@@ -781,14 +854,30 @@ function dshmlBuildCatalog(
   return ordered;
 }
 
-/** Refresh the catalog snapshot from the directory, the mirror and overrides. */
+/** Refresh the catalog snapshot from the directory, the mirror, the live catalog and overrides. */
 export async function dshmlRefreshCatalog(): Promise<void> {
   const generation = ++dshmlCatalogGeneration;
   const llm = dshmlRemoteLlm;
+  const session = dshmlRemoteSession;
   const configForms = dshmlConfigFormsService;
+  const hadProviders = dshmlCatalogState().providers.length > 0;
   let directory: unknown = [];
   let registered: unknown = [];
   const warnings: string[] = [];
+  // Start the possibly network-backed live read now: the settings-backed rows
+  // below never wait for it, and the final publish merges it when it lands.
+  // The signed-in account route (and any other listing-only route) advertises
+  // its models only through this catalog; a failed read is an optional
+  // enrichment and leaves the settings-sourced catalog usable.
+  const liveRead = (async (): Promise<unknown> => {
+    if (session === null || typeof session.modelCatalog !== 'function') return null;
+    try {
+      return dshmlUnwrapRemote(await session.modelCatalog()) ?? null;
+    } catch (error) {
+      warnings.push(dshmlErrorMessage(error));
+      return null;
+    }
+  })();
   try {
     if (llm !== null) {
       if (typeof llm.listConfigurableProviders === 'function') {
@@ -820,8 +909,28 @@ export async function dshmlRefreshCatalog(): Promise<void> {
       }
     }
     if (generation !== dshmlCatalogGeneration) return;
+    // On the first load, publish the settings-backed catalog before the live
+    // catalog lands: provider seats and the settings-document model rows must
+    // not wait on an account /models round trip. Later refreshes already have
+    // content on screen and publish once, with the live rows merged.
+    if (!hadProviders) {
+      const beforeLive = dshmlIconState();
+      const settingsProviders = dshmlBuildCatalog(
+        directory,
+        registered,
+        views,
+        beforeLive.overrides,
+        beforeLive.providerOverrides,
+        null,
+      );
+      if (settingsProviders.length > 0) {
+        dshmlPublishCatalog({ status: 'ready', providers: settingsProviders, error: null });
+      }
+    }
+    const live = await liveRead;
+    if (generation !== dshmlCatalogGeneration) return;
     const state = dshmlIconState();
-    const providers = dshmlBuildCatalog(directory, registered, views, state.overrides, state.providerOverrides);
+    const providers = dshmlBuildCatalog(directory, registered, views, state.overrides, state.providerOverrides, live);
     if (providers.length === 0 && warnings.length > 0 && dshmlCatalogState().providers.length === 0) {
       dshmlPublishCatalog({ status: 'unavailable', providers: [], error: warnings[0] ?? null });
       return;
@@ -891,6 +1000,18 @@ function dshmlMountRemoteLlmScope(scope: DshContext): () => void {
   dshmlScheduleCatalogRefresh(0);
   return function cleanup() {
     if (dshmlRemoteLlm === service) dshmlRemoteLlm = null;
+  };
+}
+
+/** Wire the Host-generation model catalog (`remote.session` projected namespace). */
+function dshmlMountRemoteSessionScope(scope: DshContext): () => void {
+  const session = dshmlServiceOf(scope, 'remote.session');
+  if (session === undefined) return function noop() {};
+  const service = session as RemoteSessionService;
+  dshmlRemoteSession = service;
+  dshmlScheduleCatalogRefresh(0);
+  return function cleanup() {
+    if (dshmlRemoteSession === service) dshmlRemoteSession = null;
   };
 }
 
@@ -964,6 +1085,7 @@ export function dshmlMountIconStore(ctx: DshContext): void {
     ['configForms', dshmlMountSettingsScope],
     ['remote', dshmlMountRemoteScope],
     ['remote.llm', dshmlMountRemoteLlmScope],
+    ['remote.session', dshmlMountRemoteSessionScope],
   ];
   for (const [service, wire] of scopes) {
     try {

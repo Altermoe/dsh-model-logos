@@ -291,9 +291,23 @@ export interface RemoteLlmService {
   listProviders?(): Promise<unknown>;
 }
 
+/**
+ * The `remote.session` projected namespace.
+ *
+ * `modelCatalog()` is the Host-generation list of every currently routable
+ * provider and model — the same catalog the composer selector reads. It is the
+ * only client-visible source for routes whose models are not stored in a
+ * settings document (the signed-in `deepseek-account` listing), so the Model
+ * icons page merges it into its catalog.
+ */
+export interface RemoteSessionService {
+  modelCatalog?(): Promise<unknown>;
+}
+
 /** The `remote` root service (event forwarding + projected namespaces). */
 export interface RemoteService {
   llm?: RemoteLlmService;
+  session?: RemoteSessionService;
   $on?(event: string, handler: () => void): unknown;
 }
 
