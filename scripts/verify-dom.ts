@@ -2890,6 +2890,55 @@ async function browserDriver(config: DriverConfig): Promise<void> {
               : 'no box'),
         );
 
+        // The Settings decorator must not shape this page. A row's name is a leaf
+        // span in a two-child header with no action buttons beside it, which is
+        // exactly the shape the decorator's editor-title rule accepts: its seat
+        // then lands in the name's column flex and stacks a second, duplicate icon
+        // above the name. The page marks itself plugin-owned; prove the pass honours
+        // it by mounting a section-shaped row inside the real dialog and checking
+        // that no seat is inserted into it.
+        add(
+          'Model icons page marks itself plugin-owned (data-dshml-section)',
+          true,
+          q('[data-dshml-section="1"]', host) !== null,
+          q('[data-dshml-section="1"]', host) !== null
+            ? 'root carries data-dshml-section="1"'
+            : 'the rendered page root has no data-dshml-section marker',
+        );
+        const decoratorDialog = q<HTMLElement>('[data-shortcut-modal="settings"]');
+        const guardProbe = document.createElement('div');
+        guardProbe.setAttribute('data-dshml-section', '1');
+        guardProbe.style.cssText = 'position:fixed;left:-10000px;top:0;width:320px';
+        guardProbe.innerHTML =
+          '<div class="dshml-section-row">' +
+          '<span class="dshml-section-mark" aria-hidden="true"></span>' +
+          '<div class="dshml-section-row-text">' +
+          '<span class="dshml-section-row-name">' +
+          config.officialProvider.displayName +
+          '</span>' +
+          '<span class="dshml-section-row-id">' +
+          config.officialProvider.id +
+          '</span>' +
+          '</div>' +
+          '</div>';
+        let guardSeats = -1;
+        if (decoratorDialog !== null) {
+          decoratorDialog.appendChild(guardProbe);
+          // The pass runs synchronously for a mutation inside the dialog; the wait
+          // only covers a debounced pass in case the record was not classified.
+          await sleep(140);
+          guardSeats = guardProbe.querySelectorAll('[data-dshml-seat]').length;
+          guardProbe.remove();
+        }
+        add(
+          'Settings decorator never inserts a vendor seat into the Model icons page',
+          true,
+          guardSeats === 0,
+          decoratorDialog === null
+            ? 'settings dialog missing'
+            : 'seats inside a section-shaped row=' + String(guardSeats),
+        );
+
         // `deepseek-account` keeps no model list in its settings namespace: the
         // signed-in account listing is the only source, reached through the
         // Host-generation catalog. Without this merge the provider row above is

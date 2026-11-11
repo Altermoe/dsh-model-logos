@@ -553,6 +553,11 @@ above.
    - While the directory is still loading, a saved row name (recognisable from its
      row actions) gets the provisional empty seat, so the name cannot jump when
      the mark arrives.
+   - The plugin's own Model icons page is out of scope: its root carries
+     `data-dshml-section="1"` and the pass skips every span inside it. That page
+     draws its own 22px row marks, and a row's leaf-span name header is exactly the
+     shape the editor-title rule accepts — the seat would land in the name's column
+     flex as a second, duplicate icon above the name.
      Idempotent: a pass reconciles the seat in place and writes only on change.
 3. **Model rows**: `input` in the modal whose `aria-label` matches
    `/^(?:Model ID|模型 ?ID|Display name|显示名称)\s+\d+$/` (model id input,

@@ -516,3 +516,15 @@ that recorded them, not from the current build.
   picker from it and the `modelIcons[deepseek-account][<model id>]` write.
   `pnpm run verify` passes 124 tests; `pnpm run verify:dom` passes 115
   assertions.
+
+- **The Model icons page keeps its own marks.** The decorator's provider-name rule
+  accepted a row's leaf-span name header on that page as an editor title (a leaf
+  span in a two-child header, no action buttons beside it), so it inserted a second
+  22px vendor seat into the name's column flex — every provider row showed a
+  duplicate icon stacked above its name, next to the row's own mark. The page root
+  now carries `data-dshml-section="1"` and the pass skips its spans, also dropping a
+  seat left by a hot-reloaded build. `test/client.test.ts` pins the marker on the
+  rendered root; `verify:dom` mounts a section-shaped row inside the Settings dialog
+  and proves no seat is inserted into it (with the guard disabled that assertion
+  reports exactly one seat). `pnpm run verify` passes 125 tests;
+  `pnpm run verify:dom` passes 117 assertions.

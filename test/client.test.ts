@@ -660,6 +660,19 @@ describe('generated client bundle', () => {
     expect(sectionLabel().trim() !== '', 'the section nav label must not be empty').toBeTruthy();
   });
 
+  it('marks the Model icons page as plugin-owned so the Settings decorator leaves it alone', () => {
+    // The page draws its own 22px row marks. Without the marker the decorator's
+    // provider-name rule accepts a row's leaf-span header as an editor title and
+    // inserts its seat into the name's column flex — a duplicate icon above it.
+    const { registrations } = loadClient();
+    const section = expectPresent(
+      registrations.find((entry) => entry.options.name === 'settings.section'),
+      'the Model icons section must be registered',
+    );
+    const tree = section.component({}) as unknown as FakeElement;
+    expect(tree.props['data-dshml-section'], 'the page root must carry the plugin-owned marker').toBe('1');
+  });
+
   it('merges the live session catalog so account models get their own rows', async () => {
     // `deepseek-account` keeps its models in the account listing, not in a
     // settings document: the directory names the provider, but only the

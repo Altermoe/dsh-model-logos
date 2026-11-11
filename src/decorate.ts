@@ -44,6 +44,17 @@ const DSHML_CHEVRON_SVG =
 const DSHML_SETTINGS_ROOT = '[data-shortcut-modal="settings"]';
 
 /**
+ * The plugin's own Settings page (`settings.section`).
+ *
+ * That page draws the mark of every row itself, so this decorator must leave it
+ * alone. Its rows are leaf-span name headers with no action buttons beside them —
+ * exactly the shape the editor-title rule accepts — and the seat the pass would
+ * insert lands in the name's column flex, i.e. a second icon stacked above the
+ * name instead of one beside it.
+ */
+const DSHML_SECTION_ROOT = '[data-dshml-section="1"]';
+
+/**
  * Last markup this module wrote into each inserted element.
  *
  * The decoration is driven by a MutationObserver over `document.body`, and
@@ -632,6 +643,13 @@ function dshmlDecorateProviderNames(root: Element, providers: readonly CatalogPr
     if (span.childElementCount !== 0) continue;
     // Never decorate our own inserted UI (the combobox menu reuses plain spans).
     if (span.closest('[data-dshml-owner="1"]') !== null) continue;
+    // The Model icons page owns its marks: an extra seat here would duplicate the
+    // row's icon above its name. A hot reload can leave a seat from the previous
+    // build inside that page, so drop one if it is there.
+    if (span.closest(DSHML_SECTION_ROOT) !== null) {
+      dshmlRemoveSeatBefore(span);
+      continue;
+    }
     const text = dshmlTextOf(span);
     if (text === '') continue;
     const isRowName = dshmlIsRowName(span);

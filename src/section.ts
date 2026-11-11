@@ -973,5 +973,10 @@ export function DshmlModelIconsSection(_props: unknown): ReactElement {
   }
   children.push(manualForm);
 
-  return h('div', { className: 'dshml-section' }, children);
+  // `data-dshml-section` tells the Settings decorator that this page is
+  // plugin-owned: every row already draws its own 22px mark, and the row's
+  // leaf-span name header is structurally indistinguishable from an editor title,
+  // so the decorator's provider-name seat would land above the name as a second,
+  // duplicated icon.
+  return h('div', { className: 'dshml-section', 'data-dshml-section': '1' }, children);
 }
