@@ -1,3 +1,8 @@
 {
-  "screenshots": ["docs/preview-picker.png", "docs/preview-settings.png", "docs/preview-composer.png"]
+  "screenshots": [
+    "docs/preview-picker.png",
+    "docs/preview-custom-icon.png",
+    "docs/preview-settings.png",
+    "docs/preview-composer.png"
+  ]
 }

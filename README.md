@@ -5,7 +5,7 @@
 Brand marks for the models you actually use — a small plugin for the DeepSeek
 Harness (DSH) Web GUI.
 
-![The icon picker: auto, no icon, a letter tile, then vendor and model marks — searchable](docs/preview-picker.png)
+![The icon picker: the custom-icon group with its create cell, auto / no icon / letter tile, then vendor and model marks — searchable](docs/preview-picker.png)
 
 ## Why icons?
 
@@ -77,7 +77,8 @@ harness — channels are chosen by logo, not by route id.
 - **A picker you can always reach** — clicking a model's icon in Settings → Models
   opens it, clicking a provider's mark seat opens it in provider mode, and the Model
   icons page offers both per row, so fixing a wrong guess costs one click and no
-  configuration-file editing.
+  configuration-file editing. The same modal is where custom icons are created,
+  renamed and deleted.
 
 Everything else is added around the existing interface, and disabling the plugin
 removes the decoration and puts the page back as it was.
@@ -99,20 +100,40 @@ model can be overridden:
 **The provider's icon is configurable too.** Clicking the mark seat beside a provider
 name in Settings → Models, or the choose button on a provider row of the Model icons
 page, opens the same picker in provider mode: pick a vendor mark, a letter tile, or
-no icon, and reset back to auto. This is the only way to give a hand-declared
-provider (a relay, a local server) a mark of your own — the plugin still refuses to
-invent one, so its seat stays empty until you choose.
+no icon, and reset back to auto. A hand-declared provider (a relay, a local server)
+can pick a shipped mark there too; for artwork of your own, use a custom icon below.
 
-Provider overrides live in `providerIcons` and model overrides in `modelIcons`, so
-the two never collide; a provider override wins over the official channel table, and
-an unknown channel still falls back to its deterministic letter tile.
+**Custom icons.** The picker's first group is **Custom icons**; its `+ New` cell
+opens an editor where you name the icon, pick a local image, and pan/zoom it inside
+a square viewport before saving a 128×128 square. The cropped PNG (WebP when it
+would exceed the payload budget) is stored in the DSH settings document's
+`customIcons` field, and an override references it as `custom:<id>` — the same
+document as `modelIcons` / `providerIcons`, so the icons travel with the rest of the
+user settings instead of a browser-local store, and no network request is made. A
+custom icon works for any model or provider exactly like a brand mark; the pencil on
+its cell renames it, and the editor's delete action asks for confirmation and clears
+every override that referenced it in the same write, so those rows fall back to auto.
 
-The picker shows the two groups one below the other and searches both at once. Some
-companies and their models share one graphic (DeepSeek, Mistral, MiniMax); those
-marks appear in the model group and the vendor channel rows reuse the same artwork.
-Where the two really differ — Anthropic vs Claude, Google vs Gemini, Alibaba vs
-Qwen, ByteDance vs Doubao — the picker offers both marks instead of passing one off
-as the other.
+The type tabs at the top of the editor already reserve the follow-up formats:
+**Image** works, **Animated** and **Video** are disabled and labelled "Coming soon".
+Cropping uses the MIT-licensed
+[react-easy-crop](https://github.com/ValentineH/react-easy-crop) rather than a
+hand-rolled drag box. Limits: 40 custom icons, 24-character names, 12 MB source
+files.
+
+![Create a custom icon: type tabs, name, square crop and zoom; animated/video are labelled "Coming soon"](docs/preview-custom-icon.png)
+
+Provider overrides live in `providerIcons`, model overrides in `modelIcons`, and
+user-created icons in `customIcons`, so none of them collide; a provider override
+wins over the official channel table, and an unknown channel still falls back to its
+deterministic letter tile.
+
+Custom icons come first, then the vendor and model groups, and search covers all of
+them at once. Some companies and their models share one graphic (DeepSeek, Mistral,
+MiniMax); those marks appear in the model group and the vendor channel rows reuse
+the same artwork. Where the two really differ — Anthropic vs Claude, Google vs
+Gemini, Alibaba vs Qwen, ByteDance vs Doubao — the picker offers both marks instead
+of passing one off as the other.
 
 Within each group, marks are ordered by measured online prominence rather than
 alphabetically: a small, reproducible snapshot combines GitHub, npm, Wikipedia,
@@ -122,9 +143,9 @@ first. The method and raw numbers are in
 
 Model overrides are pinned to a `provider + model` pair, so two providers serving a
 same-named model can show different marks; provider overrides are keyed by the route
-id alone. They live in the DSH user settings document (the profile's
-`cordis.patch.yml`) — `modelIcons` and `providerIcons` — next to your other
-preferences, not in localStorage, and with no network request involved.
+id alone. All of it lives in the DSH user settings document (the profile's
+`cordis.patch.yml`) — `modelIcons`, `providerIcons` and `customIcons` — next to your
+other preferences, not in localStorage, and with no network request involved.
 
 ## The honest cases
 

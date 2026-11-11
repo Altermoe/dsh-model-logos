@@ -170,6 +170,19 @@ import z from '@deepseek-ai/schemastery';
 export const Config = z.object({
   modelIcons: z.dict(z.dict(z.string())).volatile(), // providerId → modelId → icon key
   providerIcons: z.dict(z.string()).volatile(), // providerId → icon key
+  customIcons: z
+    .dict(
+      z.object({
+        name: z.string(),
+        kind: z.string().default('image'), // animated/video land here later
+        image: z
+          .string()
+          .pattern(/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/u)
+          .max(131072),
+        createdAt: z.number().default(0),
+      }),
+    )
+    .volatile(), // generated id → user-created icon
 });
 
 export function apply() {}
@@ -186,12 +199,22 @@ Client reads/writes it through `configForms.get('dsh-model-logos')`:
   (heuristic initial icon for a model; the official channel table for a provider).
 - `providerIcons` is one level flat because a provider has no model dimension, so a
   provider override and a model override can never collide.
+- `customIcons` maps a generated icon id to its user-created payload. An override
+  references it with the `custom:<id>` sentinel in either override field, so the
+  image and the override that applies it live in one settings document. The image is
+  a cropped 128×128 PNG (WebP when the PNG exceeds the payload budget) data URL,
+  validated by the Host schema and again by the browser parser; the dict is bounded
+  by the picker (40 icons). `kind` is persisted now and only `image` is read today, so
+  the animated/video tabs can store their payload without a document migration.
 - `@deepseek-ai/schemastery` must be a real dependency of the plugin (the host
   imports it; a linked local install needs `pnpm install` in this repo).
 
 Note: the host half is loaded at Host start / plugin reload. Changing `index.js`
 requires the plugin entry to be reloaded (plugin manager toggle or app restart);
-the browser half hot-reloads through the existing HMR transport.
+the browser half hot-reloads through the existing HMR transport. This also applies
+to the `customIcons` field added in 0.7.0: an already-running Host keeps the old
+Config schema until the entry reloads, so custom-icon writes are rejected (and the
+picker shows its localized save error) until then.
 
 ### 3.4 Browser module baseline
 
@@ -244,9 +267,39 @@ private primitives internals.
      declared provider (or one the user cleared) can be given a mark on the spot;
      only a seat with no resolved identity is inert.
 - **Model logo** resolution order:
-  1. explicit override in `modelIcons[providerId][modelId]` (`'none'` → no icon);
+  1. explicit override in `modelIcons[providerId][modelId]` (`'none'` → no icon,
+     `'letter'` → generated tile, `'custom:<id>'` → a stored user icon);
   2. heuristic (`matchModelLogo`) — this is only the _initial_ icon;
   3. none.
+- **Provider logo** resolution order is the same, with `providerIcons[providerId]`:
+  override (`none` / `letter` / `custom:<id>`) → official channel table → the letter
+  tile for an official channel only.
+- **User-created icons.** A custom icon is the one mark the plugin does not own:
+  the user picks a local image, crops it square in the picker, and names it. The
+  picker renders the result as a self-contained 24×24 `<svg>` whose `<image>` element
+  carries the cropped data URL, so every existing mark surface (composer label,
+  Settings decoration, picker previews, Model icons page) keeps its single `svg`
+  string contract and the 20 / 22 / 36 px size ladder. The editor is reached from
+  the picker's `自定义` group: `+` opens create, the pencil on a cell opens rename,
+  and the rename editor carries the confirm-then-delete action. Delete clears the
+  icon and every override that referenced it in the same `configForms.mutate` call,
+  so a half-applied delete can never leave a row pointing at nothing.
+  - **Storage is the settings document, not localStorage.** The image is user data
+    the overrides reference, so it lives in the same `dsh-model-logos` namespace:
+    copy the profile and the icons travel with it; clearing site data cannot remove
+    them; every browser sees the same icon. The cost is a base64 string in
+    `cordis.patch.yml`, which the 128 px crop and the 128 KiB payload cap bound.
+  - **Cropping is a library, not a hand-rolled drag box.**
+    [`react-easy-crop`](https://github.com/ValentineH/react-easy-crop) (MIT) provides
+    pan/zoom/keyboard interaction; the plugin owns the square viewport, the zoom
+    slider and the canvas encode (PNG first, WebP fallback). `src/custom-icons.ts`
+    keeps the pure parts (payload validation, crop-rectangle clamping, the SVG tile)
+    unit-tested without a browser.
+  - **The follow-up kinds have a visible seat, not a hidden TODO.** The editor's type
+    tabs are `静态图片` / `动图` / `视频`; the latter two are `aria-disabled`, labelled
+    `即将实现`, and carry a native title. The persisted `kind` field already
+    distinguishes them, so adding a payload parser does not change the document
+    shape.
 - Icons are inline SVG tiles. Settings marks render on one shared 22px base; the
   composer label draws a 20px mark that fits its 13px/20px line box exactly, and the
   icon picker preview is the single enlarged surface at 36px. The composer label is

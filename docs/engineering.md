@@ -106,6 +106,12 @@ src/logos/manual.ts               LOGOS — the eight derived and hand-drawn exc
 src/logos/groups.ts               groupLogoEntries, filterLogoGroups, SHARED_VENDOR_MARKS
 src/logos/ranking.ts              LOGO_RANKS, RANKING_DATE — generated snapshot summary
 src/logos/index.ts                LOGOS — the merged set every renderer reads
+src/custom-icons.ts               DSHML_CUSTOM_PREFIX, dshmlCustomIconsOf,
+                                  dshmlCustomIconList, dshmlCustomIconIdOf,
+                                  dshmlCustomIconKey, dshmlValidateCustomName,
+                                  dshmlIsCustomImageDataUrl, dshmlIsAcceptedImageType,
+                                  dshmlCropRect, dshmlCustomMarkSvg, dshmlNewCustomIconId,
+                                  the name/payload limits
 scripts/import-logos.ts           offline importer/checker for the official artwork
 scripts/derive-marks.ts           --check for reference/derived/ (the Z and the aurora)
 scripts/rank-logos.ts             --collect/--check for reference/rankings.json
@@ -123,15 +129,25 @@ src/overrides.ts    icon store + settings persistence + catalog store:
                     dshmlResolveFor, dshmlResolveProviderFor, dshmlLetterTextFor,
                     dshmlProviderLetterTextFor, dshmlModelMark, dshmlVendorMark,
                     dshmlSetModelIcon, dshmlClearModelIcon, dshmlSetProviderIcon,
-                    dshmlClearProviderIcon, dshmlRefreshCatalog,
-                    dshmlScheduleCatalogRefresh, dshmlMountIconStore
+                    dshmlClearProviderIcon, dshmlCreateCustomIcon,
+                    dshmlRenameCustomIcon, dshmlDeleteCustomIcon,
+                    dshmlRefreshCatalog, dshmlScheduleCatalogRefresh,
+                    dshmlMountIconStore; also writes customIcons through the same
+                    configForms form (optimistic snapshots + Host re-read)
 src/picker.ts       dshmlOpenIconPicker (model scope and provider scope) + the shared
                     picker helpers the settings section reuses (DSHML_LETTER_ICON,
                     DSHML_PICKER_NONE_SVG, dshmlUiCopy, dshmlUiCurrentError,
                     dshmlUiOverrides, dshmlUiProviderOverrides,
                     dshmlUiOverrideValue, dshmlUiProviderOverrideValue,
                     dshmlUiLogo, dshmlUiLetterTile, dshmlUiProviderLetterTile,
-                    dshmlUiResolve, dshmlUiResolveProvider, dshmlUiUseIconState)
+                    dshmlUiResolve, dshmlUiResolveProvider, dshmlUiUseIconState,
+                    dshmlUiCustomIcons, dshmlUiCustomIcon, dshmlUiCustomMark); owns
+                    the `自定义` group and the create/rename/delete editor shell
+src/custom-icon-editor.ts
+                    DshmlCustomIconEditor — name, type tabs (image enabled; animated
+                    and video disabled with the coming-soon hint), image upload,
+                    react-easy-crop viewport, zoom, canvas encode, rename and
+                    confirm-then-delete; rendered inside the picker's modal shell
 src/decorate.ts     dshmlMountSettingsDecorator, dshmlDecorateNow,
                     dshmlRequestDecorate
 src/nav-icon.ts     DSHML_NAV_MARKER, DSHML_NAV_ICON_SVG, DSHML_NAV_ICON_URL,
@@ -143,11 +159,13 @@ src/section.ts      DshmlModelIconsSection
 src/client.ts       `inject` + `apply` — the bundle entry; owns the composer
                     label and the stylesheet
 src/host.ts         host half: volatile Config for the `dsh-model-logos` namespace
+                    (modelIcons, providerIcons, customIcons)
 ```
 
 Dependency direction (no cycles): `types` ← `runtime` ← everything;
 `match` ← `resolve` ← `overrides` ← `picker` ← `section` / `decorate` ← `client`;
-`logos` ← `overrides`/`picker`/`section`; `i18n` ← `overrides`/`picker`/`decorate`/`nav-icon`/`client`;
+`logos` ← `overrides`/`picker`/`section`; `custom-icons` ← `resolve`/`overrides`/`picker`/`section`;
+`overrides` ← `custom-icon-editor` ← `picker`; `i18n` ← `overrides`/`picker`/`custom-icon-editor`/`decorate`/`nav-icon`/`client`;
 `nav-icon` ← `decorate`/`client`.
 
 ## 5. Source conventions
@@ -320,9 +338,11 @@ that recorded them, not from the current build.
   renders the plugin's 16 px settings-navigation glyph next to shipped nav icons
   on light and dark surfaces.
 - The README preview set is generated from the current build, never hand-captured.
-  `pnpm exec tsx scripts/verify-dom.ts --screenshot docs/preview-settings.png --open combobox`
-  and `... --screenshot docs/preview-picker.png --open picker` render the decorated
-  Settings page and the icon picker from the real generated bundle; `pnpm exec tsx
+  `pnpm exec tsx scripts/verify-dom.ts --screenshot docs/preview-settings.png --open combobox`,
+  `... --screenshot docs/preview-picker.png --open picker` and
+  `... --screenshot docs/preview-custom-icon.png --open custom` render the decorated
+  Settings page, the icon picker and the custom-icon editor from the real generated
+  bundle; `pnpm exec tsx
   scripts/preview-logos.ts --only-set composer --scale 2 --out docs/preview-composer.png`
   renders the composer trigger and model-menu mock at the shipped 20px mark size;
   `pnpm exec tsx scripts/preview-logos.ts --out docs/preview.png` renders the artwork
@@ -409,6 +429,32 @@ that recorded them, not from the current build.
 - `pnpm run verify` on the final tree: typecheck, lint (0 errors; warnings are the
   pre-existing `verify-dom.ts` style notes), fmt:check, 93 unit/bundle tests,
   `logo:check`, `rank:check`, build and artifact freshness all pass.
+- **User-created icons.** The picker's `自定义` group creates an icon from a local
+  image: the editor names it, crops it square through `react-easy-crop` (MIT) and a
+  canvas encode, then writes `customIcons[id]` and the overriding `custom:<id>` value
+  in one settings write. The icon is stored in the same volatile-config document as
+  the overrides (never localStorage), rendered as a 24×24 `<svg><image href="data:…">`
+  so every mark surface keeps its string contract, and removable together with every
+  reference in one `mutate` batch. Type tabs for animated images and video are
+  rendered disabled with the `即将实现` label; the persisted `kind` field reserves their
+  document shape. The crop rectangle is clamped and the payload validated in
+  `src/custom-icons.ts`; `test/custom-icons.test.ts` pins the id/sentinel parsing,
+  name rules, document hardening (hostile shapes, `__proto__`, unknown kinds),
+  payload limits, crop geometry, ordering and the escaped SVG tile.
+  `test/resolve.test.ts` pins the `custom:<id>` resolution branch and its
+  malformed-value fallback; `test/client.test.ts` pins the composer mark for a
+  persisted custom icon, the bare-name fallback for a deleted reference, the state
+  adoption of the `customIcons` field and the settings-form round-trip.
+  `scripts/verify-dom.ts` drives the whole user flow through the rendered UI: the
+  custom group and create cell, the three tabs and the disabled/annotated pair, the
+  name field and hidden file input, a real PNG File through `DataTransfer`, the live
+  cropper crop area, the create write validating `custom:<id>` and the persisted data
+  URL, the model row's `<image>` mark, the selected custom cell, the rename write
+  (`customIcons[id].name` only), the confirm-then-delete write that unsets the icon
+  and its model reference, the fallback mark afterwards, and the Model icons page
+  preview of a stored custom icon. The harness also publishes a watchdog result when
+  a driver step throws, so a broken run reports its collected assertions instead of an
+  empty dump. `pnpm run verify:dom` passes **111 assertions** on the final tree.
 - The provider-icon contract is pinned from four sides. `test/resolve.test.ts` pins
   the precedence matrix (override → official channel → letter tile, and a declared
   provider resolving to nothing), the flat document's immutable edits and its
