@@ -124,6 +124,7 @@ export const SOURCE_MARKS: readonly SourceMark[] = [
   color('google', 'google-color', 'Google', 'vendor', '#FFFFFF', { scale: 0.84 }),
   mono('groq', 'groq', 'Groq', 'vendor', '#F55036'),
   color('huggingface', 'huggingface-color', 'Hugging Face', 'vendor', '#FFFFFF', { scale: 0.82 }),
+  mono('lmstudio', 'lmstudio', 'LM Studio', 'vendor', '#5B3FD6'),
   mono('meta', 'meta', 'Meta', 'vendor', '#0064E0', { aliases: [alias('llama', 'Llama')] }),
   color('microsoft', 'microsoft-color', 'Microsoft', 'vendor', '#F5F5F7', {
     scale: 0.86,
@@ -180,6 +181,8 @@ export interface ManualMark {
  * (the black tile with the white "Z") from `reference/derived/zhipu-z.svg`.
  * `gemini`: an inlined tile may not carry ids or gradient definitions, so the
  * Lobe `gemini-color.svg` aurora is flattened into id-free colour bands.
+ * `volcengine`: the official two-blue mountain mark from the site header
+ * (`reference/volcengine.svg`); the Lobe colour file carries older brand hexes.
  */
 export const MANUAL_MARKS: readonly ManualMark[] = [
   {
@@ -220,6 +223,13 @@ export const MANUAL_MARKS: readonly ManualMark[] = [
     reason: 'no official mark found; hand-drawn letterform fallback',
   },
   {
+    key: 'volcengine',
+    title: 'Volcengine',
+    group: 'vendor',
+    reason:
+      'the official two-blue mountain mark from reference/volcengine.svg; the Lobe volcengine-color.svg still uses older brand hexes',
+  },
+  {
     key: 'xiaomi',
     title: 'Xiaomi',
     group: 'vendor',
@@ -253,6 +263,7 @@ export const REQUIRED_VENDOR_KEYS: readonly string[] = Object.freeze([
   'google',
   'groq',
   'huggingface',
+  'lmstudio',
   'meta',
   'microsoft',
   'moonshot',
@@ -266,6 +277,7 @@ export const REQUIRED_VENDOR_KEYS: readonly string[] = Object.freeze([
   'together',
   'typesafe',
   'vercel',
+  'volcengine',
   'xai',
   'xiaomi',
   'zhipu',
@@ -329,7 +341,7 @@ function assertSourceMark(mark: SourceMark): void {
 }
 
 /**
- * Assert the configuration covers exactly the required 57 keys: every source
+ * Assert the configuration covers exactly the required 59 keys: every source
  * mark, every alias and every manual exception, each in exactly one group.
  */
 export function assertConfigCoverage(): void {

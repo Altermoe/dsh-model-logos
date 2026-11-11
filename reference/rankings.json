@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "collectedAt": "2026-11-10T08:14:17.726Z",
+  "collectedAt": "2026-11-11T06:18:03.794Z",
   "window": {
     "start": "2026-05-01",
     "end": "2026-10-31"
@@ -41,57 +41,11 @@
   ],
   "keys": [
     {
-      "key": "anthropic",
-      "title": "Anthropic",
-      "group": "vendor",
-      "rank": 1,
-      "score": 0.866528,
-      "lowConfidence": false,
-      "inherited": [],
-      "missing": [
-        "huggingface"
-      ],
-      "sources": {
-        "github": {
-          "value": 95395,
-          "handle": "anthropics",
-          "url": "https://api.github.com/orgs/anthropics"
-        },
-        "npm": {
-          "value": 65073320,
-          "handle": "@anthropic-ai/sdk",
-          "url": "https://api.npmjs.org/downloads/point/last-week/%40anthropic-ai%2Fsdk"
-        },
-        "wikipedia": {
-          "value": 1793298,
-          "handle": "en:Anthropic | zh:Anthropic",
-          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Anthropic/monthly/20260501/20261031",
-          "detail": {
-            "en": {
-              "title": "Anthropic",
-              "views": 1685783
-            },
-            "zh": {
-              "title": "Anthropic",
-              "views": 107515
-            }
-          }
-        },
-        "bilibili": {
-          "value": 740419,
-          "numResults": 1000,
-          "sumTop20Plays": 740419,
-          "handle": "Anthropic",
-          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=Anthropic"
-        }
-      }
-    },
-    {
       "key": "google",
       "title": "Google",
       "group": "vendor",
-      "rank": 2,
-      "score": 0.866135,
+      "rank": 1,
+      "score": 0.870534,
       "lowConfidence": false,
       "inherited": [],
       "missing": [],
@@ -138,11 +92,57 @@
       }
     },
     {
+      "key": "anthropic",
+      "title": "Anthropic",
+      "group": "vendor",
+      "rank": 2,
+      "score": 0.868142,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "huggingface"
+      ],
+      "sources": {
+        "github": {
+          "value": 95395,
+          "handle": "anthropics",
+          "url": "https://api.github.com/orgs/anthropics"
+        },
+        "npm": {
+          "value": 65073320,
+          "handle": "@anthropic-ai/sdk",
+          "url": "https://api.npmjs.org/downloads/point/last-week/%40anthropic-ai%2Fsdk"
+        },
+        "wikipedia": {
+          "value": 1793298,
+          "handle": "en:Anthropic | zh:Anthropic",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Anthropic/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Anthropic",
+              "views": 1685783
+            },
+            "zh": {
+              "title": "Anthropic",
+              "views": 107515
+            }
+          }
+        },
+        "bilibili": {
+          "value": 740419,
+          "numResults": 1000,
+          "sumTop20Plays": 740419,
+          "handle": "Anthropic",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=Anthropic"
+        }
+      }
+    },
+    {
       "key": "openai",
       "title": "OpenAI",
       "group": "vendor",
       "rank": 3,
-      "score": 0.827956,
+      "score": 0.831393,
       "lowConfidence": false,
       "inherited": [],
       "missing": [],
@@ -193,7 +193,7 @@
       "title": "NVIDIA",
       "group": "vendor",
       "rank": 4,
-      "score": 0.813172,
+      "score": 0.816049,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -241,7 +241,7 @@
       "title": "GitHub",
       "group": "vendor",
       "rank": 5,
-      "score": 0.80605,
+      "score": 0.812995,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -287,7 +287,7 @@
       "title": "Meta",
       "group": "vendor",
       "rank": 6,
-      "score": 0.769889,
+      "score": 0.773984,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -335,7 +335,7 @@
       "title": "Microsoft",
       "group": "vendor",
       "rank": 7,
-      "score": 0.764287,
+      "score": 0.773032,
       "lowConfidence": false,
       "inherited": [],
       "missing": [],
@@ -386,7 +386,7 @@
       "title": "Cloudflare",
       "group": "vendor",
       "rank": 8,
-      "score": 0.704552,
+      "score": 0.712879,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -432,7 +432,7 @@
       "title": "Vercel",
       "group": "vendor",
       "rank": 9,
-      "score": 0.637744,
+      "score": 0.648209,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -474,7 +474,7 @@
       "title": "ByteDance",
       "group": "vendor",
       "rank": 10,
-      "score": 0.624408,
+      "score": 0.632299,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -522,7 +522,7 @@
       "title": "AWS",
       "group": "vendor",
       "rank": 11,
-      "score": 0.617233,
+      "score": 0.628296,
       "lowConfidence": false,
       "inherited": [],
       "missing": [],
@@ -573,7 +573,7 @@
       "title": "Hugging Face",
       "group": "vendor",
       "rank": 12,
-      "score": 0.579378,
+      "score": 0.591157,
       "lowConfidence": false,
       "inherited": [],
       "missing": [],
@@ -624,7 +624,7 @@
       "title": "Microsoft Azure",
       "group": "vendor",
       "rank": 13,
-      "score": 0.566943,
+      "score": 0.582909,
       "lowConfidence": false,
       "inherited": [
         "huggingface"
@@ -678,7 +678,7 @@
       "title": "Moonshot AI",
       "group": "vendor",
       "rank": 14,
-      "score": 0.565429,
+      "score": 0.571808,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -726,7 +726,7 @@
       "title": "Alibaba",
       "group": "vendor",
       "rank": 15,
-      "score": 0.556434,
+      "score": 0.571575,
       "lowConfidence": false,
       "inherited": [],
       "missing": [],
@@ -777,7 +777,7 @@
       "title": "Tencent",
       "group": "vendor",
       "rank": 16,
-      "score": 0.538369,
+      "score": 0.549479,
       "lowConfidence": false,
       "inherited": [],
       "missing": [],
@@ -828,7 +828,7 @@
       "title": "Ollama",
       "group": "vendor",
       "rank": 17,
-      "score": 0.513412,
+      "score": 0.526447,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -874,7 +874,7 @@
       "title": "Zhipu AI",
       "group": "vendor",
       "rank": 18,
-      "score": 0.498488,
+      "score": 0.507846,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -922,7 +922,7 @@
       "title": "Xiaomi",
       "group": "vendor",
       "rank": 19,
-      "score": 0.454853,
+      "score": 0.463965,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -970,7 +970,7 @@
       "title": "OpenCode",
       "group": "vendor",
       "rank": 20,
-      "score": 0.397426,
+      "score": 0.414009,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -1012,7 +1012,7 @@
       "title": "OpenRouter",
       "group": "vendor",
       "rank": 21,
-      "score": 0.370228,
+      "score": 0.387868,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -1050,11 +1050,57 @@
       }
     },
     {
+      "key": "groq",
+      "title": "Groq",
+      "group": "vendor",
+      "rank": 22,
+      "score": 0.37583,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "huggingface"
+      ],
+      "sources": {
+        "github": {
+          "value": 1367,
+          "handle": "groq",
+          "url": "https://api.github.com/orgs/groq"
+        },
+        "npm": {
+          "value": 1241757,
+          "handle": "groq-sdk",
+          "url": "https://api.npmjs.org/downloads/point/last-week/groq-sdk"
+        },
+        "wikipedia": {
+          "value": 72968,
+          "handle": "en:Groq | zh:Groq",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Groq/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Groq",
+              "views": 71544
+            },
+            "zh": {
+              "title": "Groq",
+              "views": 1424
+            }
+          }
+        },
+        "bilibili": {
+          "value": 184690,
+          "numResults": 1000,
+          "sumTop20Plays": 184690,
+          "handle": "Groq",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=Groq"
+        }
+      }
+    },
+    {
       "key": "baidu",
       "title": "Baidu",
       "group": "vendor",
-      "rank": 22,
-      "score": 0.36762,
+      "rank": 23,
+      "score": 0.375263,
       "lowConfidence": false,
       "inherited": [],
       "missing": [],
@@ -1101,57 +1147,11 @@
       }
     },
     {
-      "key": "groq",
-      "title": "Groq",
-      "group": "vendor",
-      "rank": 23,
-      "score": 0.362084,
-      "lowConfidence": false,
-      "inherited": [],
-      "missing": [
-        "huggingface"
-      ],
-      "sources": {
-        "github": {
-          "value": 1367,
-          "handle": "groq",
-          "url": "https://api.github.com/orgs/groq"
-        },
-        "npm": {
-          "value": 1241757,
-          "handle": "groq-sdk",
-          "url": "https://api.npmjs.org/downloads/point/last-week/groq-sdk"
-        },
-        "wikipedia": {
-          "value": 72968,
-          "handle": "en:Groq | zh:Groq",
-          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Groq/monthly/20260501/20261031",
-          "detail": {
-            "en": {
-              "title": "Groq",
-              "views": 71544
-            },
-            "zh": {
-              "title": "Groq",
-              "views": 1424
-            }
-          }
-        },
-        "bilibili": {
-          "value": 184690,
-          "numResults": 1000,
-          "sumTop20Plays": 184690,
-          "handle": "Groq",
-          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=Groq"
-        }
-      }
-    },
-    {
       "key": "cohere",
       "title": "Cohere",
       "group": "vendor",
       "rank": 24,
-      "score": 0.343236,
+      "score": 0.356717,
       "lowConfidence": false,
       "inherited": [],
       "missing": [],
@@ -1194,59 +1194,11 @@
       }
     },
     {
-      "key": "antgroup",
-      "title": "Ant Group",
-      "group": "vendor",
-      "rank": 25,
-      "score": 0.31265,
-      "lowConfidence": false,
-      "inherited": [],
-      "missing": [
-        "npm"
-      ],
-      "sources": {
-        "github": {
-          "value": 863,
-          "handle": "antgroup",
-          "url": "https://api.github.com/orgs/antgroup"
-        },
-        "wikipedia": {
-          "value": 55238,
-          "handle": "en:Ant_Group | zh:蚂蚁集团",
-          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Ant_Group/monthly/20260501/20261031",
-          "detail": {
-            "en": {
-              "title": "Ant_Group",
-              "views": 34481
-            },
-            "zh": {
-              "title": "蚂蚁集团",
-              "views": 20757
-            }
-          }
-        },
-        "huggingface": {
-          "value": 378445,
-          "likes": 11128,
-          "downloads": 367317,
-          "handle": "inclusionAI",
-          "url": "https://huggingface.co/api/models?author=inclusionAI&limit=1000"
-        },
-        "bilibili": {
-          "value": 771265,
-          "numResults": 1000,
-          "sumTop20Plays": 771265,
-          "handle": "蚂蚁集团",
-          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=%E8%9A%82%E8%9A%81%E9%9B%86%E5%9B%A2"
-        }
-      }
-    },
-    {
       "key": "xai",
       "title": "xAI",
       "group": "vendor",
-      "rank": 26,
-      "score": 0.308039,
+      "rank": 25,
+      "score": 0.326122,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -1290,11 +1242,106 @@
       }
     },
     {
+      "key": "antgroup",
+      "title": "Ant Group",
+      "group": "vendor",
+      "rank": 26,
+      "score": 0.322627,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "npm"
+      ],
+      "sources": {
+        "github": {
+          "value": 863,
+          "handle": "antgroup",
+          "url": "https://api.github.com/orgs/antgroup"
+        },
+        "wikipedia": {
+          "value": 55238,
+          "handle": "en:Ant_Group | zh:蚂蚁集团",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Ant_Group/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Ant_Group",
+              "views": 34481
+            },
+            "zh": {
+              "title": "蚂蚁集团",
+              "views": 20757
+            }
+          }
+        },
+        "huggingface": {
+          "value": 378445,
+          "likes": 11128,
+          "downloads": 367317,
+          "handle": "inclusionAI",
+          "url": "https://huggingface.co/api/models?author=inclusionAI&limit=1000"
+        },
+        "bilibili": {
+          "value": 771265,
+          "numResults": 1000,
+          "sumTop20Plays": 771265,
+          "handle": "蚂蚁集团",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=%E8%9A%82%E8%9A%81%E9%9B%86%E5%9B%A2"
+        }
+      }
+    },
+    {
+      "key": "lmstudio",
+      "title": "LM Studio",
+      "group": "vendor",
+      "rank": 27,
+      "score": 0.26655,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [],
+      "sources": {
+        "github": {
+          "value": 12395,
+          "handle": "lmstudio-ai",
+          "url": "https://api.github.com/orgs/lmstudio-ai"
+        },
+        "npm": {
+          "value": 66104,
+          "handle": "@lmstudio/sdk",
+          "url": "https://api.npmjs.org/downloads/point/last-week/%40lmstudio%2Fsdk"
+        },
+        "wikipedia": {
+          "value": 710,
+          "handle": "zh:LM_Studio",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/zh.wikipedia/all-access/user/LM_Studio/monthly/20260501/20261031",
+          "detail": {
+            "zh": {
+              "title": "LM_Studio",
+              "views": 710
+            }
+          }
+        },
+        "huggingface": {
+          "value": 10695,
+          "likes": 73,
+          "downloads": 10622,
+          "handle": "lmstudio-ai",
+          "url": "https://huggingface.co/api/models?author=lmstudio-ai&limit=1000"
+        },
+        "bilibili": {
+          "value": 3094084,
+          "numResults": 1000,
+          "sumTop20Plays": 3094084,
+          "handle": "LM Studio",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=LM%20Studio"
+        }
+      }
+    },
+    {
       "key": "cerebras",
       "title": "Cerebras",
       "group": "vendor",
-      "rank": 27,
-      "score": 0.234039,
+      "rank": 28,
+      "score": 0.252721,
       "lowConfidence": false,
       "inherited": [],
       "missing": [],
@@ -1340,8 +1387,8 @@
       "key": "typesafe",
       "title": "TypeSafe",
       "group": "vendor",
-      "rank": 28,
-      "score": 0.233888,
+      "rank": 29,
+      "score": 0.229523,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -1368,8 +1415,8 @@
       "key": "baiducloud",
       "title": "BaiduCloud",
       "group": "vendor",
-      "rank": 29,
-      "score": 0.194975,
+      "rank": 30,
+      "score": 0.200551,
       "lowConfidence": false,
       "inherited": [
         "huggingface"
@@ -1418,8 +1465,8 @@
       "key": "together",
       "title": "Together AI",
       "group": "vendor",
-      "rank": 30,
-      "score": 0.168577,
+      "rank": 31,
+      "score": 0.185587,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -1453,11 +1500,53 @@
       }
     },
     {
+      "key": "volcengine",
+      "title": "Volcengine",
+      "group": "vendor",
+      "rank": 32,
+      "score": 0.183607,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "huggingface"
+      ],
+      "sources": {
+        "github": {
+          "value": 2188,
+          "handle": "volcengine",
+          "url": "https://api.github.com/orgs/volcengine"
+        },
+        "npm": {
+          "value": 7787,
+          "handle": "@volcengine/sdk-core",
+          "url": "https://api.npmjs.org/downloads/point/last-week/%40volcengine%2Fsdk-core"
+        },
+        "wikipedia": {
+          "value": 2783,
+          "handle": "zh:火山引擎",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/zh.wikipedia/all-access/user/%E7%81%AB%E5%B1%B1%E5%BC%95%E6%93%8E/monthly/20260501/20261031",
+          "detail": {
+            "zh": {
+              "title": "火山引擎",
+              "views": 2783
+            }
+          }
+        },
+        "bilibili": {
+          "value": 130349,
+          "numResults": 1000,
+          "sumTop20Plays": 130349,
+          "handle": "火山引擎",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=%E7%81%AB%E5%B1%B1%E5%BC%95%E6%93%8E"
+        }
+      }
+    },
+    {
       "key": "fireworks",
       "title": "Fireworks",
       "group": "vendor",
-      "rank": 31,
-      "score": 0.113316,
+      "rank": 33,
+      "score": 0.12394,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -1500,8 +1589,8 @@
       "key": "baseten",
       "title": "Baseten",
       "group": "vendor",
-      "rank": 32,
-      "score": 0.097469,
+      "rank": 34,
+      "score": 0.104354,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -1534,8 +1623,8 @@
       "key": "radius",
       "title": "Radius",
       "group": "vendor",
-      "rank": 33,
-      "score": 0.298246,
+      "rank": 35,
+      "score": 0.29661,
       "lowConfidence": true,
       "inherited": [],
       "missing": [
@@ -1559,7 +1648,7 @@
       "title": "GPT",
       "group": "model",
       "rank": 1,
-      "score": 0.85126,
+      "score": 0.853324,
       "lowConfidence": false,
       "inherited": [
         "github",
@@ -1615,7 +1704,7 @@
       "title": "Claude",
       "group": "model",
       "rank": 2,
-      "score": 0.841019,
+      "score": 0.843585,
       "lowConfidence": false,
       "inherited": [
         "github",
@@ -1666,7 +1755,7 @@
       "title": "DeepSeek",
       "group": "model",
       "rank": 3,
-      "score": 0.833332,
+      "score": 0.837111,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -1714,7 +1803,7 @@
       "title": "Gemini",
       "group": "model",
       "rank": 4,
-      "score": 0.740217,
+      "score": 0.747846,
       "lowConfidence": false,
       "inherited": [
         "github",
@@ -1772,7 +1861,7 @@
       "title": "Qwen",
       "group": "model",
       "rank": 5,
-      "score": 0.638306,
+      "score": 0.652468,
       "lowConfidence": false,
       "inherited": [],
       "missing": [],
@@ -1823,7 +1912,7 @@
       "title": "Mistral",
       "group": "model",
       "rank": 6,
-      "score": 0.578965,
+      "score": 0.588792,
       "lowConfidence": false,
       "inherited": [],
       "missing": [],
@@ -1874,7 +1963,7 @@
       "title": "Llama",
       "group": "model",
       "rank": 7,
-      "score": 0.549507,
+      "score": 0.557193,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -1922,7 +2011,7 @@
       "title": "Grok",
       "group": "model",
       "rank": 8,
-      "score": 0.526044,
+      "score": 0.53789,
       "lowConfidence": false,
       "inherited": [
         "github"
@@ -1973,7 +2062,7 @@
       "title": "Doubao",
       "group": "model",
       "rank": 9,
-      "score": 0.505521,
+      "score": 0.519337,
       "lowConfidence": false,
       "inherited": [
         "github",
@@ -2022,11 +2111,63 @@
       }
     },
     {
+      "key": "phi",
+      "title": "Phi",
+      "group": "model",
+      "rank": 10,
+      "score": 0.504283,
+      "lowConfidence": false,
+      "inherited": [
+        "github",
+        "npm"
+      ],
+      "missing": [],
+      "sources": {
+        "github": {
+          "value": 133236,
+          "handle": "microsoft",
+          "url": "https://api.github.com/orgs/microsoft",
+          "inheritedFrom": "microsoft"
+        },
+        "npm": {
+          "value": 653024,
+          "handle": "botbuilder",
+          "url": "https://api.npmjs.org/downloads/point/last-week/botbuilder",
+          "inheritedFrom": "microsoft"
+        },
+        "wikipedia": {
+          "value": 5631,
+          "handle": "en:Phi_(language_model)",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Phi_(language_model)/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Phi_(language_model)",
+              "views": 5631
+            }
+          }
+        },
+        "huggingface": {
+          "value": 2588133,
+          "likes": 20976,
+          "downloads": 2567157,
+          "handle": "microsoft (search: phi)",
+          "url": "https://huggingface.co/api/models?author=microsoft&limit=1000&search=phi"
+        },
+        "bilibili": {
+          "value": 997533,
+          "numResults": 1000,
+          "sumTop20Plays": 997533,
+          "handle": "Phi 模型",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=Phi%20%E6%A8%A1%E5%9E%8B"
+        }
+      }
+    },
+    {
       "key": "kimi",
       "title": "Kimi",
       "group": "model",
-      "rank": 10,
-      "score": 0.493646,
+      "rank": 11,
+      "score": 0.502448,
       "lowConfidence": false,
       "inherited": [
         "github"
@@ -2076,8 +2217,8 @@
       "key": "nemotron",
       "title": "Nemotron",
       "group": "model",
-      "rank": 11,
-      "score": 0.489254,
+      "rank": 12,
+      "score": 0.501609,
       "lowConfidence": false,
       "inherited": [
         "github"
@@ -2120,63 +2261,11 @@
       }
     },
     {
-      "key": "phi",
-      "title": "Phi",
-      "group": "model",
-      "rank": 12,
-      "score": 0.48654,
-      "lowConfidence": false,
-      "inherited": [
-        "github",
-        "npm"
-      ],
-      "missing": [],
-      "sources": {
-        "github": {
-          "value": 133236,
-          "handle": "microsoft",
-          "url": "https://api.github.com/orgs/microsoft",
-          "inheritedFrom": "microsoft"
-        },
-        "npm": {
-          "value": 653024,
-          "handle": "botbuilder",
-          "url": "https://api.npmjs.org/downloads/point/last-week/botbuilder",
-          "inheritedFrom": "microsoft"
-        },
-        "wikipedia": {
-          "value": 5631,
-          "handle": "en:Phi_(language_model)",
-          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Phi_(language_model)/monthly/20260501/20261031",
-          "detail": {
-            "en": {
-              "title": "Phi_(language_model)",
-              "views": 5631
-            }
-          }
-        },
-        "huggingface": {
-          "value": 2588133,
-          "likes": 20976,
-          "downloads": 2567157,
-          "handle": "microsoft (search: phi)",
-          "url": "https://huggingface.co/api/models?author=microsoft&limit=1000&search=phi"
-        },
-        "bilibili": {
-          "value": 997533,
-          "numResults": 1000,
-          "sumTop20Plays": 997533,
-          "handle": "Phi 模型",
-          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=Phi%20%E6%A8%A1%E5%9E%8B"
-        }
-      }
-    },
-    {
       "key": "minimax",
       "title": "MiniMax",
       "group": "model",
       "rank": 13,
-      "score": 0.443602,
+      "score": 0.454494,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -2220,55 +2309,11 @@
       }
     },
     {
-      "key": "perplexity",
-      "title": "Perplexity",
-      "group": "model",
-      "rank": 14,
-      "score": 0.421911,
-      "lowConfidence": false,
-      "inherited": [],
-      "missing": [
-        "npm"
-      ],
-      "sources": {
-        "github": {
-          "value": 2677,
-          "handle": "perplexityai",
-          "url": "https://api.github.com/orgs/perplexityai"
-        },
-        "wikipedia": {
-          "value": 466786,
-          "handle": "en:Perplexity_AI",
-          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Perplexity_AI/monthly/20260501/20261031",
-          "detail": {
-            "en": {
-              "title": "Perplexity_AI",
-              "views": 466786
-            }
-          }
-        },
-        "huggingface": {
-          "value": 405764,
-          "likes": 1288,
-          "downloads": 404476,
-          "handle": "perplexity-ai",
-          "url": "https://huggingface.co/api/models?author=perplexity-ai&limit=1000"
-        },
-        "bilibili": {
-          "value": 127809,
-          "numResults": 1000,
-          "sumTop20Plays": 127809,
-          "handle": "Perplexity AI",
-          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=Perplexity%20AI"
-        }
-      }
-    },
-    {
       "key": "nova",
       "title": "Nova",
       "group": "model",
-      "rank": 15,
-      "score": 0.421876,
+      "rank": 14,
+      "score": 0.435423,
       "lowConfidence": false,
       "inherited": [
         "github",
@@ -2318,11 +2363,55 @@
       }
     },
     {
+      "key": "perplexity",
+      "title": "Perplexity",
+      "group": "model",
+      "rank": 15,
+      "score": 0.430202,
+      "lowConfidence": false,
+      "inherited": [],
+      "missing": [
+        "npm"
+      ],
+      "sources": {
+        "github": {
+          "value": 2677,
+          "handle": "perplexityai",
+          "url": "https://api.github.com/orgs/perplexityai"
+        },
+        "wikipedia": {
+          "value": 466786,
+          "handle": "en:Perplexity_AI",
+          "url": "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/user/Perplexity_AI/monthly/20260501/20261031",
+          "detail": {
+            "en": {
+              "title": "Perplexity_AI",
+              "views": 466786
+            }
+          }
+        },
+        "huggingface": {
+          "value": 405764,
+          "likes": 1288,
+          "downloads": 404476,
+          "handle": "perplexity-ai",
+          "url": "https://huggingface.co/api/models?author=perplexity-ai&limit=1000"
+        },
+        "bilibili": {
+          "value": 127809,
+          "numResults": 1000,
+          "sumTop20Plays": 127809,
+          "handle": "Perplexity AI",
+          "url": "https://api.bilibili.com/x/web-interface/search/type?search_type=video&keyword=Perplexity%20AI"
+        }
+      }
+    },
+    {
       "key": "glm",
       "title": "GLM",
       "group": "model",
       "rank": 16,
-      "score": 0.417085,
+      "score": 0.429337,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -2370,7 +2459,7 @@
       "title": "StepFun",
       "group": "model",
       "rank": 17,
-      "score": 0.364658,
+      "score": 0.374552,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -2418,7 +2507,7 @@
       "title": "Hailuo",
       "group": "model",
       "rank": 18,
-      "score": 0.361737,
+      "score": 0.364259,
       "lowConfidence": false,
       "inherited": [
         "github",
@@ -2467,7 +2556,7 @@
       "title": "Hunyuan",
       "group": "model",
       "rank": 19,
-      "score": 0.316238,
+      "score": 0.330135,
       "lowConfidence": false,
       "inherited": [
         "github",
@@ -2523,7 +2612,7 @@
       "title": "Command",
       "group": "model",
       "rank": 20,
-      "score": 0.307138,
+      "score": 0.321403,
       "lowConfidence": false,
       "inherited": [
         "github",
@@ -2577,7 +2666,7 @@
       "title": "Xiaomi MiMo",
       "group": "model",
       "rank": 21,
-      "score": 0.304952,
+      "score": 0.31946,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -2625,7 +2714,7 @@
       "title": "ERNIE",
       "group": "model",
       "rank": 22,
-      "score": 0.253303,
+      "score": 0.264103,
       "lowConfidence": false,
       "inherited": [
         "github",
@@ -2681,7 +2770,7 @@
       "title": "Yi",
       "group": "model",
       "rank": 23,
-      "score": 0.221355,
+      "score": 0.232725,
       "lowConfidence": false,
       "inherited": [],
       "missing": [
@@ -2725,7 +2814,7 @@
       "title": "Ant Ling",
       "group": "model",
       "rank": 24,
-      "score": 0.161752,
+      "score": 0.165469,
       "lowConfidence": false,
       "inherited": [
         "github"

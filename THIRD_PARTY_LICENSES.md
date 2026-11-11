@@ -15,7 +15,7 @@ file.
 - Upstream: <https://github.com/lobehub/lobe-icons>
 - Source files: <https://unpkg.com/@lobehub/icons-static-svg@1.102.0/icons/>
 - License: MIT, copyright © 2023 LobeHub
-- Included here: the 44 upstream files committed verbatim under
+- Included here: the 45 upstream files committed verbatim under
   `reference/official/` (one `<slug>.svg` per source mark, sha256 pinned in
   `reference/official/manifest.json`), fitted into 24×24 tiles by
   `scripts/import-logos.ts` to produce `src/logos/official.generated.ts`. The
@@ -148,6 +148,10 @@ trademarks remain with their owners:
   Mi are trademarks of Xiaomi Corporation.
 - **Radius** — a hand-drawn "R" letterform created for this project (no official
   mark was found).
+- **Volcengine** — the official two-blue mountain mark from the header artwork of
+  <https://www.volcengine.com/>, committed as `reference/volcengine.svg`
+  (`#006AFF` and `#00DCFF` on the white tile). Volcengine (火山引擎) is a trademark
+  of ByteDance's cloud business.
 
 No artwork in this repository is claimed to be licensed by the brand owners; if
 a brand owner asks for removal, replace or remove the mark and regenerate the

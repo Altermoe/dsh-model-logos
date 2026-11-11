@@ -26,8 +26,9 @@ the source of truth for that overlay, and `src/i18n.ts` must match it.
   overridden (`Kimi`, `MiniMax`, `DeepSeek`, `Azure`, …).
 
 Research date: **2026-11-06** (Asia/Shanghai), re-checked and extended on
-**2026-11-10** with `baiducloud`. Every entry below was checked against a page the
-brand owner controls; the exact quote is recorded next to the link.
+**2026-11-10** with `baiducloud` and on **2026-11-11** with `volcengine`. Every
+entry below was checked against a page the brand owner controls; the exact quote
+is recorded next to the link.
 
 ## Included names
 
@@ -44,6 +45,7 @@ brand owner controls; the exact quote is recorded next to the link.
 | `moonshot`   | Moonshot AI            | 月之暗面              | vendor | [moonshot.cn/about](https://www.moonshot.cn/about) — “月之暗面（Moonshot AI）正式成立。”                                                                                                       |
 | `nvidia`     | NVIDIA                 | 英伟达                | vendor | [blogs.nvidia.cn](https://blogs.nvidia.cn/) — NVIDIA 官方中国博客首页标题 “NVIDIA 英伟达博客”                                                                                                  |
 | `tencent`    | Tencent                | 腾讯                  | vendor | [tencent.com/zh-cn](https://www.tencent.com/zh-cn/about.html) — “腾讯是一家世界领先的互联网科技公司”                                                                                           |
+| `volcengine` | Volcengine             | 火山引擎              | vendor | [volcengine.com](https://www.volcengine.com/) — “火山引擎是字节跳动旗下的云与AI服务平台。”                                                                                                     |
 | `xiaomi`     | Xiaomi                 | 小米                  | vendor | [mi.com](https://www.mi.com/) — “小米集团隐私政策” “小米商城”                                                                                                                                  |
 | `zhipu`      | Zhipu AI               | 智谱                  | vendor | [zhipuai.cn](https://www.zhipuai.cn/) — “智谱（‘公司’；香港联交所股票代码：02513）”                                                                                                            |
 | `antling`    | Ant Ling               | 蚂蚁百灵              | model  | [developer.ant-ling.com](https://developer.ant-ling.com/zh-CN/docs/) — “蚂蚁百灵（Ant Ling）是蚂蚁集团开源的大语言模型家族”                                                                    |
@@ -110,9 +112,9 @@ No first-party Chinese name exists for these; the artwork title stays.
 
 - **Vendor:** `anthropic` (Anthropic), `baseten` (Baseten), `cerebras` (Cerebras),
   `cohere` (Cohere), `fireworks` (Fireworks), `groq` (Groq), `huggingface`
-  (Hugging Face), `meta` (Meta), `ollama` (Ollama), `opencode` (OpenCode),
-  `openrouter` (OpenRouter), `radius` (Radius), `together` (Together AI),
-  `typesafe` (TypeSafe), `vercel` (Vercel), `xai` (xAI).
+  (Hugging Face), `lmstudio` (LM Studio), `meta` (Meta), `ollama` (Ollama),
+  `opencode` (OpenCode), `openrouter` (OpenRouter), `radius` (Radius), `together`
+  (Together AI), `typesafe` (TypeSafe), `vercel` (Vercel), `xai` (xAI).
 - **Model:** `claude` (Claude), `command` (Command), `gemini` (Gemini), `gpt` (GPT),
   `grok` (Grok), `llama` (Llama), `mistral` (Mistral), `perplexity` (Perplexity),
   `phi` (Phi).

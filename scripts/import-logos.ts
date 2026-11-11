@@ -10,7 +10,7 @@
  * module against the rebuilt entries (`--check`, whitespace-insensitive).
  *
  * The generated module and the hand-authored `src/logos/manual.ts` together must
- * cover the required 57 keys exactly once, each in exactly one picker group; the
+ * cover the required 59 keys exactly once, each in exactly one picker group; the
  * script validates that merged coverage in both modes.
  *
  * Usage (run from the repository root):

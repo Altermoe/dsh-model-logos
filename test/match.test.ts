@@ -166,12 +166,26 @@ describe('match', () => {
   });
 
   it('custom / hand-declared providers get no vendor mark', () => {
-    for (const providerId of ['volcengine', 'acme', 'acme-llm', 'my-local-provider', 'openai-compatible']) {
+    for (const providerId of ['volcengine', 'lmstudio', 'acme', 'acme-llm', 'my-local-provider', 'openai-compatible']) {
       expect(matchVendorLogo(providerId), `${providerId}`).toBe(null);
     }
     expect(matchVendorLogo('')).toBe(null);
     expect(matchVendorLogo(null)).toBe(null);
     expect(matchVendorLogo(undefined)).toBe(null);
+  });
+
+  it('keeps the Doubao model heuristic for a hand-declared Volcengine route', () => {
+    // Picker-only vendor keys must not suppress the pre-existing provider rule:
+    // an opaque model served by a hand-declared Volcengine relay still shows the
+    // Doubao *model* mark, while a local LM Studio server gets no model mark.
+    expect(matchModelLogo({ provider: { id: 'volcengine', name: '火山引擎' }, model: { id: 'opaque-model' } })).toBe(
+      'doubao',
+    );
+    expect(matchModelLogo({ provider: { id: 'lmstudio', name: 'LM Studio' }, model: { id: 'opaque-model' } })).toBe(
+      null,
+    );
+    expect(matchVendorLogo('volcengine')).toBe(null);
+    expect(matchVendorLogo('lmstudio')).toBe(null);
   });
 
   it('normalizes whitespace and letter case in route ids', () => {

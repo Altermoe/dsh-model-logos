@@ -206,7 +206,7 @@ interface ComputedKey {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Catalog: the exact 57 keys, their groups and per-source query handles      */
+/* Catalog: the exact 59 keys, their groups and per-source query handles      */
 /* -------------------------------------------------------------------------- */
 
 /** Handles for one signal of one key. */
@@ -440,6 +440,19 @@ const CATALOG: readonly CatalogEntry[] = [
     },
   },
   {
+    key: 'lmstudio',
+    title: 'LM Studio',
+    group: 'vendor',
+    sources: {
+      github: 'lmstudio-ai',
+      npm: ['@lmstudio/sdk', 'lmstudio'],
+      // English Wikipedia has no LM Studio article; the zh.wikipedia one does.
+      wikipedia: { zh: 'LM_Studio' },
+      huggingface: { author: 'lmstudio-ai' },
+      bilibili: 'LM Studio',
+    },
+  },
+  {
     key: 'meta',
     title: 'Meta',
     group: 'vendor',
@@ -586,6 +599,23 @@ const CATALOG: readonly CatalogEntry[] = [
       wikipedia: { en: 'Vercel' },
       huggingface: { author: 'vercel' },
       bilibili: 'Vercel',
+    },
+  },
+  {
+    key: 'volcengine',
+    title: 'Volcengine',
+    group: 'vendor',
+    sources: {
+      // Volcengine has no Hugging Face organisation of its own, and ByteDance's
+      // HF org publishes research models, not the Doubao/Seed cards served by
+      // Volcengine Ark, so the signal stays missing instead of inheriting a
+      // parent's unrelated numbers (the `baiducloud` comment above records when
+      // inheritance *is* the honest choice). GitHub, the official npm SDKs and
+      // the Chinese Wikipedia / Bilibili brands are measurable.
+      github: 'volcengine',
+      npm: ['@volcengine/sdk-core', '@volcengine/ark'],
+      wikipedia: { zh: '火山引擎' },
+      bilibili: '火山引擎',
     },
   },
   {

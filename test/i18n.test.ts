@@ -33,6 +33,7 @@ const OFFICIAL_ZH: Readonly<Record<string, string>> = {
   qwen: '千问',
   stepfun: '阶跃星辰',
   tencent: '腾讯',
+  volcengine: '火山引擎',
   xiaomi: '小米',
   zhipu: '智谱',
 };
@@ -76,6 +77,7 @@ describe('brand names', () => {
       ['deepseek', 'DeepSeek'],
       ['glm', 'GLM'],
       ['kimi', 'Kimi'],
+      ['lmstudio', 'LM Studio'],
     ] as const) {
       expect(dshmlBrandName(key, title), `${key} must stay official English`).toBe(title);
     }

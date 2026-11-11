@@ -5,8 +5,8 @@
  * `scripts/import-logos.ts`; `derived.generated.ts` is rebuilt from the pinned
  * sources under `reference/derived/` by `scripts/derive-marks.ts`, and `manual.ts`
  * holds the few marks that are not from either pinned set (DeepSeek's own whale,
- * Xiaomi, AWS and the Radius fallback) — every source module is re-exported
- * there. Renderers and the icon picker only import this module, so a caller
+ * Xiaomi, AWS, Volcengine and the Radius fallback) — every source module is
+ * re-exported there. Renderers and the icon picker only import this module, so a caller
  * never needs to know which source owns a key.
  *
  * The merged object is frozen: artwork is loaded once, is never mutated at

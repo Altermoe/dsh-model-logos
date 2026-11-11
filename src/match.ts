@@ -72,6 +72,7 @@ export const LOGO_KEYS: readonly string[] = Object.freeze([
   'google',
   'groq',
   'huggingface',
+  'lmstudio',
   'meta',
   'microsoft',
   'moonshot',
@@ -85,6 +86,7 @@ export const LOGO_KEYS: readonly string[] = Object.freeze([
   'together',
   'typesafe',
   'vercel',
+  'volcengine',
   'xai',
   'xiaomi',
   'zhipu',
@@ -103,14 +105,23 @@ export const LOGO_KEYS: readonly string[] = Object.freeze([
  * product mark with its own name and its own tri-colour cube, but it is not the
  * model route either — a qianfan channel, if one ever ships, is served by
  * `baidu`/`ernie`, so nothing may map to `baiducloud` by pattern.
+ *
+ * Volcengine and LM Studio have no shipped DSH provider route: a user declares
+ * them by hand (LM Studio as a local endpoint, Volcengine as an OpenAI-compatible
+ * relay), so their vendor art is picker-only and no channel rule may infer it. A
+ * `volcengine` route id therefore gets no *vendor* mark; the pre-existing model
+ * heuristic still maps an opaque model under that route to the Doubao model mark,
+ * which is about the model the channel serves, not the channel's own brand.
  */
 export const PICKER_ONLY_KEYS: readonly string[] = Object.freeze([
   'baidu',
   'baiducloud',
   'bytedance',
   'cohere',
+  'lmstudio',
   'microsoft',
   'tencent',
+  'volcengine',
 ]);
 
 /** Token boundary shared by the word-like rules. */

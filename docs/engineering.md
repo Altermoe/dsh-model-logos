@@ -102,7 +102,7 @@ src/resolve.ts      overrideIcon, withOverride, withoutOverride, flattenOverride
                     withoutProviderOverride, flattenProviderOverrides,
                     providerLetterTextFor, resolveProviderIcon
 src/logos/official.generated.ts   LOGOS — marks imported from the pinned Lobe Icons set
-src/logos/manual.ts               LOGOS — the eight derived and hand-drawn exceptions
+src/logos/manual.ts               LOGOS — the nine derived and hand-drawn exceptions
 src/logos/groups.ts               groupLogoEntries, filterLogoGroups, SHARED_VENDOR_MARKS
 src/logos/ranking.ts              LOGO_RANKS, RANKING_DATE — generated snapshot summary
 src/logos/index.ts                LOGOS — the merged set every renderer reads
@@ -222,7 +222,7 @@ that recorded them, not from the current build.
   legacy override keys, and the closed `LOGO_KEYS`/artwork invariants.
 - Artwork tests pin the letter-tile generator (determinism, safe SVG, CJK text,
   escaping) and the brand marks' inlining rules.
-- Grouping tests pin the exact 33 vendor / 24 model key sets, the absence of
+- Grouping tests pin the exact 35 vendor / 24 model key sets, the absence of
   overlaps, search filtering across both groups, caller-supplied localized search
   aliases, the alias glyphs
   (`gpt/openai`, `llama/meta`, `phi/microsoft`, `nemotron/nvidia`, `nova/aws`,
@@ -360,8 +360,8 @@ that recorded them, not from the current build.
   groups (`Zhipu AI` vendor, `GLM` model). `gemini` shipped a flat white star; it
   now carries the official Lobe `gemini-color.svg` aurora quantised into flat,
   id-free cells, because an inlined tile may not carry ids or gradient definitions. `baiducloud` (BaiduCloud, 百度智能云) is new: a vendor mark from Lobe
-  `baiducloud-color.svg`, the tri-colour cube with no wordmark. The key set grows
-  56 → 57 (33 vendor / 24 model).
+  `baiducloud-color.svg`, the tri-colour cube with no wordmark. That change took
+  the key set from 56 to 57 (33 vendor / 24 model).
 - **Three keys moved out of the Lobe import into a pinned derived set.** `zhipu`,
   `glm` and `gemini` are no longer `SOURCE_MARKS`: they are rebuilt offline by
   `scripts/derive-marks.ts` from `reference/derived/`, whose `manifest.json` records
@@ -400,15 +400,27 @@ that recorded them, not from the current build.
   whose bands left the green ramp and most of the outline white — the guard is
   therefore coverage plus a full-silhouette error, never a score over covered
   pixels only.
-- The arithmetic is now 46 − `zhipu` − `glm` − `gemini` + `baiducloud` = 44 upstream
-  files, + 5 aliases = 49 generated marks, + the 8 `manual.ts` exceptions (`aws`,
-  `deepseek`, `gemini`, `glm`, `nova`, `radius`, `xiaomi`, `zhipu`) = **57 keys**
-  (33 vendor / 24 model), which `MANUAL_MARKS` in `scripts/fetch-official-logos.ts`
-  pins as an exact set and `assertConfigCoverage` enforces as `generated + manual ==
-  required`. `pnpm exec tsx scripts/fetch-official-logos.ts` reproduces all 45 files
-  under `reference/official/` (44 `.svg` + `manifest.json`) byte-identically; the 43
+- **Two vendor marks added: LM Studio and Volcengine.** `lmstudio` is imported from
+  Lobe `lmstudio.svg` as a white glyph on the app's violet tile
+  (`#5B3FD6`) — the two opacity steps in the source already read as the
+  streaming-text trail of the app icon. `volcengine` is a manual mark: the official
+  two-blue mountain artwork from `reference/volcengine.svg` (the site-header
+  vector, `#006AFF`/`#00DCFF`) fitted on a white tile, because the Lobe
+  `volcengine-color.svg` still carries older brand hexes. Both live in the vendor
+  picker group and in `PICKER_ONLY_KEYS`: neither has a shipped DSH route, so
+  nothing may infer them from a provider id. The Chinese name of Volcengine is
+  overlaid from its own site (火山引擎), while LM Studio keeps its English title.
+  The key set grows 57 → 59 (35 vendor / 24 model).
+- The arithmetic is now 47 − `zhipu` − `glm` − `gemini` + `baiducloud` = 45 upstream
+  files, + 5 aliases = 50 generated marks, + the 9 `manual.ts` exceptions (`aws`,
+  `deepseek`, `gemini`, `glm`, `nova`, `radius`, `volcengine`, `xiaomi`, `zhipu`) =
+  **59 keys** (35 vendor / 24 model), which `MANUAL_MARKS` in
+  `scripts/fetch-official-logos.ts` pins as an exact set and `assertConfigCoverage`
+  enforces as `generated + manual == required`. `pnpm exec tsx
+  scripts/fetch-official-logos.ts` reproduces all 46 files under
+  `reference/official/` (45 `.svg` + `manifest.json`) byte-identically; the 44
   entries whose sha256 did not change are upstream immutability, not stale pins,
-  while `baiducloud-color.svg` is the one new fetch.
+  while `lmstudio.svg` is the one new fetch.
 - `zhipu` staying group `vendor` is what keeps `SHARED_VENDOR_MARKS` untouched:
   `glm` sharing its glyph with `zhipu` is a model mark reusing a vendor mark, the
   reverse of the `deepseek`/`mistral`/`minimax` exception the build validates, and

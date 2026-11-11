@@ -94,7 +94,7 @@ model can be overridden:
 - **Letter icon** — a deterministic colour tile made from the name, for local or
   exotic models that should look intentional rather than pretend to be a brand;
 - **Vendor icons** — the company or channel mark (Anthropic, Google, Alibaba,
-  ByteDance, OpenRouter, …);
+  ByteDance, OpenRouter, Volcengine, LM Studio, …);
 - **Model icons** — the model product mark (Claude, Gemini, Qwen, Doubao, Kimi, …).
 
 **The provider's icon is configurable too.** Clicking the mark seat beside a provider

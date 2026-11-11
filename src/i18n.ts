@@ -280,6 +280,7 @@ export const DSHML_BRAND_NAMES: Readonly<Record<DshmlLang, Readonly<Record<strin
     moonshot: '月之暗面',
     nvidia: '英伟达',
     tencent: '腾讯',
+    volcengine: '火山引擎',
     xiaomi: '小米',
     zhipu: '智谱',
     // Models whose vendor officially names the model itself in Chinese.
