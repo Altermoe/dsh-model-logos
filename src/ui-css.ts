@@ -752,4 +752,485 @@ export const DSHML_UI_CSS: string = `
   line-height: 18px;
   color: var(--dsw-alias-state-error-primary, #d92d20);
 }
+
+/* ── custom icons: picker group and create/rename editor ───────────── */
+
+.dshml-picker-back {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  margin-right: 2px;
+  border: none;
+  border-radius: var(--dsw-radius-sm, 6px);
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary, #8b93a3);
+  cursor: pointer;
+}
+
+.dshml-picker-back:hover {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.06));
+  color: var(--dsw-alias-label-primary, #1c1f26);
+}
+
+.dshml-picker-back:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary, #5686fe));
+}
+
+.dshml-picker-back-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+}
+
+.dshml-picker-custom-cell {
+  position: relative;
+  min-width: 0;
+}
+
+.dshml-picker-custom-cell > .dshml-picker-option {
+  width: 100%;
+}
+
+/* The pencil is always visible at a low opacity so a custom icon is editable
+   without hunting for an invisible hit area; hover/focus brings it up. */
+.dshml-picker-custom-edit {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-tertiary, #8b93a3);
+  box-shadow: 0 0 0 0.5px var(--dsw-alias-border-l3, rgba(0, 0, 0, 0.14));
+  opacity: 0.7;
+  cursor: pointer;
+  transition:
+    opacity var(--ds-transition-duration-fast, 120ms) var(--ds-ease-in-out, ease),
+    color var(--ds-transition-duration-fast, 120ms) var(--ds-ease-in-out, ease),
+    background-color var(--ds-transition-duration-fast, 120ms) var(--ds-ease-in-out, ease);
+}
+
+.dshml-picker-custom-cell:hover .dshml-picker-custom-edit,
+.dshml-picker-custom-edit:focus-visible {
+  opacity: 1;
+}
+
+.dshml-picker-custom-edit:hover {
+  background: var(--dsw-alias-bg-layer-2, #f5f6f8);
+  color: var(--dsw-alias-state-business-primary, #5686fe);
+}
+
+.dshml-picker-custom-edit:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary, #5686fe));
+}
+
+.dshml-picker-custom-edit:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.dshml-picker-custom-edit > svg {
+  display: block;
+}
+
+.dshml-picker-create {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 76px;
+  padding: 8px 4px 7px;
+  border: 1px dashed var(--dsw-alias-border-l4, rgba(0, 0, 0, 0.18));
+  border-radius: var(--dsw-radius-md, 8px);
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary, #8b93a3);
+  font: inherit;
+  font-size: 11px;
+  line-height: 15px;
+  cursor: pointer;
+}
+
+.dshml-picker-create:hover:not(:disabled) {
+  border-color: var(--dsw-alias-state-business-primary, #5686fe);
+  background: var(--dsw-alias-state-business-tertiary, rgba(86, 134, 254, 0.1));
+  color: var(--dsw-alias-state-business-primary, #5686fe);
+}
+
+.dshml-picker-create:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--dsw-alias-state-business-primary, #4176e6) 30%, transparent);
+}
+
+.dshml-picker-create:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.dshml-picker-create-icon {
+  display: block;
+}
+
+.dshml-picker-create-label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dshml-picker-editor-body {
+  padding-top: 4px;
+}
+
+.dshml-custom-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+
+.dshml-custom-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: var(--dsw-radius-md, 8px);
+  background: var(--dsw-alias-bg-layer-2, #f5f6f8);
+}
+
+.dshml-custom-tab {
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 0;
+  min-height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary, #5c6472);
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  cursor: pointer;
+}
+
+.dshml-custom-tab-active {
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-primary, #1c1f26);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(16, 20, 28, 0.12);
+}
+
+.dshml-custom-tab:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--dsw-alias-state-business-primary, #4176e6) 30%, transparent);
+}
+
+.dshml-custom-tab-soon {
+  color: var(--dsw-alias-label-tertiary, #8b93a3);
+  cursor: not-allowed;
+}
+
+.dshml-custom-tab-soon .dshml-custom-tab-label {
+  opacity: 0.55;
+}
+
+.dshml-custom-tab-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dshml-custom-tab-badge {
+  flex: none;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.06));
+  color: var(--dsw-alias-label-tertiary, #8b93a3);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.dshml-custom-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.dshml-custom-label {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary, #5c6472);
+}
+
+.dshml-custom-input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 0.5px solid var(--dsw-alias-border-l3, rgba(0, 0, 0, 0.14));
+  border-radius: var(--dsw-radius-md, 8px);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-primary, #1c1f26);
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  outline: none;
+  transition:
+    border-color var(--ds-transition-duration-fast, 120ms) var(--ds-ease-in-out, ease),
+    background-color var(--ds-transition-duration-fast, 120ms) var(--ds-ease-in-out, ease),
+    box-shadow var(--ds-transition-duration-fast, 120ms) var(--ds-ease-in-out, ease);
+}
+
+.dshml-custom-input::placeholder {
+  color: var(--dsw-alias-label-tertiary, #8b93a3);
+}
+
+.dshml-custom-input:hover:not(:focus) {
+  border-color: var(--dsw-alias-border-l4, rgba(0, 0, 0, 0.16));
+}
+
+.dshml-custom-input:focus {
+  border-color: var(--dsw-alias-state-business-primary, #4176e6);
+  box-shadow: 0 0 0 var(--dsw-focus-ring-width, 2px)
+    color-mix(in srgb, var(--dsw-alias-state-business-primary, #4176e6) 24%, transparent);
+}
+
+.dshml-custom-hint {
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-tertiary, #8b93a3);
+}
+
+.dshml-custom-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 150px;
+  padding: 14px;
+  border: 1px dashed var(--dsw-alias-border-l4, rgba(0, 0, 0, 0.18));
+  border-radius: var(--dsw-radius-lg, 10px);
+  background: var(--dsw-alias-bg-layer-2, #f5f6f8);
+  color: var(--dsw-alias-label-secondary, #5c6472);
+  font: inherit;
+  cursor: pointer;
+}
+
+.dshml-custom-drop:hover:not(:disabled) {
+  border-color: var(--dsw-alias-state-business-primary, #5686fe);
+  background: var(--dsw-alias-state-business-tertiary, rgba(86, 134, 254, 0.08));
+  color: var(--dsw-alias-state-business-primary, #5686fe);
+}
+
+.dshml-custom-drop:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--dsw-alias-state-business-primary, #4176e6) 30%, transparent);
+}
+
+.dshml-custom-drop:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.dshml-custom-drop-icon {
+  color: var(--dsw-alias-label-tertiary, #8b93a3);
+}
+
+.dshml-custom-drop-label {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+}
+
+.dshml-custom-drop-hint {
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-tertiary, #8b93a3);
+}
+
+.dshml-custom-image {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* react-easy-crop positions its own container absolutely; this box is the
+   sized, clipped viewport it measures. The library injects the crop-area /
+   backdrop rules on mount (MIT, see THIRD_PARTY_LICENSES.md). */
+.dshml-custom-cropper {
+  position: relative;
+  width: 100%;
+  height: 220px;
+  overflow: hidden;
+  border-radius: var(--dsw-radius-lg, 10px);
+  background: #151922;
+}
+
+.dshml-custom-zoom {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dshml-custom-zoom-label {
+  flex: none;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary, #5c6472);
+}
+
+.dshml-custom-zoom-range {
+  flex: 1 1 auto;
+  accent-color: var(--dsw-alias-state-business-primary, #5686fe);
+}
+
+.dshml-custom-image-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.dshml-custom-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--dsw-alias-state-business-primary, #5686fe);
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  cursor: pointer;
+}
+
+.dshml-custom-link:hover {
+  text-decoration: underline;
+}
+
+.dshml-custom-link:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--dsw-alias-state-business-primary, #4176e6) 30%, transparent);
+}
+
+.dshml-custom-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 2px;
+}
+
+.dshml-custom-btn {
+  box-sizing: border-box;
+  height: 32px;
+  padding: 0 12px;
+  border: 0.5px solid var(--dsw-alias-border-l3, rgba(0, 0, 0, 0.14));
+  border-radius: var(--dsw-radius-md, 8px);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-primary, #1c1f26);
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  cursor: pointer;
+}
+
+.dshml-custom-btn:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.05));
+}
+
+.dshml-custom-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--dsw-alias-state-business-primary, #4176e6) 30%, transparent);
+}
+
+.dshml-custom-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.dshml-custom-btn-primary {
+  border-color: transparent;
+  background: var(--dsw-alias-button-primary-fill, #5686fe);
+  color: var(--dsw-alias-label-primary-foreground, #ffffff);
+}
+
+.dshml-custom-btn-primary:hover:not(:disabled) {
+  background: var(--dsw-alias-button-primary-hover, #3f6ff0);
+}
+
+.dshml-custom-btn-danger {
+  border-color: transparent;
+  background: var(--dsw-alias-state-error-primary, #d92d20);
+  color: #ffffff;
+}
+
+.dshml-custom-btn-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--dsw-alias-state-error-primary, #d92d20) 86%, #000000);
+}
+
+.dshml-custom-btn-ghost {
+  border-color: transparent;
+  background: transparent;
+}
+
+.dshml-custom-btn-danger-ghost {
+  color: var(--dsw-alias-state-error-primary, #d92d20);
+}
+
+.dshml-custom-danger {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 2px;
+  border-top: 0.5px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.08));
+}
+
+.dshml-custom-danger-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary, #5c6472);
+}
+
+.dshml-custom-danger-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.dshml-custom-danger-text {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-state-error-primary, #d92d20);
+}
+
+.dshml-custom-file {
+  display: none;
+}
+
+.dshml-custom-editor .dshml-picker-error {
+  margin: 0;
+}
 `;

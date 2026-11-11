@@ -1,11 +1,13 @@
 {
   "name": "dsh-model-logos",
-  "version": "0.6.0",
-  "description": "Shows each model's brand mark beside its name in the composer model selector and model picker, and vendor/model logos across Settings → Models, with a per-model icon picker.",
+  "version": "0.7.0",
+  "description": "Shows each model's brand mark beside its name in the composer model selector and model picker, and vendor/model logos across Settings → Models, with a per-model icon picker, user-created custom icons, and a cropping editor.",
   "keywords": [
+    "custom-icons",
     "deepseek-harness",
     "dsh",
     "dsh-plugin",
+    "image-crop",
     "model-icons",
     "model-logos",
     "vendor-logos"
@@ -82,6 +84,7 @@
     "oxlint": "^1.91.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",
+    "react-easy-crop": "6.2.5",
     "simple-git-hooks": "^2.14.0",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",

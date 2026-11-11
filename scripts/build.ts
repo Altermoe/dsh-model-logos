@@ -30,6 +30,7 @@ import { LOGO_KEYS, MODEL_RULES, PICKER_ONLY_KEYS, PROVIDER_RULES, VENDOR_CHANNE
 import { letterTile } from '../src/artwork';
 import { DSHML_NAV_ICON_CSS, DSHML_NAV_ICON_SVG, DSHML_NAV_MARKER } from '../src/nav-icon';
 import { DSHML_BRAND_NAMES } from '../src/i18n';
+import { DSHML_CUSTOM_PREFIX, dshmlCustomMarkSvg } from '../src/custom-icons';
 import type { BrandLogo, LogoGroup, LogoSet } from '../src/types';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -197,6 +198,21 @@ function validateBrandNames(merged: Map<string, BrandLogo>): void {
   }
 }
 
+/** Validate the custom-icon tile and its reserved override namespace. */
+function validateCustomIcons(): void {
+  if (LOGO_KEYS.some((key) => key.startsWith(DSHML_CUSTOM_PREFIX))) {
+    problems.push(
+      `src/match.ts: a logo key must not use the ${DSHML_CUSTOM_PREFIX} namespace (reserved for custom icons)`,
+    );
+  }
+  const sample = dshmlCustomMarkSvg({ image: 'data:image/png;base64,iVBORw0KGgo=' });
+  if (!sample.trim().startsWith('<svg')) problems.push('src/custom-icons.ts: a custom mark must start with <svg');
+  if (/\sid\s*=/.test(sample)) problems.push('src/custom-icons.ts: a custom mark must not use id attributes');
+  if (/<script|\son[a-z]+\s*=|https?:/i.test(sample.replace(/\sxmlns[^=]*="[^"]*"/gi, ''))) {
+    problems.push('src/custom-icons.ts: a custom mark must stay self-contained');
+  }
+}
+
 /** Validate the generated letter-tile fallback that ships in the runtime. */
 function validateLetterTile(): void {
   const sample = letterTile('测试');
@@ -310,6 +326,8 @@ function validateClientBundle(text: string): void {
     ['priority: -1', 'shadowing priority'],
     ['dshml-root', 'label stylesheet class'],
     ['data-dshml-nav', 'settings nav glyph marker'],
+    ['dshml-picker-create', 'custom-icon create cell'],
+    ['reactEasyCrop_Container', 'image cropper integration'],
   ];
   if (text.length < 1000) problems.push('client bundle is suspiciously small');
   for (const [marker, label] of markers) {
@@ -331,6 +349,7 @@ async function main(): Promise<void> {
   validateGroupsAndRanks(merged);
   validateBrandNames(merged);
   validateLetterTile();
+  validateCustomIcons();
   validateNavIcon();
 
   let client = '';

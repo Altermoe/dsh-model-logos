@@ -20,6 +20,16 @@ import { LOGOS, filterLogoGroups, groupLogoEntries } from './logos';
 import { LOGO_RANKS } from './logos/ranking';
 import type { GroupedLogoEntry, LogoGroups } from './logos/groups';
 import {
+  DSHML_CUSTOM_MAX_ICONS,
+  dshmlCustomIconIdOf,
+  dshmlCustomIconList,
+  dshmlCustomIconsOf,
+  dshmlCustomMarkFor,
+  dshmlCustomMarkSvg,
+} from './custom-icons';
+import { DshmlCustomIconEditor } from './custom-icon-editor';
+import type { DshmlCustomIconEditorMode } from './custom-icon-editor';
+import {
   dshmlClearModelIcon,
   dshmlClearProviderIcon,
   dshmlIconState,
@@ -64,6 +74,8 @@ export interface DshmlUiResolution {
   source: string;
   disabled: boolean;
   letter: boolean;
+  /** User-created icon id (`custom:<id>` sentinel), or null. */
+  custom: string | null;
 }
 
 /** A validated letter tile (generated tile for one model). */
@@ -93,7 +105,7 @@ export function dshmlUiCopy(key: string, fallback: string): string {
 
 /** State rendered while the icon store is missing, broken or still loading. */
 function dshmlUiFallbackState(): IconState {
-  return { status: 'loading', overrides: {}, providerOverrides: {}, writable: false, error: '' };
+  return { status: 'loading', overrides: {}, providerOverrides: {}, customIcons: {}, writable: false, error: '' };
 }
 
 /** Current icon-store snapshot, or the safe fallback state. */
@@ -261,18 +273,71 @@ export function dshmlUiResolve(providerId: string, modelId: string, modelName: s
       { id: modelId, name: typeof modelName === 'string' ? modelName : '' },
     );
     if (result !== null && typeof result === 'object') {
-      const candidate = result as { key?: unknown; source?: unknown; disabled?: unknown; letter?: unknown };
+      const candidate = result as {
+        key?: unknown;
+        source?: unknown;
+        disabled?: unknown;
+        letter?: unknown;
+        custom?: unknown;
+      };
       return {
         key: typeof candidate.key === 'string' && candidate.key !== '' ? candidate.key : null,
         source: typeof candidate.source === 'string' ? candidate.source : 'none',
         disabled: candidate.disabled === true,
         letter: candidate.letter === true,
+        custom: typeof candidate.custom === 'string' && candidate.custom !== '' ? candidate.custom : null,
       };
     }
   } catch {
     /* fall through */
   }
-  return { key: null, source: 'none', disabled: false, letter: false };
+  return { key: null, source: 'none', disabled: false, letter: false, custom: null };
+}
+
+/** One normalized, sorted custom icon from the icon store. */
+export interface DshmlUiCustomIcon {
+  id: string;
+  name: string;
+  image: string;
+}
+
+/**
+ * Every stored custom icon, validated and sorted by creation time.
+ * @param state - icon-store state (defensively treated as unknown).
+ */
+export function dshmlUiCustomIcons(state: unknown): DshmlUiCustomIcon[] {
+  const raw =
+    state !== null && typeof state === 'object' ? (state as { customIcons?: unknown }).customIcons : undefined;
+  return dshmlCustomIconList(dshmlCustomIconsOf(raw)).map(function toView(icon) {
+    return { id: icon.id, name: icon.name, image: icon.image };
+  });
+}
+
+/**
+ * One stored custom icon by id, `custom:<id>` sentinel or bare id.
+ * @param state - icon-store state (defensively treated as unknown).
+ * @param value - id or `custom:<id>` override value.
+ */
+export function dshmlUiCustomIcon(state: unknown, value: unknown): DshmlUiCustomIcon | null {
+  const raw =
+    state !== null && typeof state === 'object' ? (state as { customIcons?: unknown }).customIcons : undefined;
+  const icons = dshmlCustomIconsOf(raw);
+  const id = dshmlCustomIconIdOf(value) ?? (typeof value === 'string' ? value : null);
+  if (id === null || !Object.prototype.hasOwnProperty.call(icons, id)) return null;
+  const icon = icons[id];
+  return icon !== undefined ? { id: icon.id, name: icon.name, image: icon.image } : null;
+}
+
+/**
+ * The inline SVG tile a stored custom icon renders as, or null when the id is
+ * unknown (e.g. a reference left behind by a hand-edited settings document).
+ * @param state - icon-store state (defensively treated as unknown).
+ * @param value - id or `custom:<id>` override value.
+ */
+export function dshmlUiCustomMark(state: unknown, value: unknown): DshmlUiLetterTile | null {
+  const raw =
+    state !== null && typeof state === 'object' ? (state as { customIcons?: unknown }).customIcons : undefined;
+  return dshmlCustomMarkFor(dshmlCustomIconsOf(raw), value);
 }
 
 /** Wrapper around a possibly-missing hook so a broken store renders a state. */
@@ -336,18 +401,25 @@ export function dshmlUiResolveProvider(
     const result: VendorMark = dshmlVendorMark(providerId, displayName, allowFallback);
     const resolved: unknown = result !== null && typeof result === 'object' ? result.resolved : null;
     if (resolved !== null && typeof resolved === 'object') {
-      const candidate = resolved as { key?: unknown; source?: unknown; disabled?: unknown; letter?: unknown };
+      const candidate = resolved as {
+        key?: unknown;
+        source?: unknown;
+        disabled?: unknown;
+        letter?: unknown;
+        custom?: unknown;
+      };
       return {
         key: typeof candidate.key === 'string' && candidate.key !== '' ? candidate.key : null,
         source: typeof candidate.source === 'string' ? candidate.source : 'none',
         disabled: candidate.disabled === true,
         letter: candidate.letter === true,
+        custom: typeof candidate.custom === 'string' && candidate.custom !== '' ? candidate.custom : null,
       };
     }
   } catch {
     /* fall through */
   }
-  return { key: null, source: 'none', disabled: false, letter: false };
+  return { key: null, source: 'none', disabled: false, letter: false, custom: null };
 }
 
 /** The props one picker grid cell accepts. */
@@ -414,6 +486,7 @@ function DshmlIconPickerApp(props: DshmlIconPickerAppProps): ReactElement {
   const [query, setQuery] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState('');
+  const [editor, setEditor] = React.useState<{ mode: DshmlCustomIconEditorMode; id: string | null } | null>(null);
   const dialogRef = React.useRef<HTMLDivElement>(null);
   const titleIdRef = React.useRef<string | null>(null);
   if (titleIdRef.current === null) {
@@ -427,7 +500,8 @@ function DshmlIconPickerApp(props: DshmlIconPickerAppProps): ReactElement {
       function onKeyDown(event: KeyboardEvent) {
         if (event.key === 'Escape') {
           event.preventDefault();
-          props.onClose();
+          if (editor !== null) setEditor(null);
+          else props.onClose();
           return;
         }
         if (event.key !== 'Tab') return;
@@ -453,7 +527,7 @@ function DshmlIconPickerApp(props: DshmlIconPickerAppProps): ReactElement {
         document.removeEventListener('keydown', onKeyDown, true);
       };
     },
-    [props.onClose],
+    [props.onClose, editor],
   );
 
   const overrides = dshmlUiOverrides(state);
@@ -472,11 +546,15 @@ function DshmlIconPickerApp(props: DshmlIconPickerAppProps): ReactElement {
       ? dshmlUiProviderLetterTile(providerId, displayName)
       : dshmlUiLetterTile(providerId, modelId, displayName);
 
+  const customIcons = dshmlUiCustomIcons(state);
+  const selectedCustomId = dshmlCustomIconIdOf(rawOverride);
   const isAuto = rawOverride === null && resolved.letter !== true;
   const isNone = rawOverride === 'none';
   const isLetter = rawOverride === DSHML_LETTER_ICON || resolved.letter === true;
   const selectedBrandKey =
-    rawOverride !== null && rawOverride !== 'none' && rawOverride !== DSHML_LETTER_ICON ? rawOverride : null;
+    rawOverride !== null && rawOverride !== 'none' && rawOverride !== DSHML_LETTER_ICON && selectedCustomId === null
+      ? rawOverride
+      : null;
 
   let autoSvg = DSHML_PICKER_AUTO_SVG;
   if (isAuto && resolved.key !== null) {
@@ -497,7 +575,7 @@ function DshmlIconPickerApp(props: DshmlIconPickerAppProps): ReactElement {
     return message !== '' ? message : dshmlUiCopy('picker.saveFailed', 'Could not save — try again');
   }
 
-  function selectIcon(kind: 'auto' | 'none' | 'letter' | 'brand', brandKey: string | null): void {
+  function selectIcon(kind: 'auto' | 'none' | 'letter' | 'brand' | 'custom', optionKey: string | null): void {
     if (busy === true) return;
     if (unavailable === true) {
       setError(dshmlUiCopy('picker.unavailable', 'Icon settings unavailable (host plugin not loaded)'));
@@ -507,17 +585,23 @@ function DshmlIconPickerApp(props: DshmlIconPickerAppProps): ReactElement {
     setBusy(true);
     let write: Promise<boolean>;
     try {
+      const value =
+        kind === 'none'
+          ? 'none'
+          : kind === 'letter'
+            ? DSHML_LETTER_ICON
+            : kind === 'custom'
+              ? optionKey !== null
+                ? 'custom:' + optionKey
+                : ''
+              : (optionKey ?? '');
       if (scope === 'provider') {
         if (kind === 'auto') write = dshmlClearProviderIcon(providerId);
-        else {
-          const value = kind === 'none' ? 'none' : kind === 'letter' ? DSHML_LETTER_ICON : brandKey;
-          write = dshmlSetProviderIcon(providerId, value ?? '');
-        }
+        else write = dshmlSetProviderIcon(providerId, value);
       } else if (kind === 'auto') {
         write = dshmlClearModelIcon(providerId, modelId);
       } else {
-        const value = kind === 'none' ? 'none' : kind === 'letter' ? DSHML_LETTER_ICON : brandKey;
-        write = dshmlSetModelIcon(providerId, modelId, value ?? '');
+        write = dshmlSetModelIcon(providerId, modelId, value);
       }
     } catch (writeError) {
       write = Promise.reject(writeError);
@@ -561,16 +645,54 @@ function DshmlIconPickerApp(props: DshmlIconPickerAppProps): ReactElement {
     return child !== null;
   });
 
-  const headChildren: ReactElement[] = [
+  const editing = editor !== null;
+  const dialogTitle = editing
+    ? editor !== null && editor.mode === 'rename'
+      ? dshmlUiCopy('picker.editCustomTitle', 'Rename custom icon')
+      : dshmlUiCopy('picker.createCustom', 'Create custom icon')
+    : scope === 'provider'
+      ? dshmlUiCopy('picker.providerTitle', 'Choose vendor icon')
+      : dshmlUiCopy('picker.title', 'Choose model icon');
+  const backButton = editing
+    ? h(
+        'button',
+        {
+          key: 'back',
+          type: 'button',
+          className: 'dshml-picker-back',
+          'aria-label': dshmlUiCopy('picker.back', 'Back'),
+          title: dshmlUiCopy('picker.back', 'Back'),
+          onClick: function onBack() {
+            setEditor(null);
+          },
+        },
+        h(
+          'svg',
+          {
+            className: 'dshml-picker-back-icon',
+            viewBox: '0 0 24 24',
+            width: 16,
+            height: 16,
+            fill: 'none',
+            focusable: 'false',
+            'aria-hidden': 'true',
+          },
+          h('path', {
+            d: 'M15 5l-7 7 7 7',
+            stroke: 'currentColor',
+            strokeWidth: 2,
+            strokeLinecap: 'round',
+            strokeLinejoin: 'round',
+          }),
+        ),
+      )
+    : null;
+
+  const headChildren: Array<ReactElement | null> = [
+    backButton,
     h('div', { key: 'heading', className: 'dshml-picker-heading' }, [
-      h(
-        'h2',
-        { key: 'title', className: 'dshml-picker-title', id: titleId },
-        scope === 'provider'
-          ? dshmlUiCopy('picker.providerTitle', 'Choose vendor icon')
-          : dshmlUiCopy('picker.title', 'Choose model icon'),
-      ),
-      h('div', { key: 'subtitle', className: 'dshml-picker-subtitle' }, subtitleChildren),
+      h('h2', { key: 'title', className: 'dshml-picker-title', id: titleId }, dialogTitle),
+      editing ? null : h('div', { key: 'subtitle', className: 'dshml-picker-subtitle' }, subtitleChildren),
     ]),
     h(
       'button',
@@ -679,6 +801,193 @@ function DshmlIconPickerApp(props: DshmlIconPickerAppProps): ReactElement {
   const modelTitle = dshmlUiCopy('picker.models', 'Model icons');
   const hasBrandMatches = vendorCells.length > 0 || modelCells.length > 0;
 
+  // User-created icons: always reachable through the trailing "+" cell, and
+  // filtered by name while the search box has text (the create cell is a
+  // browse action, so it hides during a search).
+  const customTitle = dshmlUiCopy('picker.custom', 'Custom icons');
+  const customQuery = query.trim().toLowerCase();
+  const customMatches =
+    customQuery === ''
+      ? customIcons
+      : customIcons.filter(function matchesCustom(icon) {
+          return (
+            icon.name.toLowerCase().indexOf(customQuery) !== -1 || icon.id.toLowerCase().indexOf(customQuery) !== -1
+          );
+        });
+  const customCells = customMatches.map(function toCustomCell(icon): ReactElement {
+    const optionKey = 'custom:' + icon.id;
+    return h('div', { key: 'custom-' + icon.id, className: 'dshml-picker-custom-cell' }, [
+      h(DshmlPickerOption, {
+        key: 'option',
+        optionKey: optionKey,
+        svg: dshmlCustomMarkSvg(icon),
+        label: icon.name,
+        hint: icon.name,
+        ariaLabel: icon.name,
+        selected: selectedCustomId === icon.id,
+        disabled: disabled,
+        onSelect: function onCustom() {
+          selectIcon('custom', icon.id);
+        },
+      }),
+      h(
+        'button',
+        {
+          key: 'edit',
+          type: 'button',
+          className: 'dshml-picker-custom-edit',
+          'aria-label': dshmlUiCopy('picker.editCustom', 'Rename') + ' ' + icon.name,
+          title: dshmlUiCopy('picker.editCustom', 'Rename'),
+          disabled: disabled,
+          onClick: function onEdit(event: { stopPropagation: () => void }) {
+            event.stopPropagation();
+            setEditor({ mode: 'rename', id: icon.id });
+          },
+        },
+        // Pencil glyph; 12px inside the 18px hit area.
+        h(
+          'svg',
+          { viewBox: '0 0 24 24', width: 12, height: 12, fill: 'none', 'aria-hidden': 'true' },
+          h('path', {
+            d: 'M4 20h4L19 9l-4-4L4 16v4Z',
+            stroke: 'currentColor',
+            strokeWidth: 2,
+            strokeLinejoin: 'round',
+          }),
+        ),
+      ),
+    ]);
+  });
+  const createCell =
+    customQuery === '' && customIcons.length < DSHML_CUSTOM_MAX_ICONS
+      ? h(
+          'button',
+          {
+            key: 'custom-create',
+            type: 'button',
+            className: 'dshml-picker-create',
+            'aria-label': dshmlUiCopy('picker.createCustom', 'Create custom icon'),
+            title: dshmlUiCopy('picker.createHint', 'Upload an image and crop it to a square icon'),
+            disabled: disabled,
+            onClick: function onCreate() {
+              setEditor({ mode: 'create', id: null });
+            },
+          },
+          [
+            h(
+              'svg',
+              {
+                key: 'plus',
+                className: 'dshml-picker-create-icon',
+                viewBox: '0 0 24 24',
+                width: 22,
+                height: 22,
+                fill: 'none',
+                'aria-hidden': 'true',
+              },
+              h('path', {
+                d: 'M12 5v14M5 12h14',
+                stroke: 'currentColor',
+                strokeWidth: 1.8,
+                strokeLinecap: 'round',
+              }),
+            ),
+            h(
+              'span',
+              { key: 'label', className: 'dshml-picker-create-label' },
+              dshmlUiCopy('picker.createShort', 'New'),
+            ),
+          ],
+        )
+      : null;
+
+  const editorId = editor !== null ? editor.id : null;
+  const editorTarget =
+    editorId !== null
+      ? (customIcons.find(function byEditorId(icon) {
+          return icon.id === editorId;
+        }) ?? null)
+      : null;
+  const editorBody =
+    editing && editor !== null
+      ? h(
+          'div',
+          { key: 'editor', className: 'dshml-picker-body dshml-picker-editor-body' },
+          h(DshmlCustomIconEditor, {
+            mode: editor.mode,
+            icon: editorTarget !== null ? { id: editorTarget.id, name: editorTarget.name } : null,
+            apply: { scope: scope, providerId: providerId, modelId: modelId },
+            onCancel: function onCancelEditor() {
+              setEditor(null);
+            },
+            onDone: function onEditorDone(result: 'created' | 'renamed' | 'deleted') {
+              if (result === 'created') {
+                if (typeof props.onChanged === 'function') {
+                  try {
+                    props.onChanged();
+                  } catch {
+                    /* a failing callback must not keep the modal open */
+                  }
+                }
+                props.onClose();
+                return;
+              }
+              // Rename/delete keep the picker open so the updated group is visible.
+              setEditor(null);
+            },
+          }),
+        )
+      : null;
+
+  const showCustomGroup = customCells.length > 0 || createCell !== null;
+  const bodyChildren: Array<ReactElement | null> = [
+    h('div', { key: 'specials', className: 'dshml-picker-specials' }, specialOptions),
+    showCustomGroup ? h('h3', { key: 'custom-title', className: 'dshml-picker-group-title' }, customTitle) : null,
+    showCustomGroup
+      ? h(
+          'div',
+          {
+            key: 'customs',
+            className: 'dshml-picker-grid dshml-picker-custom-grid',
+            role: 'group',
+            'aria-label': customTitle,
+          },
+          createCell !== null ? [...customCells, createCell] : customCells,
+        )
+      : null,
+    vendorCells.length > 0
+      ? h('h3', { key: 'vendor-title', className: 'dshml-picker-group-title' }, vendorTitle)
+      : null,
+    vendorCells.length > 0
+      ? h(
+          'div',
+          {
+            key: 'vendors',
+            className: 'dshml-picker-grid',
+            role: 'group',
+            'aria-label': vendorTitle,
+          },
+          vendorCells,
+        )
+      : null,
+    modelCells.length > 0 ? h('h3', { key: 'model-title', className: 'dshml-picker-group-title' }, modelTitle) : null,
+    modelCells.length > 0
+      ? h(
+          'div',
+          {
+            key: 'models',
+            className: 'dshml-picker-grid',
+            role: 'group',
+            'aria-label': modelTitle,
+          },
+          modelCells,
+        )
+      : null,
+    hasBrandMatches === false && customCells.length === 0
+      ? h('p', { key: 'no-brand', className: 'dshml-picker-empty' }, dshmlUiCopy('picker.noMatch', 'No matching icons'))
+      : null,
+  ];
+
   return h(
     'div',
     {
@@ -691,68 +1000,31 @@ function DshmlIconPickerApp(props: DshmlIconPickerAppProps): ReactElement {
     },
     [
       h('div', { key: 'head', className: 'dshml-picker-head' }, headChildren),
-      error !== '' ? h('p', { key: 'error', className: 'dshml-picker-error', role: 'alert' }, error) : null,
-      unavailable === true
+      !editing && error !== '' ? h('p', { key: 'error', className: 'dshml-picker-error', role: 'alert' }, error) : null,
+      !editing && unavailable === true
         ? h(
             'p',
             { key: 'notice', className: 'dshml-picker-notice', role: 'status' },
             dshmlUiCopy('picker.unavailable', 'Icon settings unavailable (host plugin not loaded)'),
           )
         : null,
-      h('div', { key: 'search', className: 'dshml-picker-search-row' }, [
-        h('input', {
-          key: 'input',
-          type: 'search',
-          className: 'dshml-picker-search',
-          placeholder: dshmlUiCopy('picker.search', 'Search icons'),
-          'aria-label': dshmlUiCopy('picker.search', 'Search icons'),
-          value: query,
-          autoFocus: true,
-          onChange: function onSearch(event: ChangeEvent<HTMLInputElement>) {
-            setQuery(event.target.value);
-          },
-        }),
-      ]),
-      h('div', { key: 'body', className: 'dshml-picker-body' }, [
-        h('div', { key: 'specials', className: 'dshml-picker-specials' }, specialOptions),
-        vendorCells.length > 0
-          ? h('h3', { key: 'vendor-title', className: 'dshml-picker-group-title' }, vendorTitle)
-          : null,
-        vendorCells.length > 0
-          ? h(
-              'div',
-              {
-                key: 'vendors',
-                className: 'dshml-picker-grid',
-                role: 'group',
-                'aria-label': vendorTitle,
+      editing
+        ? editorBody
+        : h('div', { key: 'search', className: 'dshml-picker-search-row' }, [
+            h('input', {
+              key: 'input',
+              type: 'search',
+              className: 'dshml-picker-search',
+              placeholder: dshmlUiCopy('picker.search', 'Search icons'),
+              'aria-label': dshmlUiCopy('picker.search', 'Search icons'),
+              value: query,
+              autoFocus: true,
+              onChange: function onSearch(event: ChangeEvent<HTMLInputElement>) {
+                setQuery(event.target.value);
               },
-              vendorCells,
-            )
-          : null,
-        modelCells.length > 0
-          ? h('h3', { key: 'model-title', className: 'dshml-picker-group-title' }, modelTitle)
-          : null,
-        modelCells.length > 0
-          ? h(
-              'div',
-              {
-                key: 'models',
-                className: 'dshml-picker-grid',
-                role: 'group',
-                'aria-label': modelTitle,
-              },
-              modelCells,
-            )
-          : null,
-        hasBrandMatches === false
-          ? h(
-              'p',
-              { key: 'no-brand', className: 'dshml-picker-empty' },
-              dshmlUiCopy('picker.noMatch', 'No matching icons'),
-            )
-          : null,
-      ]),
+            }),
+          ]),
+      editing ? null : h('div', { key: 'body', className: 'dshml-picker-body' }, bodyChildren),
     ],
   );
 }

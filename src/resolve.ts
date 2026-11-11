@@ -12,10 +12,13 @@
  * so two providers may serve a same-named model with different brands. A value
  * of `none` means the user explicitly disabled the mark; a value of `letter`
  * asks for the generated letter tile (see {@link letterTextFor}) even when no
- * artwork/brand matches — the escape hatch for exotic local models.
+ * artwork/brand matches — the escape hatch for exotic local models; a value of
+ * `custom:<id>` names an icon the user created in the picker (the data layer
+ * lives in `src/custom-icons.ts`).
  *
  * Pure: no DOM, no network. The client bundle inlines this module.
  */
+import { dshmlCustomIconIdOf } from './custom-icons';
 import { LOGO_KEYS, matchModelLogo, matchVendorLogo } from './match';
 import type {
   IconResolution,
@@ -171,9 +174,9 @@ export function flattenOverrides(overrides: unknown): Array<{ providerId: string
 /**
  * Resolve the mark for one provider+model identity.
  *
- * Order: explicit override (a known brand key, `letter`, or `none`) → heuristic
- * initial icon → no icon. An unknown/stale override value is ignored, exactly
- * like a deleted artwork key would be.
+ * Order: explicit override (a known brand key, `letter`, `none`, or a custom
+ * icon sentinel) → heuristic initial icon → no icon. An unknown/stale override
+ * value is ignored, exactly like a deleted artwork key would be.
  * @param overrides - persisted override document.
  * @param provider - provider identity.
  * @param model - model identity.
@@ -184,14 +187,20 @@ export function resolveModelIcon(
   model: Identity | null | undefined,
 ): IconResolution {
   const explicit = overrideIcon(overrides, provider?.id, model?.id);
-  if (explicit === DISABLED) return { key: null, source: 'override', disabled: true, letter: false };
-  if (explicit === LETTER) return { key: null, source: 'override', disabled: false, letter: true };
-  if (explicit !== null && isKnownLogoKey(explicit)) {
-    return { key: explicit, source: 'override', disabled: false, letter: false };
+  if (explicit === DISABLED) return { key: null, source: 'override', disabled: true, letter: false, custom: null };
+  if (explicit === LETTER) return { key: null, source: 'override', disabled: false, letter: true, custom: null };
+  if (explicit !== null) {
+    const custom = dshmlCustomIconIdOf(explicit);
+    if (custom !== null) return { key: null, source: 'override', disabled: false, letter: false, custom };
+    if (isKnownLogoKey(explicit)) {
+      return { key: explicit, source: 'override', disabled: false, letter: false, custom: null };
+    }
   }
   const heuristic = matchModelLogo({ provider: provider ?? {}, model: model ?? {} });
-  if (heuristic !== null) return { key: heuristic, source: 'heuristic', disabled: false, letter: false };
-  return { key: null, source: 'none', disabled: false, letter: false };
+  if (heuristic !== null) {
+    return { key: heuristic, source: 'heuristic', disabled: false, letter: false, custom: null };
+  }
+  return { key: null, source: 'none', disabled: false, letter: false, custom: null };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -273,11 +282,12 @@ export function flattenProviderOverrides(overrides: unknown): Array<{ providerId
 /**
  * Resolve the vendor/channel mark for one provider identity.
  *
- * Order: explicit override (a known brand key, `letter`, or `none`) → official
- * channel table (`matchVendorLogo`, route-id based) → the generated letter tile
- * for an official channel the artwork cannot name. A hand-declared (custom)
- * provider resolves to no mark at all: an invented brand would be a lie, so its
- * 22px seat stays reserved and empty.
+ * Order: explicit override (a known brand key, `letter`, `none`, or a custom
+ * icon sentinel) → official channel table (`matchVendorLogo`, route-id based) →
+ * the generated letter tile for an official channel the artwork cannot name. A
+ * hand-declared (custom) provider resolves to no mark at all unless the user
+ * configured one: an invented brand would be a lie, so its 22px seat stays
+ * reserved and empty.
  * @param overrides - persisted provider override document.
  * @param providerId - provider route id.
  * @param options - `fallback` enables the letter tile for unknown channels;
@@ -291,16 +301,22 @@ export function resolveProviderIcon(
   const provider = idOf(providerId);
   const fallback =
     options !== null && options !== undefined ? options.fallback === true || options.allowFallback === true : false;
-  if (provider === '') return { key: null, source: 'none', disabled: false, letter: false };
+  if (provider === '') return { key: null, source: 'none', disabled: false, letter: false, custom: null };
   const explicit = providerOverrideIcon(overrides, provider);
-  if (explicit === DISABLED) return { key: null, source: 'override', disabled: true, letter: false };
-  if (explicit === LETTER) return { key: null, source: 'override', disabled: false, letter: true };
-  if (explicit !== null && isKnownLogoKey(explicit)) {
-    return { key: explicit, source: 'override', disabled: false, letter: false };
+  if (explicit === DISABLED) return { key: null, source: 'override', disabled: true, letter: false, custom: null };
+  if (explicit === LETTER) return { key: null, source: 'override', disabled: false, letter: true, custom: null };
+  if (explicit !== null) {
+    const custom = dshmlCustomIconIdOf(explicit);
+    if (custom !== null) return { key: null, source: 'override', disabled: false, letter: false, custom };
+    if (isKnownLogoKey(explicit)) {
+      return { key: explicit, source: 'override', disabled: false, letter: false, custom: null };
+    }
   }
   const heuristic = matchVendorLogo(provider);
-  if (heuristic !== null) return { key: heuristic, source: 'heuristic', disabled: false, letter: false };
-  return { key: null, source: 'none', disabled: false, letter: fallback };
+  if (heuristic !== null) {
+    return { key: heuristic, source: 'heuristic', disabled: false, letter: false, custom: null };
+  }
+  return { key: null, source: 'none', disabled: false, letter: fallback, custom: null };
 }
 
 /** Deep-copy a document into a null-prototype-free plain object of own fields. */

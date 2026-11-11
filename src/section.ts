@@ -35,7 +35,9 @@ import {
   dshmlUiResolve,
   dshmlUiUseIconState,
 } from './picker';
+import type { DshmlUiLetterTile } from './picker';
 import { dshmlClearModelIcon, dshmlClearProviderIcon, dshmlUseModelCatalog, dshmlVendorMark } from './overrides';
+import { dshmlCustomIconsOf, dshmlCustomMarkFor } from './custom-icons';
 
 /** One model row inside a normalized catalog group. */
 interface DshmlSectionModel {
@@ -228,6 +230,8 @@ interface DshmlSectionRowProps {
   modelId: string;
   modelName: string;
   override: string | null;
+  /** Preview of the row's user-created icon, when the override names one. */
+  customMark: DshmlUiLetterTile | null;
   busy: boolean;
   onChoose: (providerId: string, modelId: string, modelName: string, anchor: Element | null) => void;
   onReset: (providerId: string, modelId: string) => void;
@@ -253,6 +257,8 @@ function DshmlSectionRow(props: DshmlSectionRowProps): ReactElement | null {
     const tile = dshmlUiLetterTile(providerId, modelId, modelName);
     if (tile !== null) svg = tile.svg;
     emptyMark = svg === '';
+  } else if (props.customMark !== null) {
+    svg = props.customMark.svg;
   } else if (resolved.key !== null) {
     const logo = dshmlUiLogo(resolved.key);
     if (logo !== null) svg = logo.svg;
@@ -537,6 +543,10 @@ export function DshmlModelIconsSection(_props: unknown): ReactElement {
 
   const overrides = dshmlUiOverrides(iconState);
   const providerOverrides = dshmlUiProviderOverrides(iconState);
+  const customIcons = dshmlCustomIconsOf((iconState as { customIcons?: unknown }).customIcons);
+  function customMarkFor(value: string | null): DshmlUiLetterTile | null {
+    return value !== null ? dshmlCustomMarkFor(customIcons, value) : null;
+  }
   const groups = dshmlSectionCatalogGroups(catalog);
   const catalogPairs: Record<string, boolean> = Object.create(null);
   for (const group of groups) {
@@ -805,13 +815,15 @@ export function DshmlModelIconsSection(_props: unknown): ReactElement {
 
   for (const group of filteredGroups) {
     const rows = group.models.map(function toRow(model) {
+      const override = dshmlUiOverrideValue(overrides, group.providerId, model.modelId);
       return h(DshmlSectionRow, {
         key: 'row-' + group.providerId + '-' + model.modelId,
         providerId: group.providerId,
         providerName: group.displayName,
         modelId: model.modelId,
         modelName: model.name,
-        override: dshmlUiOverrideValue(overrides, group.providerId, model.modelId),
+        override: override,
+        customMark: customMarkFor(override),
         busy: pending === group.providerId + '\u0000' + model.modelId,
         onChoose: openPicker,
         onReset: resetIcon,
@@ -859,6 +871,7 @@ export function DshmlModelIconsSection(_props: unknown): ReactElement {
               modelId: row.modelId,
               modelName: row.modelId,
               override: row.value,
+              customMark: customMarkFor(row.value),
               busy: pending === row.providerId + '\u0000' + row.modelId,
               onChoose: openPicker,
               onReset: resetIcon,

@@ -8,10 +8,14 @@
  * through the same snapshot store, so an override set anywhere is reflected
  * everywhere immediately.
  *
- * Persistence: the Host plugin's Config declares a volatile `modelIcons` field,
- * so the settings document mirror carries it. Writes go through
- * `ctx.configForms.get(NS)` → `remote.settings.mutate`, which lands in the
- * profile's `cordis.patch.yml` (no localStorage).
+ * Persistence: the Host plugin's Config declares the volatile `modelIcons`,
+ * `providerIcons` and `customIcons` fields, so the settings document mirror
+ * carries them. Writes go through `ctx.configForms.get(NS)` →
+ * `remote.settings.mutate`, which lands in the profile's `cordis.patch.yml`
+ * (no localStorage). Custom icons deliberately live in the same document as the
+ * overrides that reference them: one write sets the icon and the override it is
+ * immediately applied to, and deleting the icon clears every reference in one
+ * atomic edit.
  */
 import {
   flattenOverrides,
@@ -25,6 +29,17 @@ import {
   withoutOverride,
   withoutProviderOverride,
 } from './resolve';
+import {
+  DSHML_CUSTOM_KIND_IMAGE,
+  DSHML_CUSTOM_MAX_ICONS,
+  dshmlCustomIconKey,
+  dshmlCustomIconsOf,
+  dshmlCustomMarkSvg,
+  dshmlIsCustomIconId,
+  dshmlIsCustomImageDataUrl,
+  dshmlNewCustomIconId,
+  dshmlValidateCustomName,
+} from './custom-icons';
 import { letterTile } from './artwork';
 import { LOGOS } from './logos';
 import { React } from './runtime';
@@ -37,8 +52,10 @@ import type {
   ConfigFormSnapshot,
   ConfigFormsService,
   ConfigMutateOp,
+  CustomIcon,
   DshContext,
   IconResolution,
+  IconScope,
   IconState,
   Identity,
   LocaleService,
@@ -61,12 +78,16 @@ export const DSHML_SETTINGS_FIELD = 'modelIcons';
 /** Settings field carrying the per-provider (vendor) overrides. */
 export const DSHML_PROVIDER_SETTINGS_FIELD = 'providerIcons';
 
+/** Settings field carrying the user-created icons (`id → { name, kind, image, createdAt }`). */
+export const DSHML_CUSTOM_SETTINGS_FIELD = 'customIcons';
+
 /** Snapshot store for the icon overrides. */
 const dshmlIconsRef: { snapshot: IconState; listeners: Set<() => void> } = {
   snapshot: {
     status: 'loading',
     overrides: {},
     providerOverrides: {},
+    customIcons: {},
     writable: false,
     error: null,
   },
@@ -223,12 +244,18 @@ export function dshmlProviderLetterTextFor(providerId: string, displayName?: str
 }
 
 /**
- * The mark data a renderer should draw: a brand SVG or a generated letter tile,
- * or null when the pair has no mark (auto found nothing, disabled, or 'none').
+ * The mark data a renderer should draw: a brand SVG, a generated letter tile, a
+ * user-created custom icon, or null when the pair has no mark (auto found
+ * nothing, disabled, or 'none').
  */
 export function dshmlModelMark(provider: Identity | null | undefined, model: Identity | null | undefined): ModelMark {
   const resolved = dshmlResolveFor(provider, model);
   if (resolved.disabled) return { resolved, svg: null, title: null };
+  if (resolved.custom !== null) {
+    const icon = dshmlCustomIconById(resolved.custom);
+    if (icon === null) return { resolved, svg: null, title: null };
+    return { resolved, svg: dshmlCustomMarkSvg(icon), title: icon.name };
+  }
   if (resolved.letter) {
     const tile = letterTile(dshmlLetterTextFor(provider, model));
     return { resolved, svg: tile.svg, title: tile.title };
@@ -252,6 +279,11 @@ export function dshmlVendorMark(providerId: string, displayName?: string | null,
   // channels); callers must pass `false` explicitly for declared providers.
   const resolved = dshmlResolveProviderFor(providerId, allowFallback !== false);
   if (resolved.disabled) return { key: null, svg: null, title: null, resolved };
+  if (resolved.custom !== null) {
+    const icon = dshmlCustomIconById(resolved.custom);
+    if (icon === null) return { key: null, svg: null, title: null, resolved };
+    return { key: null, svg: dshmlCustomMarkSvg(icon), title: icon.name, resolved };
+  }
   if (resolved.letter) {
     const tile = letterTile(providerLetterTextFor(providerId, displayName));
     return { key: null, svg: tile.svg, title: tile.title, resolved };
@@ -260,6 +292,14 @@ export function dshmlVendorMark(providerId: string, displayName?: string | null,
   const logo = key !== null ? LOGOS[key] : undefined;
   if (logo !== undefined) return { key, svg: logo.svg, title: dshmlBrandName(key, logo.title), resolved };
   return { key: null, svg: null, title: null, resolved };
+}
+
+/** One stored custom icon by id, or null when absent. */
+function dshmlCustomIconById(id: string): CustomIcon | null {
+  const icons = dshmlIconState().customIcons;
+  if (!Object.prototype.hasOwnProperty.call(icons, id)) return null;
+  const icon = icons[id];
+  return icon !== undefined ? icon : null;
 }
 
 /** Adopt the settings form snapshot into the icon store. */
@@ -279,6 +319,7 @@ function dshmlAcceptIconForm(form: ConfigForm): void {
       status: 'unavailable',
       overrides: previous.overrides,
       providerOverrides: previous.providerOverrides,
+      customIcons: previous.customIcons,
       writable: false,
       error: typeof snapshot.error === 'string' ? snapshot.error : dshmlT('picker.unavailable'),
     });
@@ -293,12 +334,15 @@ function dshmlAcceptIconForm(form: ConfigForm): void {
   const rawModel = value !== null && typeof value === 'object' ? dshmlRead(value, DSHML_SETTINGS_FIELD) : undefined;
   const rawProvider =
     value !== null && typeof value === 'object' ? dshmlRead(value, DSHML_PROVIDER_SETTINGS_FIELD) : undefined;
+  const rawCustom =
+    value !== null && typeof value === 'object' ? dshmlRead(value, DSHML_CUSTOM_SETTINGS_FIELD) : undefined;
   const overrides: OverrideDocument =
     rawModel !== null && typeof rawModel === 'object' && !Array.isArray(rawModel) ? (rawModel as OverrideDocument) : {};
   const providerOverrides: ProviderOverrideDocument =
     rawProvider !== null && typeof rawProvider === 'object' && !Array.isArray(rawProvider)
       ? (rawProvider as ProviderOverrideDocument)
       : {};
+  const customIcons = dshmlCustomIconsOf(rawCustom);
   const previous = dshmlIconState();
   const writing = dshmlIconFormWriting > 0;
   // Keep an optimistic value while a queued write has not been folded back yet.
@@ -310,10 +354,15 @@ function dshmlAcceptIconForm(form: ConfigForm): void {
     Object.keys(previous.providerOverrides).length > 0 && previous.status === 'ready' && writing
       ? previous.providerOverrides
       : providerOverrides;
+  const mergedCustom =
+    Object.keys(previous.customIcons).length > 0 && previous.status === 'ready' && writing
+      ? previous.customIcons
+      : customIcons;
   dshmlPublishIcons({
     status: 'ready',
     overrides: merged,
     providerOverrides: mergedProviders,
+    customIcons: mergedCustom,
     writable: snapshot.writable === true,
     error: null,
   });
@@ -322,53 +371,70 @@ function dshmlAcceptIconForm(form: ConfigForm): void {
 /** Whether a write is in flight (prevents the mirror from reverting an optimistic value). */
 let dshmlIconFormWriting = 0;
 
+/** Optimistic state projection published before a settings write settles. */
+type DshmlOptimisticWrite = (state: IconState) => IconState;
+
+/** Publish one write refusal without throwing. */
+function dshmlRefuseWrite(message: string): false {
+  dshmlPublishIcons({ ...dshmlIconState(), error: message });
+  return false;
+}
+
 /**
- * Write one override operation.
+ * Send path operations to the Host with the store's optimistic-write discipline:
+ * project the expected state immediately, refuse when the namespace is not
+ * writable, restore the Host snapshot when the last in-flight write settles, and
+ * surface a localized error instead of throwing.
+ * @param ops - settings path operations.
+ * @param optimistic - optional state projection published before the write.
+ * @returns whether the Host accepted the write.
+ */
+async function dshmlWriteOps(ops: readonly ConfigMutateOp[], optimistic?: DshmlOptimisticWrite): Promise<boolean> {
+  const form = dshmlIconForm;
+  const unavailable = dshmlT('picker.unavailable');
+  if (form === null) return dshmlRefuseWrite(unavailable);
+  if (dshmlIconState().status === 'unavailable') return dshmlRefuseWrite(unavailable);
+  const previous = dshmlIconState();
+  dshmlPublishIcons({ ...(optimistic !== undefined ? optimistic(previous) : previous), error: null });
+  dshmlIconFormWriting += 1;
+  try {
+    const ok = await form.mutate(ops);
+    if (ok !== true) return dshmlRefuseWrite(dshmlT('picker.saveFailed'));
+    return true;
+  } catch (error) {
+    console.warn('[dsh-model-logos] settings write failed', error);
+    return dshmlRefuseWrite(dshmlT('picker.saveFailed'));
+  } finally {
+    dshmlIconFormWriting = Math.max(0, dshmlIconFormWriting - 1);
+    if (dshmlIconFormWriting === 0) dshmlAcceptIconForm(form);
+  }
+}
+
+/**
+ * Write one model override.
  * @param providerId - provider route id.
  * @param modelId - model id.
- * @param icon - brand key, 'none', 'letter', or null to clear.
+ * @param icon - brand key, 'none', 'letter', `custom:<id>`, or null to clear.
  * @returns whether the Host accepted the write.
  */
 async function dshmlWriteIcon(providerId: string, modelId: string, icon: string | null): Promise<boolean> {
   const provider = typeof providerId === 'string' ? providerId.trim() : '';
   const model = typeof modelId === 'string' ? modelId.trim() : '';
   if (provider === '' || model === '') return false;
-  const form = dshmlIconForm;
-  if (form === null) {
-    dshmlPublishIcons({ ...dshmlIconState(), error: dshmlT('picker.unavailable') });
-    return false;
-  }
-  if (dshmlIconState().status === 'unavailable') {
-    dshmlPublishIcons({ ...dshmlIconState(), error: dshmlT('picker.unavailable') });
-    return false;
-  }
-  const previous = dshmlIconState();
   const value = typeof icon === 'string' ? icon.trim() : '';
-  const optimistic =
+  const ops: ConfigMutateOp[] =
     value === ''
-      ? withoutOverride(previous.overrides, provider, model)
-      : withOverride(previous.overrides, provider, model, value);
-  dshmlPublishIcons({ ...previous, overrides: optimistic, error: null });
-  dshmlIconFormWriting += 1;
-  try {
-    const ops: ConfigMutateOp[] =
-      value === ''
-        ? [{ op: 'unset', path: [DSHML_SETTINGS_FIELD, provider, model] }]
-        : [{ op: 'set', path: [DSHML_SETTINGS_FIELD, provider, model], value }];
-    const ok = await form.mutate(ops);
-    if (ok !== true) {
-      dshmlPublishIcons({ ...dshmlIconState(), error: dshmlT('picker.saveFailed') });
-      return false;
-    }
-    return true;
-  } catch (error) {
-    console.warn('[dsh-model-logos] icon write failed', error);
-    dshmlPublishIcons({ ...dshmlIconState(), error: dshmlT('picker.saveFailed') });
-    return false;
-  } finally {
-    dshmlIconFormWriting = Math.max(0, dshmlIconFormWriting - 1);
-    if (dshmlIconFormWriting === 0) dshmlAcceptIconForm(form);
-  }
+      ? [{ op: 'unset', path: [DSHML_SETTINGS_FIELD, provider, model] }]
+      : [{ op: 'set', path: [DSHML_SETTINGS_FIELD, provider, model], value }];
+  return dshmlWriteOps(ops, function optimistic(state) {
+    return {
+      ...state,
+      overrides:
+        value === ''
+          ? withoutOverride(state.overrides, provider, model)
+          : withOverride(state.overrides, provider, model, value),
+    };
+  });
 }
 
 /** Set one explicit model icon (brand key, 'none', or 'letter'). */
@@ -384,48 +450,26 @@ export function dshmlClearModelIcon(providerId: string, modelId: string): Promis
 /**
  * Write one provider (vendor) override.
  * @param providerId - provider route id.
- * @param icon - brand key, 'none', 'letter', or the empty string to clear.
+ * @param icon - brand key, 'none', 'letter', `custom:<id>`, or the empty string to clear.
  * @returns whether the Host accepted the write.
  */
 async function dshmlWriteProviderIcon(providerId: string, icon: string | null): Promise<boolean> {
   const provider = typeof providerId === 'string' ? providerId.trim() : '';
   if (provider === '') return false;
-  const form = dshmlIconForm;
-  if (form === null) {
-    dshmlPublishIcons({ ...dshmlIconState(), error: dshmlT('picker.unavailable') });
-    return false;
-  }
-  if (dshmlIconState().status === 'unavailable') {
-    dshmlPublishIcons({ ...dshmlIconState(), error: dshmlT('picker.unavailable') });
-    return false;
-  }
-  const previous = dshmlIconState();
   const value = typeof icon === 'string' ? icon.trim() : '';
-  const optimistic =
+  const ops: ConfigMutateOp[] =
     value === ''
-      ? withoutProviderOverride(previous.providerOverrides, provider)
-      : withProviderOverride(previous.providerOverrides, provider, value);
-  dshmlPublishIcons({ ...previous, providerOverrides: optimistic, error: null });
-  dshmlIconFormWriting += 1;
-  try {
-    const ops: ConfigMutateOp[] =
-      value === ''
-        ? [{ op: 'unset', path: [DSHML_PROVIDER_SETTINGS_FIELD, provider] }]
-        : [{ op: 'set', path: [DSHML_PROVIDER_SETTINGS_FIELD, provider], value }];
-    const ok = await form.mutate(ops);
-    if (ok !== true) {
-      dshmlPublishIcons({ ...dshmlIconState(), error: dshmlT('picker.saveFailed') });
-      return false;
-    }
-    return true;
-  } catch (error) {
-    console.warn('[dsh-model-logos] provider icon write failed', error);
-    dshmlPublishIcons({ ...dshmlIconState(), error: dshmlT('picker.saveFailed') });
-    return false;
-  } finally {
-    dshmlIconFormWriting = Math.max(0, dshmlIconFormWriting - 1);
-    if (dshmlIconFormWriting === 0) dshmlAcceptIconForm(form);
-  }
+      ? [{ op: 'unset', path: [DSHML_PROVIDER_SETTINGS_FIELD, provider] }]
+      : [{ op: 'set', path: [DSHML_PROVIDER_SETTINGS_FIELD, provider], value }];
+  return dshmlWriteOps(ops, function optimistic(state) {
+    return {
+      ...state,
+      providerOverrides:
+        value === ''
+          ? withoutProviderOverride(state.providerOverrides, provider)
+          : withProviderOverride(state.providerOverrides, provider, value),
+    };
+  });
 }
 
 /** Set one explicit provider (vendor) icon (brand key, 'none', or 'letter'). */
@@ -436,6 +480,152 @@ export function dshmlSetProviderIcon(providerId: string, icon: string | null): P
 /** Reset one provider icon to the automatic (official channel) choice. */
 export function dshmlClearProviderIcon(providerId: string): Promise<boolean> {
   return dshmlWriteProviderIcon(providerId, null);
+}
+
+/* -------------------------------------------------------------------------- */
+/* User-created custom icons                                                  */
+/* -------------------------------------------------------------------------- */
+
+/** Where a newly created custom icon is applied immediately. */
+export interface DshmlCustomIconApply {
+  /** `model` targets `modelIcons[provider][model]`, `provider` targets `providerIcons[provider]`. */
+  scope: IconScope;
+  providerId: string;
+  /** Model id; required in `model` scope. */
+  modelId?: string | null;
+}
+
+/** Validated application target for a new custom icon. */
+interface DshmlCustomIconTarget {
+  scope: IconScope;
+  providerId: string;
+  modelId: string;
+}
+
+/**
+ * Validate where a new icon should be applied.
+ * @returns the target, `undefined` to only store the icon, or null when invalid.
+ */
+function dshmlCustomIconTarget(
+  apply: DshmlCustomIconApply | null | undefined,
+): DshmlCustomIconTarget | null | undefined {
+  if (apply === null || apply === undefined) return undefined;
+  const providerId = typeof apply.providerId === 'string' ? apply.providerId.trim() : '';
+  if (providerId === '') return null;
+  const scope: IconScope = apply.scope === 'provider' ? 'provider' : 'model';
+  const modelId = typeof apply.modelId === 'string' ? apply.modelId.trim() : '';
+  if (scope === 'model' && modelId === '') return null;
+  return { scope, providerId, modelId };
+}
+
+/**
+ * Create one user-created icon and, optionally, apply it to a picker target in
+ * the same settings write (so the icon and its reference cannot drift apart).
+ * @param name - raw name input; validated here.
+ * @param image - cropped PNG/WebP data URL produced by the crop dialog.
+ * @param apply - scope + identity to set as the current icon.
+ * @returns the generated icon id, or null when rejected/refused.
+ */
+export async function dshmlCreateCustomIcon(
+  name: unknown,
+  image: unknown,
+  apply?: DshmlCustomIconApply | null,
+): Promise<string | null> {
+  const state = dshmlIconState();
+  const validated = dshmlValidateCustomName(name, state.customIcons);
+  if (!validated.ok || !dshmlIsCustomImageDataUrl(image)) return null;
+  if (Object.keys(state.customIcons).length >= DSHML_CUSTOM_MAX_ICONS) {
+    dshmlPublishIcons({ ...state, error: dshmlT('picker.iconLimit', { n: DSHML_CUSTOM_MAX_ICONS }) });
+    return null;
+  }
+  const target = dshmlCustomIconTarget(apply);
+  if (target === null) return null;
+  const id = dshmlNewCustomIconId();
+  const key = dshmlCustomIconKey(id);
+  if (key === null) return null;
+  const icon: CustomIcon = {
+    id,
+    name: validated.name,
+    kind: DSHML_CUSTOM_KIND_IMAGE,
+    image,
+    createdAt: Date.now(),
+  };
+  const ops: ConfigMutateOp[] = [{ op: 'set', path: [DSHML_CUSTOM_SETTINGS_FIELD, id], value: icon }];
+  if (target !== undefined) {
+    ops.push(
+      target.scope === 'provider'
+        ? { op: 'set', path: [DSHML_PROVIDER_SETTINGS_FIELD, target.providerId], value: key }
+        : { op: 'set', path: [DSHML_SETTINGS_FIELD, target.providerId, target.modelId], value: key },
+    );
+  }
+  const ok = await dshmlWriteOps(ops, function optimistic(previous) {
+    const withIcon: IconState = { ...previous, customIcons: { ...previous.customIcons, [id]: icon } };
+    if (target === undefined) return withIcon;
+    return target.scope === 'provider'
+      ? { ...withIcon, providerOverrides: withProviderOverride(withIcon.providerOverrides, target.providerId, key) }
+      : { ...withIcon, overrides: withOverride(withIcon.overrides, target.providerId, target.modelId, key) };
+  });
+  return ok ? id : null;
+}
+
+/**
+ * Rename one stored custom icon. Overrides reference the icon by id, so a rename
+ * never needs to touch them.
+ * @param id - custom icon id.
+ * @param name - raw new name; validated here.
+ * @returns whether the Host accepted the write.
+ */
+export async function dshmlRenameCustomIcon(id: unknown, name: unknown): Promise<boolean> {
+  if (!dshmlIsCustomIconId(id)) return false;
+  const state = dshmlIconState();
+  if (!Object.prototype.hasOwnProperty.call(state.customIcons, id)) return false;
+  const icon = state.customIcons[id];
+  if (icon === undefined) return false;
+  const validated = dshmlValidateCustomName(name, state.customIcons, id);
+  if (!validated.ok) return false;
+  if (validated.name === icon.name) return true;
+  const ops: ConfigMutateOp[] = [{ op: 'set', path: [DSHML_CUSTOM_SETTINGS_FIELD, id, 'name'], value: validated.name }];
+  return dshmlWriteOps(ops, function optimistic(previous) {
+    const current = previous.customIcons[id];
+    if (current === undefined) return previous;
+    return {
+      ...previous,
+      customIcons: { ...previous.customIcons, [id]: { ...current, name: validated.name } },
+    };
+  });
+}
+
+/**
+ * Delete one stored custom icon and clear every override that referenced it, in
+ * one settings write: a half-applied delete would leave a row pointing at an
+ * icon that no longer exists.
+ * @param id - custom icon id.
+ * @returns whether the Host accepted the write (true when the id is already gone).
+ */
+export async function dshmlDeleteCustomIcon(id: unknown): Promise<boolean> {
+  if (!dshmlIsCustomIconId(id)) return false;
+  const state = dshmlIconState();
+  if (!Object.prototype.hasOwnProperty.call(state.customIcons, id)) return true;
+  const key = dshmlCustomIconKey(id);
+  if (key === null) return false;
+  const ops: ConfigMutateOp[] = [{ op: 'unset', path: [DSHML_CUSTOM_SETTINGS_FIELD, id] }];
+  let overrides = state.overrides;
+  for (const row of flattenOverrides(state.overrides)) {
+    if (row.icon !== key) continue;
+    overrides = withoutOverride(overrides, row.providerId, row.modelId);
+    ops.push({ op: 'unset', path: [DSHML_SETTINGS_FIELD, row.providerId, row.modelId] });
+  }
+  let providerOverrides = state.providerOverrides;
+  for (const row of flattenProviderOverrides(state.providerOverrides)) {
+    if (row.icon !== key) continue;
+    providerOverrides = withoutProviderOverride(providerOverrides, row.providerId);
+    ops.push({ op: 'unset', path: [DSHML_PROVIDER_SETTINGS_FIELD, row.providerId] });
+  }
+  const customIcons = { ...state.customIcons };
+  Reflect.deleteProperty(customIcons, id);
+  return dshmlWriteOps(ops, function optimistic(previous) {
+    return { ...previous, customIcons, overrides, providerOverrides };
+  });
 }
 
 /** Unwrap a remote answer: `{ok,value}` envelopes and plain values both work. */
