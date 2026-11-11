@@ -469,7 +469,7 @@ that recorded them, not from the current build.
   and its model reference, the fallback mark afterwards, and the Model icons page
   preview of a stored custom icon. The harness also publishes a watchdog result when
   a driver step throws, so a broken run reports its collected assertions instead of an
-  empty dump. `pnpm run verify:dom` passes **112 assertions** on the final tree.
+  empty dump. `pnpm run verify:dom` passes **115 assertions** on the final tree.
 - The provider-icon contract is pinned from four sides. `test/resolve.test.ts` pins
   the precedence matrix (override → official channel → letter tile, and a declared
   provider resolving to nothing), the flat document's immutable edits and its
@@ -497,3 +497,22 @@ that recorded them, not from the current build.
   (`prepublishOnly` re-ran `verify`) and the release asset packed with `pnpm pack`
   all come from that one commit: the release commit itself changes nothing but
   `package.json`, this record and `docs/awesome-plugin.md` §8.
+
+- **The Model icons page lists the signed-in account models.** `deepseek-account`
+  keeps its model list outside the settings document (the signed-in account
+  `/models` listing), so the page could show its provider row but never a
+  per-model row to pick an icon for. `src/overrides.ts` now injects
+  `remote.session` and merges `session.modelCatalog().groups` into the catalog
+  after the settings-document lists and before the persisted overrides: settings
+  names and order still win, while live-only models (the account route first)
+  gain their own rows, and a model that already has an override keeps its
+  advertised name instead of falling back to the bare model id. The live read
+  starts in parallel and lands in a second publish on the first load, so the
+  provider seats and the settings-backed rows never wait on the account
+  listing; a missing service or a failed read degrades to the previous
+  catalog.
+  `test/client.test.ts` pins the merge, the source ordering and the rendered
+  account row; `verify:dom` pins the rendered row, opening the model-scope
+  picker from it and the `modelIcons[deepseek-account][<model id>]` write.
+  `pnpm run verify` passes 124 tests; `pnpm run verify:dom` passes 115
+  assertions.

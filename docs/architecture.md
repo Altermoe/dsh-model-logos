@@ -135,8 +135,8 @@ Two extra live facts the fixture confirmed:
 ### 3.2 Provider directory and model sources
 
 Client services available to any browser plugin (cordis service injection):
-`slots`, `locale`, `remote`, `remote.llm`, `remote.settings`, `configForms`,
-`theme`, `connection` …
+`slots`, `locale`, `remote`, `remote.llm`, `remote.session`, `remote.settings`,
+`configForms`, `theme`, `connection` …
 
 - `ctx.remote.llm.listConfigurableProviders()` → `[{ provider, displayName,
   settingsNs, settingsPath, declared?, defaultBaseURL?, baseURLEnv?, nativeAuth? }]`.
@@ -151,6 +151,13 @@ Client services available to any browser plugin (cordis service injection):
   `snapshot.view.namespaces: [{ ns, schema, value, base, user, revision }]`.
   Model catalogs live in the user settings values of `llm-pi-ai`
   (`providers[*].models[*]`) and `llm-deepseek` (`models[*]`).
+- `ctx.remote.session.modelCatalog()` → `{ groups: [{ id, name, models: [{ id,
+  name }] }], failures }` — the Host-generation catalog the composer selector
+  reads. It is the only client-visible source for routes whose models are not in
+  a settings namespace: `deepseek-account` serves its catalog from the signed-in
+  account listing, so the Model icons page merges these groups after the
+  settings-document lists. That gives every account model its own row and its own
+  `provider + model` override.
 - `ctx.configForms.get(entryId)` → form controller: `getSnapshot()` =
   `{ status, value, base, user, revision, writable }`, `subscribe(fn)`,
   `set(field, value)`, `unset(field)`, `mutate(ops, expectedRevision?)`.
@@ -447,13 +454,14 @@ function dshmlSetModelIcon(providerId, modelId, icon) → Promise<boolean>   // 
 function dshmlClearModelIcon(providerId, modelId) → Promise<boolean>
 
 // Model catalog for the picker section: official directory + user-declared models
-// + every manual override. Async refresh; re-renders through the settings mirror.
+// + the live Host catalog (account models) + every manual override. Async refresh;
+// re-renders through the settings mirror.
 function dshmlUseModelCatalog() → { status, providers: [{
   providerId, displayName, official, declared,
   models: [{ modelId, name }],
 }] }
 
-function dshmlMountIconStore(ctx)   // wires configForms + remote.llm; called from label.js apply
+function dshmlMountIconStore(ctx)   // wires configForms + remote.llm + remote.session; called from label.js apply
 ```
 
 ### 6.6 `src/picker.ts` (module — ui)

@@ -73,7 +73,11 @@ harness — channels are chosen by logo, not by route id.
   row that then jumps sideways.
 - **A Model icons page** — the plugin's own Settings entry lists your providers with
   their current vendor mark and a way to choose or reset it, then lists the models
-  from those providers with their current mark and a way to change it.
+  from those providers with their current mark and a way to change it. The list also
+  merges the Host's live model catalog, so models that are routable but absent from
+  the settings document get their own row too — most importantly the signed-in
+  DeepSeek Account route, whose models come from the account listing. Each of those
+  account models can therefore carry its own icon.
 - **A picker you can always reach** — clicking a model's icon in Settings → Models
   opens it, clicking a provider's mark seat opens it in provider mode, and the Model
   icons page offers both per row, so fixing a wrong guess costs one click and no
