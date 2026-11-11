@@ -5,7 +5,7 @@
 Brand marks for the models you actually use — a small plugin for the DeepSeek
 Harness (DSH) Web GUI.
 
-![The icon picker: the custom-icon group with its create cell, auto / no icon / letter tile, then vendor and model marks — searchable](docs/preview-picker.png)
+![The icon picker: the custom-icon group with a created icon, its rename pencil and the create cell, then auto / no icon / letter tile, vendor and model marks — searchable](docs/preview-picker.png)
 
 ## Why icons?
 

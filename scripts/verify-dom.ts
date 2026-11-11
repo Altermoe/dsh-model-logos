@@ -1142,6 +1142,36 @@ async function browserDriver(config: DriverConfig): Promise<void> {
       if (face) face.click();
       await waitFor(findComboMenu, 3000);
     } else if (OPEN === 'picker') {
+      // Seed one created icon so the preview shows the group's real shape: a
+      // custom cell with its rename pencil next to the create cell.
+      const canvas = document.createElement('canvas');
+      canvas.width = 128;
+      canvas.height = 128;
+      const context = canvas.getContext('2d');
+      if (context !== null) {
+        context.fillStyle = '#3b6ef0';
+        context.fillRect(0, 0, 128, 128);
+        context.fillStyle = '#ffffff';
+        context.beginPath();
+        context.arc(64, 64, 34, 0, Math.PI * 2);
+        context.fill();
+        context.fillStyle = '#3b6ef0';
+        context.beginPath();
+        context.arc(64, 64, 18, 0, Math.PI * 2);
+        context.fill();
+      }
+      form.mutate([
+        {
+          op: 'set',
+          path: ['customIcons', 'c-preview'],
+          value: {
+            name: '本地模型',
+            kind: 'image',
+            image: canvas.toDataURL('image/png'),
+            createdAt: Date.now(),
+          },
+        },
+      ]);
       const button = findModelRowButton(0);
       if (button) button.click();
       await waitFor(findPicker, 5000);
