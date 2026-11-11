@@ -28,17 +28,20 @@ import { dshmlTAll } from './i18n';
 export const DSHML_NAV_MARKER = 'model-logos';
 
 /**
- * The glyph: four rounded tiles in a 2×2 set with the first one solid. It is the
- * plugin's own mark — the four-tile `icon.svg` that identifies it in the Plugins
- * page — reduced to what a 16 px nav rail can carry, in `currentColor` and the
- * shell's "medium" 1.3 stroke so it sits beside the shipped glyphs.
+ * The glyph: four rounded tiles in a 2×2 grid, the bottom-right accent tile drawn
+ * solid. It is the plugin's own mark — the four-tile `icon.svg` that identifies it
+ * in the Plugins page — reduced to what a 16 px nav rail can carry. The mark's gold
+ * tile is the only difference between the four tiles, and a one-colour mask cannot
+ * carry a second colour, so the accent stays the one filled tile while the other
+ * three keep the shell's "medium" 1.3 `currentColor` stroke and sit beside the
+ * shipped glyphs.
  */
 export const DSHML_NAV_ICON_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true">' +
-  '<rect x="3.15" y="3.15" width="3.2" height="3.2" rx="1" fill="currentColor"/>' +
+  '<rect x="2.65" y="2.65" width="4.2" height="4.2" rx="1.2" stroke="currentColor" stroke-width="1.3"/>' +
   '<rect x="9.15" y="2.65" width="4.2" height="4.2" rx="1.2" stroke="currentColor" stroke-width="1.3"/>' +
   '<rect x="2.65" y="9.15" width="4.2" height="4.2" rx="1.2" stroke="currentColor" stroke-width="1.3"/>' +
-  '<rect x="9.15" y="9.15" width="4.2" height="4.2" rx="1.2" stroke="currentColor" stroke-width="1.3"/>' +
+  '<rect x="9.65" y="9.65" width="3.2" height="3.2" rx="1" fill="currentColor"/>' +
   '</svg>';
 
 /** The glyph as a CSS `mask` URL (percent-encoded so it needs no quoting). */

@@ -1,6 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
-  <rect x="2" y="2" width="12.5" height="12.5" rx="3.6" fill="#4D6BFE"/>
-  <rect x="9.5" y="2" width="12.5" height="12.5" rx="3.6" fill="#D97757"/>
-  <rect x="2" y="9.5" width="12.5" height="12.5" rx="3.6" fill="#76B900"/>
-  <rect x="9.5" y="9.5" width="12.5" height="12.5" rx="3.6" fill="#6B57FF"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" role="img" aria-label="Model Logos">
+  <title>Model Logos</title>
+  <rect width="24" height="24" rx="5" fill="#17181C"/>
+  <rect x="4.6" y="4.6" width="6.4" height="6.4" rx="2" fill="#FFFFFF"/>
+  <rect x="13" y="4.6" width="6.4" height="6.4" rx="2" fill="#FFFFFF"/>
+  <rect x="4.6" y="13" width="6.4" height="6.4" rx="2" fill="#FFFFFF"/>
+  <rect x="13" y="13" width="6.4" height="6.4" rx="2" fill="#E9B44C"/>
 </svg>
