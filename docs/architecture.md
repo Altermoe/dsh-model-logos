@@ -181,15 +181,32 @@ export const Config = z.object({
     .dict(
       z.object({
         name: z.string(),
-        kind: z.string().default('image'), // animated/video land here later
-        image: z
+        kind: z.string().default('image'), // still-image payload (motion is additive)
+        image: z // 128×128 poster; every degraded case falls back to it
           .string()
           .pattern(/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/u)
           .max(131072),
+        motion: z.object({ // optional sampled animation
+          atlas: z
+            .string()
+            .pattern(/^data:image\/(?:png|webp);base64,[A-Za-z0-9+/]+={0,2}$/u)
+            .max(131072), // frames × frameWidth wide, frameWidth high
+          frames: z.number().min(2).max(24),
+          fps: z.number().min(0.5).max(30),
+          frameWidth: z.number().min(96).max(256),
+        }),
         createdAt: z.number().default(0),
       }),
     )
     .volatile(), // generated id → user-created icon
+  playback: z
+    .object({ // per-surface policy for motion icons
+      composer: z.string().default('always'),
+      settings: z.string().default('hover'),
+      iconsPage: z.string().default('hover'),
+      picker: z.string().default('hover'),
+    })
+    .volatile(),
 });
 
 export function apply() {}
@@ -208,11 +225,19 @@ Client reads/writes it through `configForms.get('dsh-model-logos')`:
   provider override and a model override can never collide.
 - `customIcons` maps a generated icon id to its user-created payload. An override
   references it with the `custom:<id>` sentinel in either override field, so the
-  image and the override that applies it live in one settings document. The image is
-  a cropped 128×128 PNG (WebP when the PNG exceeds the payload budget) data URL,
+  image and the override that applies it live in one settings document. `image` is a
+  cropped 128×128 PNG (WebP when the PNG exceeds the payload budget) data URL,
   validated by the Host schema and again by the browser parser; the dict is bounded
-  by the picker (40 icons). `kind` is persisted now and only `image` is read today, so
-  the animated/video tabs can store their payload without a document migration.
+  by the picker (40 icons). `motion` is additive and optional: its horizontal atlas
+  is `frames × frameWidth` wide and `frameWidth` high, encoded as a PNG/WebP data
+  URL capped at 128 KiB; its derived playback fields are validated on both sides.
+  `kind` still only says "the payload is a still image" — an icon with `motion` is a
+  poster plus an animation, so every renderer keeps a usable `image` when the record
+  is absent or invalid.
+- `playback` is the per-surface motion policy (`always` / `hover` / `never`). The
+  browser parser substitutes the documented defaults for missing/unknown fields, and
+  choosing a default on the page unsets the field so the document only records
+  deliberate deviations.
 - `@deepseek-ai/schemastery` must be a real dependency of the plugin (the host
   imports it; a linked local install needs `pnpm install` in this repo).
 
@@ -221,7 +246,9 @@ requires the plugin entry to be reloaded (plugin manager toggle or app restart);
 the browser half hot-reloads through the existing HMR transport. This also applies
 to the `customIcons` field added in 0.7.0: an already-running Host keeps the old
 Config schema until the entry reloads, so custom-icon writes are rejected (and the
-picker shows its localized save error) until then.
+picker shows its localized save error) until then. The 0.8 `motion` / `playback`
+fields extend the same Config: an already-running Host must reload the plugin entry
+before a motion icon can be written.
 
 ### 3.4 Browser module baseline
 
@@ -305,11 +332,20 @@ private primitives internals.
     slider and the canvas encode (PNG first, WebP fallback). `src/custom-icons.ts`
     keeps the pure parts (payload validation, crop-rectangle clamping, the SVG tile)
     unit-tested without a browser.
-  - **The follow-up kinds have a visible seat, not a hidden TODO.** The editor's type
-    tabs are `静态图片` / `动图` / `视频`; the latter two are `aria-disabled`, labelled
-    `即将实现`, and carry a native title. The persisted `kind` field already
-    distinguishes them, so adding a payload parser does not change the document
-    shape.
+  - **Motion icons reuse the poster's contract.** The editor's type tabs are
+    `静态图片` / `动态`; the second opens the sampling studio (`src/motion-studio.ts`)
+    for animated images and short videos. Sampling is capped at 2 s / 24 frames /
+    128 px; one horizontal sprite atlas is stored next to the poster. The playing
+    mark is still one inline SVG string: a nested square viewport clipped by
+    `clip-path: inset(0 round 25%)` holds a single `<image>` whose `x` attribute steps
+    through the frames with `calcMode="discrete"`. No ids, scripts or external
+    references. `ModelMark.animatedSvg` / `VendorMark.animatedSvg` are additive, so
+    any surface that does not play keeps rendering `svg` (the poster).
+  - **Playback is a surface decision.** `src/motion.ts` owns the pure policy and
+    markup resolver; `DshmlPlayableMark` (React) and `dshmlAttachPlayableMark` (plain
+    DOM) share it. The composer defaults to always, Settings → Models / Model icons
+    page / picker default to hover. Reduced motion always wins over the stored mode
+    without changing the document.
 - Icons are inline SVG tiles. Settings marks render on one shared 22px base; the
   composer label draws a 20px mark that fits its 13px/20px line box exactly, and the
   icon picker preview is the single enlarged surface at 36px. The composer label is

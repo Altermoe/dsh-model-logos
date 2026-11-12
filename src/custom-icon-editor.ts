@@ -524,7 +524,9 @@ export function DshmlCustomIconEditor(props: DshmlCustomIconEditorProps): ReactE
       ? h(
           'span',
           { key: 'hint', className: 'dshml-custom-hint' },
-          dshmlEditorCopy('picker.createHint', 'Upload an image and crop it to a square icon'),
+          kind === 'motion'
+            ? dshmlEditorCopy('picker.createMotionHint', 'Sample an animated image or video into a looping icon')
+            : dshmlEditorCopy('picker.createHint', 'Upload an image and crop it to a square icon'),
         )
       : null,
   ]);

@@ -121,14 +121,35 @@ mark; the pencil on its cell renames it, and the editor's delete action asks for
 confirmation and clears every override that referenced it in the same write, so
 those rows fall back to auto.
 
-The type tabs at the top of the editor already reserve the follow-up formats:
-**Image** works, **Animated** and **Video** are disabled and labelled "Coming soon".
-Cropping uses the MIT-licensed
+The type tabs carry both payloads. **Image** keeps the cropper. **Motion** opens a
+sampling studio for animated images (GIF / WebP / APNG / AVIF) and short videos
+(MP4 / WebM): trim the clip to at most two seconds, frame the square crop over the
+playhead still, pick 4–24 frames, and save one horizontal sprite atlas next to the
+first-frame poster. The studio previews the four shipped mark sizes (20 / 22 / 36 /
+64 px) and a live size meter; when the sample exceeds the 128 KiB atlas budget it
+walks a fixed quality → frame-count → frame-edge ladder, lists every change it
+made, and offers one-click undo. The poster is always the fallback — an older
+client, a corrupted atlas or a reduced-motion system keeps drawing it instead of
+losing the icon.
+
+Playback is configured per surface at the bottom of the Model icons page: the
+composer label defaults to **always**, while Settings → Models, the Model icons
+page and the icon picker default to **on interaction**; each can also be switched
+off. Every surface honours the system's reduced-motion setting, and a motion icon
+in the picker carries a small "动" badge so it stays recognisable while it is not
+playing.
+
+Cropping and framing use the MIT-licensed
 [react-easy-crop](https://github.com/ValentineH/react-easy-crop) rather than a
 hand-rolled drag box. Limits: 40 custom icons, 24-character names, 12 MB source
-files.
+images, 24 MB animated images and 64 MB videos; one icon's atlas is capped at
+128 KiB and the whole custom-icon document at 3 MiB.
 
-![Create a custom icon: type tabs, name, square crop and zoom; animated/video are labelled "Coming soon"](docs/preview-custom-icon.png)
+![Create a custom icon: type tabs, name, square crop and zoom](docs/preview-custom-icon.png)
+
+![The motion sampling studio: monitor, framing, timeline, sampled strip, true-size previews and the size meter](docs/preview-motion-studio.png)
+
+![Per-surface motion playback settings in the Model icons page](docs/preview-playback-settings.png)
 
 Provider overrides live in `providerIcons`, model overrides in `modelIcons`, and
 user-created icons in `customIcons`, so none of them collide; a provider override
@@ -151,8 +172,9 @@ first. The method and raw numbers are in
 Model overrides are pinned to a `provider + model` pair, so two providers serving a
 same-named model can show different marks; provider overrides are keyed by the route
 id alone. All of it lives in the DSH user settings document (the profile's
-`cordis.patch.yml`) — `modelIcons`, `providerIcons` and `customIcons` — next to your
-other preferences, not in localStorage, and with no network request involved.
+`cordis.patch.yml`) — `modelIcons`, `providerIcons`, `customIcons` (with each
+icon's optional sampled `motion`) and the `playback` policy — next to your other
+preferences, not in localStorage, and with no network request involved.
 
 ## The honest cases
 

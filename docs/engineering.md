@@ -110,8 +110,16 @@ src/custom-icons.ts               DSHML_CUSTOM_PREFIX, dshmlCustomIconsOf,
                                   dshmlCustomIconList, dshmlCustomIconIdOf,
                                   dshmlCustomIconKey, dshmlValidateCustomName,
                                   dshmlIsCustomImageDataUrl, dshmlIsAcceptedImageType,
-                                  dshmlCropRect, dshmlCustomMarkSvg, dshmlNewCustomIconId,
-                                  the name/payload limits
+                                  dshmlCropRect, dshmlCustomMarkSvg, dshmlPosterSvg,
+                                  dshmlIsCustomPosterDataUrl, dshmlCustomFitsTotalBudget,
+                                  dshmlBudgetPlan, dshmlNewCustomIconId, the
+                                  name/poster/atlas/document limits
+src/motion.ts                     DSHML_MOTION_* budgets, dshmlSampleTimes,
+                                  dshmlEffectiveFps, dshmlInitialFrameCount,
+                                  dshmlClampRange, dshmlSpriteLayout(Fits),
+                                  dshmlNormalizeMotion, dshmlMotionOf, dshmlAtlasSvg,
+                                  DSHML_PLAYBACK_SURFACES/DEFAULTS, dshmlPlaybackOf,
+                                  dshmlPlayableMarkHtml
 scripts/import-logos.ts           offline importer/checker for the official artwork
 scripts/derive-marks.ts           --check for reference/derived/ (the Z and the aurora)
 scripts/rank-logos.ts             --collect/--check for reference/rankings.json
@@ -144,10 +152,25 @@ src/picker.ts       dshmlOpenIconPicker (model scope and provider scope) + the s
                     dshmlUiCustomIcons, dshmlUiCustomIcon, dshmlUiCustomMark); owns
                     the `自定义` group and the create/rename/delete editor shell
 src/custom-icon-editor.ts
-                    DshmlCustomIconEditor — name, type tabs (image enabled; animated
-                    and video disabled with the coming-soon hint), image upload,
-                    react-easy-crop viewport, zoom, canvas encode, rename and
-                    confirm-then-delete; rendered inside the picker's modal shell
+                    DshmlCustomIconEditor — name, two type tabs (static / motion),
+                    image upload + react-easy-crop viewport + zoom + canvas encode,
+                    the motion studio mount, rename and confirm-then-delete;
+                    rendered inside the picker's modal shell
+src/media-source.ts DshmlMediaSource (drawFrame(ms) + duration + preview URL),
+                    dshmlOpenMediaSource, dshmlMediaKindOf, DshmlMediaError — the
+                    ImageDecoder path for animated images and the detached
+                    `<video>` seek path for videos; both decode into a ≤1024px
+                    work canvas
+src/sprite.ts       dshmlEncodeMotionIcon, dshmlFitMotionBudget — render frames,
+                    compose/encode the atlas + poster, and the fixed quality →
+                    frame-count → frame-edge slimming ladder
+src/motion-studio.ts
+                    DshmlMotionStudio — import / monitor / framing / timeline /
+                    sampling / budget / true-size preview state machine
+src/playable-mark.ts
+                    DshmlPlayableMark, dshmlAttachPlayableMark — the React and
+                    plain-DOM playback surfaces (always / hover / never, reduced
+                    motion, focus-within)
 src/decorate.ts     dshmlMountSettingsDecorator, dshmlDecorateNow,
                     dshmlRequestDecorate
 src/nav-icon.ts     DSHML_NAV_MARKER, DSHML_NAV_ICON_SVG, DSHML_NAV_ICON_URL,
@@ -159,13 +182,17 @@ src/section.ts      DshmlModelIconsSection
 src/client.ts       `inject` + `apply` — the bundle entry; owns the composer
                     label and the stylesheet
 src/host.ts         host half: volatile Config for the `dsh-model-logos` namespace
-                    (modelIcons, providerIcons, customIcons)
+                    (modelIcons, providerIcons, customIcons incl. motion, playback)
 ```
 
 Dependency direction (no cycles): `types` ← `runtime` ← everything;
 `match` ← `resolve` ← `overrides` ← `picker` ← `section` / `decorate` ← `client`;
 `logos` ← `overrides`/`picker`/`section`; `custom-icons` ← `resolve`/`overrides`/`picker`/`section`;
-`overrides` ← `custom-icon-editor` ← `picker`; `i18n` ← `overrides`/`picker`/`custom-icon-editor`/`decorate`/`nav-icon`/`client`;
+`motion` ← `custom-icons`/`overrides`/`playable-mark`/`sprite`/`motion-studio`;
+`media-source` ← `sprite`/`motion-studio`; `sprite` ← `motion-studio`;
+`overrides` ← `custom-icon-editor` ← `picker`; `overrides` ← `playable-mark`
+← `client`/`picker`/`section`/`decorate`;
+`i18n` ← `overrides`/`picker`/`custom-icon-editor`/`motion-studio`/`decorate`/`nav-icon`/`client`;
 `nav-icon` ← `decorate`/`client`.
 
 ## 5. Source conventions
@@ -339,14 +366,17 @@ that recorded them, not from the current build.
   on light and dark surfaces.
 - The README preview set is generated from the current build, never hand-captured.
   `pnpm exec tsx scripts/verify-dom.ts --screenshot docs/preview-settings.png --open combobox`,
-  `... --screenshot docs/preview-picker.png --open picker` and
-  `... --screenshot docs/preview-custom-icon.png --open custom` render the decorated
-  Settings page, the icon picker and the custom-icon editor from the real generated
+  `... --screenshot docs/preview-picker.png --open picker`,
+  `... --screenshot docs/preview-custom-icon.png --open custom`,
+  `... --screenshot docs/preview-motion-studio.png --open motion` and
+  `... --screenshot docs/preview-playback-settings.png --open playback` render the
+  decorated Settings page, the icon picker, the custom-icon editor, the motion
+  sampling studio and the per-surface playback group from the real generated
   bundle; `pnpm exec tsx
   scripts/preview-logos.ts --only-set composer --scale 2 --out docs/preview-composer.png`
   renders the composer trigger and model-menu mock at the shipped 20px mark size;
   `pnpm exec tsx scripts/preview-logos.ts --out docs/preview.png` renders the artwork
-  sheet. `screenshots.json` lists the three shipped screenshots.
+  sheet. `screenshots.json` lists the six shipped screenshots.
 - The navigation glyph is validated twice: `test/nav-icon.test.ts` pins its 16 px
   `currentColor` geometry, the percent-encoded mask URL and the row matcher
   (including the element-name case a real browser reports for SVG children), and
@@ -470,6 +500,27 @@ that recorded them, not from the current build.
   preview of a stored custom icon. The harness also publishes a watchdog result when
   a driver step throws, so a broken run reports its collected assertions instead of an
   empty dump. `pnpm run verify:dom` passes **115 assertions** on the final tree.
+- **Motion icons.** The `动态` tab samples animated images (ImageDecoder) and
+  short videos (a detached muted `<video>` + frame-accurate seeks) through one
+  `drawFrame(ms)` source interface. Sampling is capped at 2 s / 24 frames / 128 px;
+  `src/sprite.ts` renders each distinct frame count once, composes the horizontal
+  atlas, encodes WebP (PNG fallback) and walks the quality → frame-count →
+  frame-edge ladder until the atlas fits 128 KiB. The poster is frame 0 encoded at
+  128 px and capped at 32 KiB; the whole document is capped at 3 MiB by
+  `dshmlCreateCustomIcon`. A stored `motion` record is validated by
+  `dshmlNormalizeMotion` on every read; any invalid field drops only the animation
+  and keeps the icon. `test/motion.test.ts` pins the sampling maths, sprite
+  geometry, validation, the playing SVG and the playback-markup decision tree;
+  `test/custom-icons.test.ts` pins motion parsing/fallback, the poster cap and the
+  document budget; `test/client.test.ts` pins the composer's playing poster and
+  the adopted per-surface policy. `scripts/verify-dom.ts` drives the whole motion
+  flow from the rendered UI: two enabled tabs, a real four-frame GIF through
+  ImageDecoder, the timeline / strip / true-size previews, a frame-count change,
+  the saved `image` + `motion` (6 frames, 128 px, 7.5 fps), the picker's
+  poster → hover → poster sequence, the four-surface playback group, the Settings
+  row playing under `always`, staying still under `never` even on hover, and the
+  composer playing under its default policy. `pnpm run verify:dom` passes
+  **140 assertions** on the final tree.
 - The provider-icon contract is pinned from four sides. `test/resolve.test.ts` pins
   the precedence matrix (override → official channel → letter tile, and a declared
   provider resolving to nothing), the flat document's immutable edits and its

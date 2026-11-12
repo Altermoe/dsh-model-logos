@@ -466,6 +466,16 @@ async function browserDriver(config: DriverConfig): Promise<void> {
     errors: [],
   };
 
+  /** A four-frame 32×32 GIF (white block stepping right, 200 ms per frame). */
+  const MOTION_GIF_BASE64 =
+    'R0lGODlhIAAgAPAAABEVHfX3+iH/C05FVFNDQVBFMi4wAwEAAAAh+QQAFAAAACwAAAAAIAAgAAACMISPqcvtD6OctNqLs96chw9+XgiOZGCSabiW2ym+cBtrMCqfNN71/g8MCofEopFRAAAh+QQAFAAAACwAAAAAIAAgAAACMISPqcvtD6OctNqLs968qwCGICeKZDluaKqtwYnCpWyqKx3ibOZ6/g8MCofEovFXAAAh+QQAFAAAACwAAAAAIAAgAAACMISPqcvtD6OctNqLs968xwCGICeKZDluaKqtwYnCpWyqKx3ibOZ6/g8MCofEojFTAAAh+QQAFAAAACwAAAAAIAAgAAACL4SPqcvtD6OctNqLs9684wCGQSeGZDlyaLqtZ/mKsamiM3izmuv1/g8MCofEoqQAADs=';
+  const makeGifFile = (name: string): File => {
+    const binary = atob(MOTION_GIF_BASE64);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+    return new File([bytes], name, { type: 'image/gif' });
+  };
+
   // What `form.getSnapshot().value` returns: the settings document value with the
   // host plugin's `modelIcons` volatile field on top. Path ops arrive relative to
   // this root (`['modelIcons', providerId, modelId]`), so the harness applies
@@ -1180,6 +1190,14 @@ async function browserDriver(config: DriverConfig): Promise<void> {
     await waitFor(() => qa('[data-dshml-model-row]').length >= config.modelRows || vendorMarkers().length > 0, 6000);
     document.documentElement.setAttribute('data-dshml-screenshot', '1');
     await sleep(150);
+    if (OPEN === 'motion') {
+      const style = document.createElement('style');
+      style.id = 'dshml-motion-preview-style';
+      style.textContent =
+        '[data-dshml-screenshot] .dshml-picker-layer{align-items:flex-start;overflow-y:auto;padding:16px;}\n' +
+        '[data-dshml-screenshot] .dshml-picker-dialog-wide{max-height:none;}\n';
+      document.head.appendChild(style);
+    }
     if (OPEN === 'combobox' || OPEN === 'menu') {
       const select = q<HTMLSelectElement>('.jrmgQW_addPanel select', root);
       const face = select ? findComboboxFace(select) : null;
@@ -1256,6 +1274,52 @@ async function browserDriver(config: DriverConfig): Promise<void> {
           fileInput.dispatchEvent(new Event('change', { bubbles: true }));
           await waitFor(() => (editor !== null ? q('.reactEasyCrop_CropArea', editor) : null), 4000);
         }
+      }
+    } else if (OPEN === 'motion') {
+      // The motion sampling studio with a real four-frame GIF already decoded,
+      // framed and sampled, so the preview shows the timeline, strip and meter.
+      const button = findModelRowButton(0);
+      if (button) button.click();
+      const motionPicker = await waitFor(findPicker, 5000);
+      const createCell = motionPicker !== null ? q<HTMLButtonElement>('.dshml-picker-create', motionPicker) : null;
+      if (createCell) createCell.click();
+      const editor = motionPicker !== null ? await waitFor(() => q('.dshml-custom-editor', motionPicker), 4000) : null;
+      const nameInput = editor !== null ? q<HTMLInputElement>('.dshml-custom-input', editor) : null;
+      if (nameInput) setInputValue(nameInput, '我的本地模型');
+      const motionTab = editor !== null ? qa<HTMLButtonElement>('.dshml-custom-tab', editor)[1] : null;
+      if (motionTab) motionTab.click();
+      const motionFile =
+        editor !== null
+          ? await waitFor(() => q<HTMLInputElement>('.dshml-motion .dshml-custom-file', editor), 3000)
+          : null;
+      if (motionFile) {
+        const transfer = new DataTransfer();
+        transfer.items.add(makeGifFile('preview-motion.gif'));
+        motionFile.files = transfer.files;
+        motionFile.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      await waitFor(() => (editor !== null ? q('.dshml-motion-ready', editor) : null), 12000);
+      await waitFor(() => {
+        const save = editor !== null ? q<HTMLButtonElement>('.dshml-custom-btn-primary', editor) : null;
+        return save !== null && save.disabled === false ? save : null;
+      }, 12000);
+    } else if (OPEN === 'playback') {
+      // The playback group lives on the plugin's own Model icons page; the
+      // screenshot fixture only opens Settings → Models, so mount the real
+      // registration in a full-screen panel and scroll to the group.
+      const registration = H.registrations.find((entry) => entry.options?.name === 'settings.section');
+      if (registration !== undefined && window.React && window.ReactDOM) {
+        const panel = document.createElement('div');
+        panel.id = 'dshml-playback-preview';
+        panel.style.cssText =
+          'position:fixed;inset:0;z-index:2000;overflow-y:auto;padding:24px 28px 32px;background:var(--dsw-alias-bg-layer-1,#ffffff);';
+        document.body.appendChild(panel);
+        const root = window.ReactDOM.createRoot(panel);
+        root.render(window.React.createElement(registration.component, {}));
+        await waitFor(() => q('[data-dshml-playback-settings="1"]', panel), 8000);
+        await sleep(200);
+        panel.scrollTop = panel.scrollHeight;
+        await sleep(250);
       }
     }
     await sleep(350);
@@ -2491,15 +2555,6 @@ async function browserDriver(config: DriverConfig): Promise<void> {
           resolve(new File([blob], name, { type: 'image/png' }));
         }, 'image/png');
       });
-    /** A four-frame 32×32 GIF (white block stepping right, 200 ms per frame). */
-    const MOTION_GIF_BASE64 =
-      'R0lGODlhIAAgAPAAABEVHfX3+iH/C05FVFNDQVBFMi4wAwEAAAAh+QQAFAAAACwAAAAAIAAgAAACMISPqcvtD6OctNqLs96chw9+XgiOZGCSabiW2ym+cBtrMCqfNN71/g8MCofEopFRAAAh+QQAFAAAACwAAAAAIAAgAAACMISPqcvtD6OctNqLs968qwCGICeKZDluaKqtwYnCpWyqKx3ibOZ6/g8MCofEovFXAAAh+QQAFAAAACwAAAAAIAAgAAACMISPqcvtD6OctNqLs968xwCGICeKZDluaKqtwYnCpWyqKx3ibOZ6/g8MCofEojFTAAAh+QQAFAAAACwAAAAAIAAgAAACL4SPqcvtD6OctNqLs9684wCGQSeGZDlyaLqtZ/mKsamiM3izmuv1/g8MCofEoqQAADs=';
-    const makeGifFile = (name: string): File => {
-      const binary = atob(MOTION_GIF_BASE64);
-      const bytes = new Uint8Array(binary.length);
-      for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-      return new File([bytes], name, { type: 'image/gif' });
-    };
     const previewValue = (value: unknown, limit: number): string => {
       try {
         const encoded = JSON.stringify(value);
@@ -4098,8 +4153,15 @@ async function main(): Promise<void> {
       writeFileSync(harnessPath, harness);
       const url = pathToFileURL(harnessPath).href + query;
       rmSync(pngPath, { force: true });
-      const width = 1280;
-      const height = openMode === 'picker' || openMode === 'custom' ? 1100 : 1500;
+      const width = openMode === 'motion' ? 960 : 1280;
+      const height =
+        openMode === 'motion'
+          ? 1520
+          : openMode === 'playback'
+            ? 980
+            : openMode === 'picker' || openMode === 'custom'
+              ? 1100
+              : 1500;
       const run = runEdge(
         edge,
         [
