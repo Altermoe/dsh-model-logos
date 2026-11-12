@@ -258,9 +258,25 @@ per `provider + model` override picker persisted in the DSH settings document.
   assertions), `pnpm run verify:live` (the running GUI served `rev=03054869bb7f`, 230,756
   bytes) and the `CI` workflow on the pushed `main` commit. No listing re-push: the merged entry
   carries no version and the catalog follows npm on its daily refresh.
+- **v0.7.0** (2026-11-12) — custom and animated icons. `package.json` `0.7.0`, the annotated tag
+  `v0.7.0`, the npm tarball and the release asset all name the tagged commit. npm:
+  <https://www.npmjs.com/package/dsh-model-logos/v/0.7.0>; GitHub:
+  <https://github.com/Altermoe/dsh-model-logos/releases/tag/v0.7.0>. This line bumped the version
+  in its custom-icon feature commit (`0339932`) instead of in a release commit, because the 0.6.0
+  registry entry was already published when the work started; the release commit therefore changes
+  only this record and the `docs/engineering.md` verification log. The release carries the
+  version-free `dsh-model-logos.tgz`, packed with `pnpm pack` from the tagged commit (same asset
+  name as v0.5.0 and v0.6.0, so `releases/latest/download/dsh-model-logos.tgz` cannot rot), and the
+  notes record its SHA-256 next to the npm integrity. Gates on that commit: `pnpm run verify`
+  (153/153 tests, lint 0 errors, 59 artwork keys, build + artifact freshness), `pnpm run
+  verify:dom` (141/141 assertions), `pnpm run verify:live` (the running GUI served
+  `rev=59019b6cbe2c`) and the `CI` workflow on the pushed `main` commit. No listing re-push: the
+  merged entry carries no version and the catalog follows npm on its daily refresh.
 - **Release procedure from v0.6.0 on** — one commit per release that changes only the
   `version` field plus this record and the `docs/engineering.md` verification log; push `main`,
   tag `v<version>` on that commit, `pnpm publish --access public` (the `prepublishOnly` gate
   re-runs), then pack the same tree and attach it to the release with the SHA-256 in the notes.
   The npm version, the tag and the asset must agree; a bump published from a later tree is not
-  a release.
+  a release. A line whose version bump already sits in an earlier commit (0.7.0) still releases
+  from the tagged commit: the release commit carries the record, and the tag, the npm version
+  and the asset name that commit.
