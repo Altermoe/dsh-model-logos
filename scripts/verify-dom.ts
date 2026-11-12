@@ -33,14 +33,16 @@
  *                                                                # ... with the picker modal open
  *   pnpm exec tsx scripts/verify-dom.ts --screenshot docs/preview-custom-icon.png --open custom
  *                                                                # ... with the custom-icon editor open
+ *   pnpm exec tsx scripts/verify-dom.ts --screenshot docs/preview-motion-studio.png --open motion \
+ *     --motion-gif docs/preview-motion-sample.gif                # ... sampling a committed GIF
  *   pnpm exec tsx scripts/verify-dom.ts --harness <path>         # keep the generated page
  *
  * Requires Edge (`EDGE` env var may point at msedge.exe).
  */
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -64,6 +66,7 @@ const jsonPath = valueAfter('--json');
 const keptHarnessPath = valueAfter('--harness');
 const requireBuild = hasFlag('--require-build');
 const scale = Number(valueAfter('--scale') ?? 2) || 2;
+const motionGifPath = valueAfter('--motion-gif');
 
 /* -------------------------------------------------------------------------- */
 /* Harness data                                                               */
@@ -97,6 +100,10 @@ interface DriverConfig {
   firstModel: { providerId: string; modelId: string; displayName: string };
   /** Models the Host-generation catalog advertises for the signed-in account route. */
   accountModels: Array<{ id: string; name: string }>;
+  /** Base64 of a real GIF for `--open motion` screenshots; absent uses the synthetic test clip. */
+  motionGifBase64?: string;
+  /** File name shown by the motion studio for the injected GIF. */
+  motionGifName?: string;
 }
 
 /**
@@ -198,6 +205,8 @@ interface ScreenshotResult {
   mode: 'screenshot';
   open: string;
   decorated: DecoratedCounts;
+  /** `--open motion` only: the studio finished sampling and produced a savable icon. */
+  motionReady?: boolean;
   pageErrors: string[];
   consoleIssues: string[];
 }
@@ -509,12 +518,13 @@ async function browserDriver(config: DriverConfig): Promise<void> {
 
   /** A four-frame 32×32 GIF (white block stepping right, 200 ms per frame). */
   const MOTION_GIF_BASE64 =
+    config.motionGifBase64 ??
     'R0lGODlhIAAgAPAAABEVHfX3+iH/C05FVFNDQVBFMi4wAwEAAAAh+QQAFAAAACwAAAAAIAAgAAACMISPqcvtD6OctNqLs96chw9+XgiOZGCSabiW2ym+cBtrMCqfNN71/g8MCofEopFRAAAh+QQAFAAAACwAAAAAIAAgAAACMISPqcvtD6OctNqLs968qwCGICeKZDluaKqtwYnCpWyqKx3ibOZ6/g8MCofEovFXAAAh+QQAFAAAACwAAAAAIAAgAAACMISPqcvtD6OctNqLs968xwCGICeKZDluaKqtwYnCpWyqKx3ibOZ6/g8MCofEojFTAAAh+QQAFAAAACwAAAAAIAAgAAACL4SPqcvtD6OctNqLs9684wCGQSeGZDlyaLqtZ/mKsamiM3izmuv1/g8MCofEoqQAADs=';
   const makeGifFile = (name: string): File => {
     const binary = atob(MOTION_GIF_BASE64);
     const bytes = new Uint8Array(binary.length);
     for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-    return new File([bytes], name, { type: 'image/gif' });
+    return new File([bytes], config.motionGifName ?? name, { type: 'image/gif' });
   };
 
   // What `form.getSnapshot().value` returns: the settings document value with the
@@ -1340,10 +1350,26 @@ async function browserDriver(config: DriverConfig): Promise<void> {
         motionFile.dispatchEvent(new Event('change', { bubbles: true }));
       }
       await waitFor(() => (editor !== null ? q('.dshml-motion-ready', editor) : null), 12000);
-      await waitFor(() => {
-        const save = editor !== null ? q<HTMLButtonElement>('.dshml-custom-btn-primary', editor) : null;
-        return save !== null && save.disabled === false ? save : null;
-      }, 12000);
+      // The first sample may run past the 128 KiB atlas budget (the default 24
+      // frames on a ~2 s source often does). Wait until the encode has settled,
+      // then run the studio's own auto-slim so the preview shows a savable icon
+      // rather than the over-budget warning.
+      const settled = await waitFor(() => {
+        const save =
+          editor !== null ? q<HTMLButtonElement>('.dshml-custom-actions .dshml-custom-btn-primary', editor) : null;
+        if (save !== null && save.disabled === false) return { kind: 'save' as const };
+        const slim = editor !== null ? q<HTMLButtonElement>('.dshml-motion-slim', editor) : null;
+        if (slim !== null) return { kind: 'slim' as const, slim };
+        return null;
+      }, 20000);
+      if (settled !== null && settled.kind === 'slim') {
+        settled.slim.click();
+        await waitFor(() => {
+          const save =
+            editor !== null ? q<HTMLButtonElement>('.dshml-custom-actions .dshml-custom-btn-primary', editor) : null;
+          return save !== null && save.disabled === false ? save : null;
+        }, 30000);
+      }
     } else if (OPEN === 'playback') {
       // The playback group lives on the plugin's own Model icons page; the
       // screenshot fixture only opens Settings → Models, so mount the real
@@ -1364,6 +1390,7 @@ async function browserDriver(config: DriverConfig): Promise<void> {
       }
     }
     await sleep(350);
+    const motionEditor = OPEN === 'motion' ? q('.dshml-custom-editor') : null;
     const screenshotResult: ScreenshotResult = {
       mode: 'screenshot',
       open: OPEN,
@@ -1373,6 +1400,16 @@ async function browserDriver(config: DriverConfig): Promise<void> {
         combobox: !!findComboboxFace(q<HTMLSelectElement>('.jrmgQW_addPanel select', root)),
         picker: !!findPicker(),
       },
+      motionReady:
+        OPEN !== 'motion'
+          ? undefined
+          : motionEditor !== null &&
+            q('.dshml-motion-ready', motionEditor) !== null &&
+            qa('.dshml-motion-thumb', motionEditor).length > 0 &&
+            (() => {
+              const save = q<HTMLButtonElement>('.dshml-custom-actions .dshml-custom-btn-primary', motionEditor);
+              return save !== null && save.disabled === false;
+            })(),
       pageErrors,
       consoleIssues,
     };
@@ -4004,7 +4041,12 @@ async function browserDriver(config: DriverConfig): Promise<void> {
 /* Node harness                                                               */
 /* -------------------------------------------------------------------------- */
 
-const DRIVER_SOURCE = '(' + browserDriver.toString() + ')(' + JSON.stringify(DRIVER_CONFIG) + ');';
+/** Serialize the in-page driver with its config (a screenshot run can inject its own GIF). */
+function driverSource(config: DriverConfig = DRIVER_CONFIG): string {
+  return '(' + browserDriver.toString() + ')(' + JSON.stringify(config) + ');';
+}
+
+const DRIVER_SOURCE = driverSource();
 
 /** True for any non-null object (arrays included). */
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -4049,7 +4091,7 @@ function readRequired(path: string, label: string): string {
 }
 
 /** Insert the harness scripts before `</body>`; CSS/markup live in the fixture itself. */
-function buildHarness(fixtureHtml: string, clientJs: string, headExtra: string): string {
+function buildHarness(fixtureHtml: string, clientJs: string, headExtra: string, driver = DRIVER_SOURCE): string {
   const react = readRequired(REACT_UMD, 'React development UMD');
   const reactDom = readRequired(REACT_DOM_UMD, 'ReactDOM development UMD');
   const loaderStub = `// tsx compiles this script with esbuild's keepNames transform, so the serialized
@@ -4080,7 +4122,7 @@ window.__ModuleLoader__ = {
     clientJs.replace(/<\/script/gi, '<\\/script') +
     '\n</script>\n' +
     '<script>\n' +
-    DRIVER_SOURCE.replace(/<\/script/gi, '<\\/script') +
+    driver.replace(/<\/script/gi, '<\\/script') +
     '\n</script>\n';
   return fixtureHtml.slice(0, closeBodyAt) + scripts + fixtureHtml.slice(closeBodyAt);
 }
@@ -4109,6 +4151,183 @@ function runEdge(edge: string, edgeArgs: string[], timeoutMs: number): RunResult
       stderr: failure.stderr ? String(failure.stderr) : String(failure.message),
       failed: true,
     };
+  }
+}
+
+/** One in-flight CDP request. */
+interface CdpPending {
+  resolve(value: unknown): void;
+  reject(error: Error): void;
+}
+
+/** A minimal Chrome DevTools Protocol session over one page target. */
+class CdpSession {
+  private readonly socket: WebSocket;
+  private readonly pending = new Map<number, CdpPending>();
+  private nextId = 1;
+
+  private constructor(socket: WebSocket) {
+    this.socket = socket;
+    socket.addEventListener('message', (event) => {
+      const message = JSON.parse(String(event.data)) as {
+        id?: number;
+        result?: unknown;
+        error?: { message?: string };
+      };
+      if (typeof message.id !== 'number') return;
+      const pending = this.pending.get(message.id);
+      if (pending === undefined) return;
+      this.pending.delete(message.id);
+      if (message.error !== undefined) pending.reject(new Error(message.error.message ?? 'CDP error'));
+      else pending.resolve(message.result);
+    });
+    socket.addEventListener('close', () => {
+      for (const pending of this.pending.values()) pending.reject(new Error('CDP socket closed'));
+      this.pending.clear();
+    });
+  }
+
+  static connect(url: string): Promise<CdpSession> {
+    return new Promise<CdpSession>((resolve, reject) => {
+      const socket = new WebSocket(url);
+      const timer = setTimeout(() => {
+        socket.close();
+        reject(new Error('CDP connect timed out'));
+      }, 10000);
+      socket.addEventListener('open', () => {
+        clearTimeout(timer);
+        resolve(new CdpSession(socket));
+      });
+      socket.addEventListener('error', () => {
+        clearTimeout(timer);
+        reject(new Error('CDP connect failed'));
+      });
+    });
+  }
+
+  call<T = Record<string, unknown>>(method: string, params?: Record<string, unknown>): Promise<T> {
+    const id = this.nextId++;
+    return new Promise<T>((resolve, reject) => {
+      this.pending.set(id, { resolve: resolve as (value: unknown) => void, reject });
+      this.socket.send(JSON.stringify({ id, method, params }));
+    });
+  }
+
+  close(): void {
+    this.socket.close();
+  }
+}
+
+const sleepMs = (ms: number): Promise<void> =>
+  new Promise<void>((done) => {
+    setTimeout(done, ms);
+  });
+
+/**
+ * Capture a screenshot through CDP instead of `--screenshot`.
+ *
+ * `--screenshot` fires when `--virtual-time-budget` expires, and virtual time
+ * races through the motion studio's asynchronous `ImageDecoder` work: with a
+ * 120 s budget the GIF had not decoded its third frame before the capture. CDP
+ * waits in real time for the driver's result block, which is only written after
+ * the studio finished sampling.
+ */
+async function captureMotionScreenshot(
+  edge: string,
+  edgeArgs: string[],
+  profileDir: string,
+  url: string,
+  pngPath: string,
+): Promise<DriverResult | null> {
+  const child = spawn(
+    edge,
+    [...edgeArgs, '--remote-debugging-port=0', `--user-data-dir=${profileDir}`, 'about:blank'],
+    {
+      stdio: ['ignore', 'ignore', 'pipe'],
+      windowsHide: true,
+    },
+  );
+  let stderr = '';
+  child.stderr?.on('data', (chunk: Buffer) => {
+    stderr += chunk.toString();
+  });
+  const stop = async (): Promise<void> => {
+    child.kill('SIGTERM');
+    await new Promise<void>((done) => {
+      if (child.exitCode !== null) return done();
+      const timer = setTimeout(() => {
+        child.kill('SIGKILL');
+        done();
+      }, 5000);
+      child.once('exit', () => {
+        clearTimeout(timer);
+        done();
+      });
+    });
+  };
+  let session: CdpSession | null = null;
+  try {
+    const portFile = join(profileDir, 'DevToolsActivePort');
+    const portDeadline = Date.now() + 15000;
+    while (!existsSync(portFile) && Date.now() < portDeadline) await sleepMs(100);
+    if (!existsSync(portFile)) throw new Error('DevToolsActivePort was not written; ' + stderr.slice(0, 1000));
+    const port = Number(readFileSync(portFile, 'utf8').split(/\r?\n/)[0]);
+    if (!Number.isInteger(port) || port <= 0) throw new Error('invalid DevTools port');
+
+    let targetUrl: string | null = null;
+    const targetDeadline = Date.now() + 10000;
+    while (targetUrl === null && Date.now() < targetDeadline) {
+      try {
+        const response = await fetch(`http://127.0.0.1:${port}/json/list`);
+        const targets = (await response.json()) as Array<{ type?: string; webSocketDebuggerUrl?: string }>;
+        targetUrl =
+          targets.find((target) => target.type === 'page' && target.webSocketDebuggerUrl)?.webSocketDebuggerUrl ?? null;
+      } catch {
+        // DevTools HTTP may not accept connections on the first attempt.
+      }
+      if (targetUrl === null) await sleepMs(100);
+    }
+    if (targetUrl === null) throw new Error('no CDP page target');
+
+    session = await CdpSession.connect(targetUrl);
+    await session.call('Page.enable');
+    await session.call('Runtime.enable');
+    await session.call('Page.navigate', { url });
+
+    const readyDeadline = Date.now() + 90000;
+    let resultText = '';
+    while (Date.now() < readyDeadline) {
+      const reply = await session.call<{ result?: { value?: unknown } }>('Runtime.evaluate', {
+        expression:
+          "document.getElementById('dshml-result') ? document.getElementById('dshml-result').textContent : ''",
+        returnByValue: true,
+      });
+      const value = reply.result?.value;
+      if (typeof value === 'string' && value !== '') {
+        resultText = value;
+        break;
+      }
+      await sleepMs(100);
+    }
+    if (resultText === '') throw new Error('the driver produced no result block');
+
+    const shot = await session.call<{ data?: string }>('Page.captureScreenshot', {
+      format: 'png',
+      fromSurface: true,
+      captureBeyondViewport: false,
+    });
+    if (typeof shot.data !== 'string' || shot.data === '') throw new Error('CDP returned no screenshot data');
+    writeFileSync(pngPath, Buffer.from(shot.data, 'base64'));
+
+    try {
+      const parsed: unknown = JSON.parse(resultText);
+      return isDriverResult(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  } finally {
+    session?.close();
+    await stop();
   }
 }
 
@@ -4180,6 +4399,29 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  // `--motion-gif` feeds a real animation into the studio screenshot. The
+  // committed sample keeps that screenshot reproducible; without it the
+  // screenshot uses the synthetic four-frame test clip.
+  let motionSample: { base64: string; name: string } | null = null;
+  if (motionGifPath !== null) {
+    if (screenshotPath === null || openMode !== 'motion') {
+      console.error('error: --motion-gif only applies to --screenshot <path> --open motion');
+      process.exit(1);
+    }
+    const absolute = resolve(ROOT, motionGifPath);
+    if (!existsSync(absolute)) {
+      console.error('error: missing motion GIF: ' + absolute);
+      process.exit(1);
+    }
+    const bytes = readFileSync(absolute);
+    const header = bytes.subarray(0, 6).toString('latin1');
+    if (header !== 'GIF89a' && header !== 'GIF87a') {
+      console.error('error: --motion-gif must point at a GIF file: ' + absolute);
+      process.exit(1);
+    }
+    motionSample = { base64: bytes.toString('base64'), name: basename(absolute) };
+  }
+
   const tmpDir = mkdtempSync(join(tmpdir(), 'dshml-verify-'));
   const edge = findEdge();
   const edgeArgsBase = [
@@ -4200,7 +4442,15 @@ async function main(): Promise<void> {
       const pngPath = resolve(ROOT, screenshotPath);
       mkdirSync(dirname(pngPath), { recursive: true });
       const query = '?mode=screenshot&open=' + encodeURIComponent(openMode);
-      const harness = buildHarness(fixtureHtml, clientJs, extraStyle);
+      const driver =
+        motionSample !== null
+          ? driverSource({
+              ...DRIVER_CONFIG,
+              motionGifBase64: motionSample.base64,
+              motionGifName: motionSample.name,
+            })
+          : DRIVER_SOURCE;
+      const harness = buildHarness(fixtureHtml, clientJs, extraStyle, driver);
       const harnessPath = join(tmpDir, 'settings-models-screenshot.html');
       writeFileSync(harnessPath, harness);
       const url = pathToFileURL(harnessPath).href + query;
@@ -4214,31 +4464,44 @@ async function main(): Promise<void> {
             : openMode === 'picker' || openMode === 'custom'
               ? 1100
               : 1500;
-      const run = runEdge(
-        edge,
-        [
-          ...edgeArgsBase,
-          '--force-device-scale-factor=' + String(scale),
-          `--user-data-dir=${profileDir}`,
-          `--window-size=${width},${height}`,
-          '--virtual-time-budget=8000',
-          `--screenshot=${pngPath}`,
-          '--dump-dom',
-          url,
-        ],
-        120000,
-      );
-      const result = parseResult(run.stdout);
-      const deadline = Date.now() + 20000;
-      while (!existsSync(pngPath) && Date.now() < deadline) {
-        await new Promise<void>((done) => {
-          setTimeout(done, 200);
-        });
-      }
-      if (!existsSync(pngPath) || statSync(pngPath).size === 0) {
-        console.error('error: no screenshot produced at ' + pngPath);
-        if (run.stderr) console.error(run.stderr.slice(0, 2000));
-        process.exit(1);
+      let result: DriverResult | null = null;
+      if (openMode === 'motion') {
+        try {
+          result = await captureMotionScreenshot(
+            edge,
+            [...edgeArgsBase, '--force-device-scale-factor=' + String(scale), `--window-size=${width},${height}`],
+            profileDir,
+            url,
+            pngPath,
+          );
+        } catch (error) {
+          console.error('error: motion screenshot failed: ' + readableError(error));
+          rmSync(pngPath, { force: true });
+          process.exit(1);
+        }
+      } else {
+        const run = runEdge(
+          edge,
+          [
+            ...edgeArgsBase,
+            '--force-device-scale-factor=' + String(scale),
+            `--user-data-dir=${profileDir}`,
+            `--window-size=${width},${height}`,
+            '--virtual-time-budget=8000',
+            `--screenshot=${pngPath}`,
+            '--dump-dom',
+            url,
+          ],
+          120000,
+        );
+        result = parseResult(run.stdout);
+        const deadline = Date.now() + 20000;
+        while (!existsSync(pngPath) && Date.now() < deadline) await sleepMs(200);
+        if (!existsSync(pngPath) || statSync(pngPath).size === 0) {
+          console.error('error: no screenshot produced at ' + pngPath);
+          if (run.stderr) console.error(run.stderr.slice(0, 2000));
+          process.exit(1);
+        }
       }
       if (result !== null && result.mode === 'screenshot') {
         const decorated = result.decorated;
@@ -4246,6 +4509,11 @@ async function main(): Promise<void> {
           console.error(
             'warning: page was not fully decorated when the screenshot was taken: ' + JSON.stringify(decorated),
           );
+        }
+        if (openMode === 'motion' && result.motionReady !== true) {
+          rmSync(pngPath, { force: true });
+          console.error('error: the motion studio had not finished sampling; discarded the screenshot');
+          process.exit(1);
         }
       }
       console.log(`wrote ${pngPath} (${statSync(pngPath).size} bytes, ${width * scale}×${height * scale}px)`);
