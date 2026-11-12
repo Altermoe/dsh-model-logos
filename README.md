@@ -2,8 +2,8 @@
 
 > 中文版：[README.zh.md](README.zh.md)
 
-Brand marks for the models you actually use — a small plugin for the DeepSeek
-Harness (DSH) Web GUI.
+Brand marks for the models you actually use — shipped artwork, your own images,
+and animated icons — a small plugin for the DeepSeek Harness (DSH) Web GUI.
 
 ![The icon picker: the custom-icon group with a created icon, its rename pencil and the create cell, then auto / no icon / letter tile, vendor and model marks — searchable](docs/preview-picker.png)
 
@@ -83,6 +83,9 @@ harness — channels are chosen by logo, not by route id.
   icons page offers both per row, so fixing a wrong guess costs one click and no
   configuration-file editing. The same modal is where custom icons are created,
   renamed and deleted.
+- **Animated custom icons** — any custom icon can loop. The editor samples a GIF,
+  WebP, APNG, AVIF or short video into a sprite atlas and plays it on the surfaces
+  you choose, with a poster fallback. See [Animated icons](#animated-icons).
 
 Everything else is added around the existing interface, and disabling the plugin
 removes the decoration and puts the page back as it was.
@@ -119,37 +122,16 @@ radius that scales with the box, so it rounds by 5px at 20px, 5.5px at 22px and 
 at 36px — and a custom icon works for any model or provider exactly like a brand
 mark; the pencil on its cell renames it, and the editor's delete action asks for
 confirmation and clears every override that referenced it in the same write, so
-those rows fall back to auto.
-
-The type tabs carry both payloads. **Image** keeps the cropper. **Motion** opens a
-sampling studio for animated images (GIF / WebP / APNG / AVIF) and short videos
-(MP4 / WebM): trim the clip to at most two seconds, frame the square crop over the
-playhead still, pick 4–24 frames, and save one horizontal sprite atlas next to the
-first-frame poster. The studio previews the four shipped mark sizes (20 / 22 / 36 /
-64 px) and a live size meter; when the sample exceeds the 128 KiB atlas budget it
-walks a fixed quality → frame-count → frame-edge ladder, lists every change it
-made, and offers one-click undo. The poster is always the fallback — an older
-client, a corrupted atlas or a reduced-motion system keeps drawing it instead of
-losing the icon.
-
-Playback is configured per surface at the bottom of the Model icons page: the
-composer label defaults to **always**, while Settings → Models, the Model icons
-page and the icon picker default to **on interaction**; each can also be switched
-off. Every surface honours the system's reduced-motion setting, and a motion icon
-in the picker carries a small "动" badge so it stays recognisable while it is not
-playing.
+those rows fall back to auto. The editor's second type tab, **Motion**, turns an
+animated source into a looping icon — that workflow has its own section:
+[Animated icons](#animated-icons).
 
 Cropping and framing use the MIT-licensed
 [react-easy-crop](https://github.com/ValentineH/react-easy-crop) rather than a
-hand-rolled drag box. Limits: 40 custom icons, 24-character names, 12 MB source
-images, 24 MB animated images and 64 MB videos; one icon's atlas is capped at
-128 KiB and the whole custom-icon document at 3 MiB.
+hand-rolled drag box. Limits: 40 custom icons, 24-character names and 12 MB source
+images; the whole custom-icon document is capped at 3 MiB.
 
 ![Create a custom icon: type tabs, name, square crop and zoom](docs/preview-custom-icon.png)
-
-![The motion sampling studio: monitor, framing, timeline, sampled strip, true-size previews and the size meter](docs/preview-motion-studio.png)
-
-![Per-surface motion playback settings in the Model icons page](docs/preview-playback-settings.png)
 
 Provider overrides live in `providerIcons`, model overrides in `modelIcons`, and
 user-created icons in `customIcons`, so none of them collide; a provider override
@@ -175,6 +157,41 @@ id alone. All of it lives in the DSH user settings document (the profile's
 `cordis.patch.yml`) — `modelIcons`, `providerIcons`, `customIcons` (with each
 icon's optional sampled `motion`) and the `playback` policy — next to your other
 preferences, not in localStorage, and with no network request involved.
+
+## Animated icons
+
+A custom icon does not have to stand still. Choose **Motion** in the editor and the
+plugin accepts an animated GIF, WebP, APNG or AVIF, or a short MP4 / WebM video. It
+decodes the source locally, samples at most two seconds into 4–24 frames, and
+stores one horizontal sprite atlas next to the first-frame poster. Nothing is
+uploaded and nothing is fetched at runtime; like every other mark, the animation
+travels inside the settings document.
+
+The example below is a real nine-frame GIF. The studio frames the square crop over
+the playhead, previews the four shipped mark sizes (20 / 22 / 36 / 64 px), and
+reports the payload against its 128 KiB atlas budget as you move the frame,
+frame-edge and quality controls. When the sample is over budget, **Shrink
+automatically** walks a fixed quality → frame-count → frame-edge ladder, lists
+every change it made and offers one-click undo — the screenshot shows the result
+of that pass.
+
+![The example source: a nine-frame GIF looping inside a square tile](docs/preview-motion-sample.gif)
+
+![The motion sampling studio with that GIF loaded: monitor, framing, timeline, sampled strip, true-size previews and the size meter](docs/preview-motion-studio.png)
+
+Playback is a per-surface decision, set at the bottom of the Model icons page: the
+composer label defaults to **always**, while Settings → Models, the Model icons
+page and the icon picker default to **on interaction**; each can also be switched
+off. Every surface honours the system's reduced-motion setting, and a motion icon
+in the picker carries a small "动" badge so it stays recognisable while it is not
+playing. Per-surface playback settings:
+
+![Per-surface motion playback settings in the Model icons page](docs/preview-playback-settings.png)
+
+The poster is always the fallback. An older client, a corrupted atlas or a
+reduced-motion system draws the first frame instead of losing the icon, so a
+motion icon is never worse than a still one. Sources may be up to 24 MB (animated
+images) or 64 MB (videos); one atlas may not exceed 128 KiB.
 
 ## The honest cases
 

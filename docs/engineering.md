@@ -368,7 +368,8 @@ that recorded them, not from the current build.
   `pnpm exec tsx scripts/verify-dom.ts --screenshot docs/preview-settings.png --open combobox`,
   `... --screenshot docs/preview-picker.png --open picker`,
   `... --screenshot docs/preview-custom-icon.png --open custom`,
-  `... --screenshot docs/preview-motion-studio.png --open motion` and
+  `... --screenshot docs/preview-motion-studio.png --open motion --motion-gif
+  docs/preview-motion-sample.gif` and
   `... --screenshot docs/preview-playback-settings.png --open playback` render the
   decorated Settings page, the icon picker, the custom-icon editor, the motion
   sampling studio and the per-surface playback group from the real generated
@@ -376,7 +377,11 @@ that recorded them, not from the current build.
   scripts/preview-logos.ts --only-set composer --scale 2 --out docs/preview-composer.png`
   renders the composer trigger and model-menu mock at the shipped 20px mark size;
   `pnpm exec tsx scripts/preview-logos.ts --out docs/preview.png` renders the artwork
-  sheet. `screenshots.json` lists the six shipped screenshots.
+  sheet. `screenshots.json` lists the six shipped storefront screenshots;
+  `docs/preview-motion-sample.gif` is the committed studio source, not a storefront
+  shot. Motion screenshots are captured through CDP (`Page.captureScreenshot`) in
+  real time because `--screenshot` fires when its virtual-time budget expires, and
+  virtual time races ahead of the studio's asynchronous `ImageDecoder` work.
 - The navigation glyph is validated twice: `test/nav-icon.test.ts` pins its 16 px
   `currentColor` geometry, the percent-encoded mask URL and the row matcher
   (including the element-name case a real browser reports for SVG children), and
