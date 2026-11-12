@@ -67,6 +67,8 @@
     "verify:dom": "tsx scripts/verify-dom.ts",
     "verify:live": "tsx scripts/verify-live.ts",
     "verify": "pnpm run typecheck && pnpm run lint && pnpm run fmt:check && pnpm run test && pnpm run logo:check && pnpm run rank:check && pnpm run build && pnpm run check",
+    "release:dry-run": "bash scripts/release-dry-run.sh",
+    "release": "bash scripts/release.sh",
     "prepublishOnly": "pnpm run verify",
     "prepare": "simple-git-hooks && pnpm run build"
   },

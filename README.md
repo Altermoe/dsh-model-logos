@@ -297,11 +297,30 @@ pnpm run rank:check   # prove the picker order matches the committed ranking sna
 
 The npm package is unscoped and public. `pnpm publish` runs `prepublishOnly`
 (the full `verify` gate) and packs the generated `client.js` / `index.js`.
-pnpm checks that the tree is clean, that the branch is `main` and that it is in
-sync with the remote, so commit and push first. A release is one commit that
-changes only the `version`, the `docs/engineering.md` verification log and the
-release record in `docs/awesome-plugin.md` §8; the npm version, the tag and the
-release asset must all name that commit.
+A release is one commit that changes only the `version`, the
+`docs/engineering.md` verification log and the release record in
+`docs/awesome-plugin.md` §8; the npm version, the tag and the release asset must
+all name that commit.
+
+Two interactive scripts under `scripts/` drive the flow. They never store or
+print credentials: npm authentication is whatever pnpm itself can use (or an
+`NPM_TOKEN` you export), and GitHub authentication is a `gh` login,
+`GH_TOKEN` / `GITHUB_TOKEN`, or a token you type for that run only.
+
+```sh
+pnpm run release:dry-run    # rehearse: repository state, credentials, pack
+pnpm run release            # gates, release commit, push, tag, publish, asset, GitHub release
+```
+
+`release:dry-run` publishes nothing; it validates the credentials, proves that
+the asset packs, and prints the exact plan (add `--gates` to run the full gate
+set as well). `release` asks before every mutating step, requires an interactive
+terminal for npm's two-factor authorization (it prints the authorization link
+and continues once you approve), and resumes with `--from <step>` after a
+failure. Both honour `EDGE`, `DSH_WEB_URL` and the usual proxy variables from the
+environment.
+
+The steps, if you prefer to run them by hand:
 
 ```sh
 pnpm run verify                                     # gate on the exact release tree

@@ -149,13 +149,39 @@ pnpm run rank:check   # 校验选择器顺序与提交的热度快照一致
 ### 发布（维护者）
 
 npm 包是非 scoped 的公开包。`pnpm publish` 会先执行 `prepublishOnly`（完整 `verify`
-门禁），再把生成的 `client.js` / `index.js` 打进包。pnpm 会检查工作树干净、分支为
-`main` 且与远端同步，因此先提交并推送。npm 账号已登录且备好 2FA 验证码后执行：
+门禁），再把生成的 `client.js` / `index.js` 打进包。一次发布是一个只改 `version`、
+`docs/engineering.md` 验证日志与 `docs/awesome-plugin.md` §8 发布记录的提交；npm 版本、
+tag 与 release 资产必须指向同一个提交。
+
+`scripts/` 下的两个交互式脚本会跑完整流程。它们不会保存或打印凭证：npm 认证用 pnpm
+自己已登录的凭证（或你导出的 `NPM_TOKEN`），GitHub 认证用 `gh` 登录、`GH_TOKEN` /
+`GITHUB_TOKEN`，或本次临时输入的 token。
+
+```sh
+pnpm run release:dry-run    # 预演：检查仓库状态、凭证、打包，不发布任何东西
+pnpm run release            # 门禁、发布提交、推送、tag、npm 发布、资产、GitHub release
+```
+
+`release:dry-run` 只验证不发布；它会校验凭证、试打包并打印完整计划（加 `--gates`
+还会跑完整门禁）。`release` 在每个破坏性步骤前询问，npm 双因素授权要求交互式终端
+（脚本会打印授权链接，授权后继续），失败后可用 `--from <step>` 从指定步骤续跑。
+两者都尊重环境里的 `EDGE`、`DSH_WEB_URL` 与常规代理变量。
+
+手动执行时等价于：
 
 ```sh
 pnpm run verify
-pnpm publish --access public   # 账号开启 2FA 时加 --otp <验证码>
+git commit -am "chore: bump the version to X"   # 版本 + 发布记录
+git push origin main
+git tag -a vX -m "dsh-model-logos X" && git push origin vX
+pnpm publish --access public                    # prepublishOnly 会再跑一次 verify
+pnpm pack                                       # 同一棵树 → dsh-model-logos-X.tgz
+gh release create vX dsh-model-logos.tgz --title "dsh-model-logos X" --notes-file notes.md
 ```
+
+`pnpm pack` 产出的文件名带版本号，附到 release 前改名为版本无关的
+`dsh-model-logos.tgz`；`latest/download/` 按字面文件名匹配，带版本号会在下次发布时 404。
+发布记录里同时记下它的 SHA-256。
 
 发布新版本前先提升 `version`，并建立对应的附注 `v<version>` tag 与 release（`v0.6.0`、`0.7.0`……）；tag 必须与 `package.json` 的版本一致，否则商店与 `dshmarket` 会显示一个 npm 上并不存在的版本。发布后用
 `pnpm view dsh-model-logos version` 确认版本，再用

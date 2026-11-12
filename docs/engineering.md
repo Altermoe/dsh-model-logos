@@ -40,6 +40,8 @@ pnpm run rank:check   # offline: recompute the snapshot and compare the ranks
 pnpm run verify:dom   # headless-Edge DOM fixture harness (needs Edge)
 pnpm run verify:live  # assert the running GUI serves this exact client.js
 pnpm run verify       # typecheck + lint + fmt:check + test + logo:check + rank:check + build + check
+pnpm run release:dry-run  # rehearse a release: state + credentials + pack, publishes nothing
+pnpm run release      # interactive release: gates, commit, push, tag, publish, asset, GitHub release
 pnpm publish         # prepublishOnly runs verify, then packs the prebuilt artifacts
 ```
 
@@ -48,6 +50,18 @@ the full `verify` gate before the tarball is built; `files` in `package.json`
 carries the generated `client.js` / `index.js`, so an npm install needs no local
 build. The account, 2FA and tag/release alignment are recorded in the Publishing
 section of `README.md`.
+
+`pnpm run release:dry-run` and `pnpm run release` are the interactive wrappers
+around that procedure (`scripts/release-dry-run.sh`, `scripts/release.sh`,
+shared helpers in `scripts/release-lib.sh`). The dry run validates the npm and
+GitHub credentials, the repository state, the tag/registry availability and the
+asset pack, then prints the plan; it publishes nothing. The release script asks
+before every mutating step and requires an interactive terminal when npm wants a
+second factor: pnpm prints an authorization URL and the script waits for the
+publish to finish and for the registry to serve the new version (npm may hold a
+moment in `Validating`). Neither script stores or reads a credential behind the
+tool's back — they use the publisher's own login, `NPM_TOKEN`, `gh`'s login,
+`GH_TOKEN`/`GITHUB_TOKEN`, or a token typed for that run only.
 
 `client.js` and `index.js` are **generated, never committed**. They are written
 into the package root because the local DSH install loads the bundle from disk,
