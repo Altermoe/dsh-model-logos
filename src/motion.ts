@@ -330,3 +330,35 @@ export function dshmlAtlasSvg(icon: Pick<CustomIcon, 'motion'> | null | undefine
     '</svg>'
   );
 }
+
+/** The markup data the playback decision reads (structurally ModelMark / VendorMark). */
+export interface DshmlPlayableMarkSource {
+  svg: string | null;
+  animatedSvg?: string | null;
+}
+
+/**
+ * The markup one mark shows for one playback state.
+ *
+ * The decision tree every surface shares: draw the poster when the icon has no
+ * atlas, when the policy is `never`, when the surface waits for interaction that
+ * has not happened yet, or when the system asked for reduced motion. Otherwise
+ * draw the playing atlas.
+ * @param mark - poster + optional playing markup.
+ * @param mode - the surface policy.
+ * @param active - pointer is over / focus is inside the mark (only for `hover`).
+ * @param reduced - the system requested reduced motion.
+ */
+export function dshmlPlayableMarkHtml(
+  mark: DshmlPlayableMarkSource | null,
+  mode: DshmlPlaybackMode,
+  active: boolean,
+  reduced: boolean,
+): string {
+  if (mark === null) return '';
+  const animated = typeof mark.animatedSvg === 'string' ? mark.animatedSvg : '';
+  const poster = typeof mark.svg === 'string' ? mark.svg : '';
+  if (animated === '' || reduced || mode === 'never') return poster;
+  if (mode === 'always' || (mode === 'hover' && active)) return animated;
+  return poster;
+}

@@ -23,6 +23,7 @@ import {
   dshmlNormalizeMotion,
   dshmlPlaybackModeOf,
   dshmlPlaybackOf,
+  dshmlPlayableMarkHtml,
   dshmlSampleTimes,
   dshmlSpriteLayout,
   dshmlSpriteLayoutFits,
@@ -196,5 +197,36 @@ describe('playback policy', () => {
     expect(dshmlPlaybackModeOf(null, 'settings')).toBe('hover');
     for (const value of ['always', 'hover', 'never']) expect(dshmlIsPlaybackMode(value)).toBe(true);
     for (const value of ['Always', '', null, 1, undefined]) expect(dshmlIsPlaybackMode(value)).toBe(false);
+  });
+});
+
+describe('playback markup', () => {
+  const poster = '<svg id="poster"/>';
+  const animated = '<svg id="animated"><animate attributeName="x" values="0;-24" dur="0.5s"/></svg>';
+  const mark = { svg: poster, animatedSvg: animated };
+
+  it('plays immediately under always, unless reduced motion intervenes', () => {
+    expect(dshmlPlayableMarkHtml(mark, 'always', false, false)).toBe(animated);
+    expect(dshmlPlayableMarkHtml(mark, 'always', true, false)).toBe(animated);
+    expect(dshmlPlayableMarkHtml(mark, 'always', false, true)).toBe(poster);
+  });
+
+  it('waits for interaction under hover', () => {
+    expect(dshmlPlayableMarkHtml(mark, 'hover', false, false)).toBe(poster);
+    expect(dshmlPlayableMarkHtml(mark, 'hover', true, false)).toBe(animated);
+    expect(dshmlPlayableMarkHtml(mark, 'hover', true, true)).toBe(poster);
+  });
+
+  it('never plays under never, even when active', () => {
+    expect(dshmlPlayableMarkHtml(mark, 'never', false, false)).toBe(poster);
+    expect(dshmlPlayableMarkHtml(mark, 'never', true, false)).toBe(poster);
+  });
+
+  it('falls back to the poster when the animation or the mark is absent', () => {
+    expect(dshmlPlayableMarkHtml({ svg: poster }, 'always', false, false)).toBe(poster);
+    expect(dshmlPlayableMarkHtml({ svg: poster, animatedSvg: '' }, 'always', false, false)).toBe(poster);
+    expect(dshmlPlayableMarkHtml(null, 'always', false, false)).toBe('');
+    expect(dshmlPlayableMarkHtml({ svg: null, animatedSvg: animated }, 'never', false, false)).toBe('');
+    expect(dshmlPlayableMarkHtml({ svg: poster, animatedSvg: null }, 'always', false, false)).toBe(poster);
   });
 });

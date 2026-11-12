@@ -13,15 +13,17 @@
  * the stored payload budget). The crop rectangle maths lives in
  * `src/custom-icons.ts` so it is unit-tested without a browser.
  *
- * Tabs: only `静态图片` is enabled in this release. `动图` and `视频` are rendered
- * as disabled tabs carrying the `即将实现` hint, so the follow-up kinds have a
- * visible seat without shipping half-working inputs.
+ * Tabs: `静态图片` keeps the original cropper and `动态` opens the motion
+ * sampling studio (`src/motion-studio.ts`), which handles both animated images
+ * and short videos. A rename of an icon that already carries a `motion` record
+ * only edits the name: the source file was never stored, so it cannot be
+ * re-sampled.
  */
 import type { ChangeEvent, DragEvent, ReactElement } from 'react';
 import Cropper from 'react-easy-crop';
 import type { Area, Point } from 'react-easy-crop';
 import { h, React } from './runtime';
-import type { IconScope } from './types';
+import type { CustomIconMotion, IconScope } from './types';
 import { dshmlT } from './i18n';
 import {
   DSHML_CUSTOM_ICON_PX,
@@ -35,6 +37,8 @@ import {
   dshmlValidateCustomName,
 } from './custom-icons';
 import type { DshmlCustomNameProblem } from './custom-icons';
+import { DshmlMotionStudio } from './motion-studio';
+import type { DshmlMotionReadyState } from './motion-studio';
 import { dshmlCreateCustomIcon, dshmlDeleteCustomIcon, dshmlRenameCustomIcon, dshmlUseIconState } from './overrides';
 
 /** Copy lookup with an English fallback, so a missing key never shows a raw key. */
@@ -62,6 +66,8 @@ export interface DshmlCustomIconEditorApply {
 export interface DshmlCustomIconEditorTarget {
   id: string;
   name: string;
+  /** Present when the target already carries a sampled animation. */
+  motion?: CustomIconMotion;
 }
 
 /** Props of {@link DshmlCustomIconEditor}. */
@@ -171,11 +177,13 @@ function dshmlNameProblemText(problem: DshmlCustomNameProblem): string {
   return dshmlEditorCopy('picker.nameDuplicate', 'An icon with this name already exists');
 }
 
-/** One tab of the icon-type switch (only `image` is enabled in this release). */
+/** The two payload types the editor offers (animated images and videos share one). */
+type DshmlCustomKind = 'image' | 'motion';
+
+/** One tab of the icon-type switch. */
 interface DshmlCustomKindTab {
-  id: 'image' | 'animated' | 'video';
+  id: DshmlCustomKind;
   label: string;
-  enabled: boolean;
 }
 
 /** The image upload / crop panel. */
@@ -319,8 +327,13 @@ export function DshmlCustomIconEditor(props: DshmlCustomIconEditorProps): ReactE
   const mode = props.mode;
   const renameTarget = mode === 'rename' && props.icon !== null ? (icons[props.icon.id] ?? props.icon) : null;
   const [name, setName] = React.useState(renameTarget !== null ? renameTarget.name : '');
-  const [kind, setKind] = React.useState<'image' | 'animated' | 'video'>('image');
+  const [kind, setKind] = React.useState<DshmlCustomKind>('image');
   const [source, setSource] = React.useState<string | null>(null);
+  const [motionReady, setMotionReady] = React.useState<DshmlMotionReadyState>({
+    payload: null,
+    busy: false,
+    overBudget: false,
+  });
   const [crop, setCrop] = React.useState<Point>({ x: 0, y: 0 });
   const [zoom, setZoom] = React.useState(1);
   const [croppedArea, setCroppedArea] = React.useState<Area | null>(null);
@@ -330,12 +343,12 @@ export function DshmlCustomIconEditor(props: DshmlCustomIconEditorProps): ReactE
   const fileRef = React.useRef<HTMLInputElement>(null);
   const unavailable = state.status === 'unavailable';
   const saving = busy || unavailable;
+  const motionTarget = renameTarget !== null && renameTarget.motion !== undefined;
+  const motionPayload = motionReady.payload;
 
-  const soon = dshmlEditorCopy('picker.comingSoon', 'Coming soon');
   const tabs: DshmlCustomKindTab[] = [
-    { id: 'image', label: dshmlEditorCopy('picker.kindImage', 'Image'), enabled: true },
-    { id: 'animated', label: dshmlEditorCopy('picker.kindAnimated', 'Animated'), enabled: false },
-    { id: 'video', label: dshmlEditorCopy('picker.kindVideo', 'Video'), enabled: false },
+    { id: 'image', label: dshmlEditorCopy('picker.kindImage', 'Image') },
+    { id: 'motion', label: dshmlEditorCopy('picker.kindMotion', 'Motion') },
   ];
 
   function explain(problem: DshmlCustomNameProblem): void {
@@ -401,6 +414,34 @@ export function DshmlCustomIconEditor(props: DshmlCustomIconEditorProps): ReactE
     const validName = validateName();
     if (validName === null) return;
     if (mode === 'create') {
+      if (kind === 'motion') {
+        if (motionPayload === null) {
+          setError(
+            motionReady.overBudget
+              ? dshmlEditorCopy(
+                  'picker.motionOverBudget',
+                  'Over the size budget — shrink automatically or reduce the frames',
+                )
+              : dshmlEditorCopy('picker.motionNeedSource', 'Choose an animated image or video first'),
+          );
+          return;
+        }
+        setError('');
+        setBusy(true);
+        try {
+          const id = await dshmlCreateCustomIcon(validName, motionPayload.poster, props.apply, motionPayload.motion);
+          setBusy(false);
+          if (id === null) {
+            setError(dshmlEditorCopy('picker.saveFailed', 'Could not save — try again'));
+            return;
+          }
+          props.onDone('created');
+        } catch {
+          setBusy(false);
+          setError(dshmlEditorCopy('picker.saveFailed', 'Could not save — try again'));
+        }
+        return;
+      }
       if (source === null || croppedArea === null) {
         setError(dshmlEditorCopy('picker.imageEmpty', 'Choose an image first'));
         return;
@@ -488,44 +529,41 @@ export function DshmlCustomIconEditor(props: DshmlCustomIconEditorProps): ReactE
       : null,
   ]);
 
-  const tabRow = h(
-    'div',
-    {
-      key: 'tabs',
-      className: 'dshml-custom-tabs',
-      role: 'tablist',
-      'aria-label': dshmlEditorCopy('picker.kind', 'Icon type'),
-    },
-    tabs.map(function toTab(tab) {
-      const active = tab.id === kind;
-      return h(
-        'button',
-        {
-          key: tab.id,
-          type: 'button',
-          role: 'tab',
-          className:
-            'dshml-custom-tab' +
-            (active ? ' dshml-custom-tab-active' : '') +
-            (tab.enabled ? '' : ' dshml-custom-tab-soon'),
-          'aria-selected': active ? 'true' : 'false',
-          'aria-disabled': tab.enabled ? 'false' : 'true',
-          title: tab.enabled ? tab.label : tab.label + ' — ' + soon,
-          tabIndex: 0,
-          onClick: function onTab() {
-            if (tab.enabled) setKind(tab.id);
+  const tabRow =
+    mode === 'create'
+      ? h(
+          'div',
+          {
+            key: 'tabs',
+            className: 'dshml-custom-tabs',
+            role: 'tablist',
+            'aria-label': dshmlEditorCopy('picker.kind', 'Icon type'),
           },
-        },
-        [
-          h('span', { key: 'label', className: 'dshml-custom-tab-label' }, tab.label),
-          tab.enabled ? null : h('span', { key: 'soon', className: 'dshml-custom-tab-badge' }, soon),
-        ],
-      );
-    }),
-  );
+          tabs.map(function toTab(tab) {
+            const active = tab.id === kind;
+            return h(
+              'button',
+              {
+                key: tab.id,
+                type: 'button',
+                role: 'tab',
+                className: 'dshml-custom-tab' + (active ? ' dshml-custom-tab-active' : ''),
+                'aria-selected': active ? 'true' : 'false',
+                tabIndex: 0,
+                disabled: saving,
+                onClick: function onTab() {
+                  setKind(tab.id);
+                  setError('');
+                },
+              },
+              h('span', { key: 'label', className: 'dshml-custom-tab-label' }, tab.label),
+            );
+          }),
+        )
+      : null;
 
   const imagePanel =
-    mode === 'create'
+    mode === 'create' && kind === 'image'
       ? h(DshmlCustomImagePanel, {
           key: 'image',
           source,
@@ -538,6 +576,33 @@ export function DshmlCustomIconEditor(props: DshmlCustomIconEditorProps): ReactE
           onCropComplete: setCroppedArea,
           onDropped: acceptFile,
         })
+      : null;
+  const motionPanel =
+    mode === 'create' && kind === 'motion'
+      ? h(DshmlMotionStudio, {
+          key: 'motion',
+          disabled: saving,
+          onReady: setMotionReady,
+          onUseStatic: function onUseStatic(dataUrl) {
+            setKind('image');
+            setSource(dataUrl);
+            setCrop({ x: 0, y: 0 });
+            setZoom(1);
+            setCroppedArea(null);
+            setError('');
+          },
+        })
+      : null;
+  const motionRenameHint =
+    mode === 'rename' && motionTarget
+      ? h(
+          'p',
+          { key: 'motion-hint', className: 'dshml-custom-hint' },
+          dshmlEditorCopy(
+            'picker.motionRenameHint',
+            'A motion icon cannot be re-sampled — create a new one to change it',
+          ),
+        )
       : null;
 
   const deleteSection =
@@ -601,7 +666,9 @@ export function DshmlCustomIconEditor(props: DshmlCustomIconEditorProps): ReactE
   return h('div', { className: 'dshml-custom-editor' }, [
     tabRow,
     nameField,
+    motionRenameHint,
     imagePanel,
+    motionPanel,
     error !== ''
       ? h('p', { key: 'error', className: 'dshml-picker-error', role: 'alert' }, error)
       : unavailable
@@ -630,21 +697,24 @@ export function DshmlCustomIconEditor(props: DshmlCustomIconEditorProps): ReactE
           key: 'save',
           type: 'button',
           className: 'dshml-custom-btn dshml-custom-btn-primary',
-          disabled: saving,
+          disabled:
+            saving || (mode === 'create' && kind === 'motion' && (motionReady.busy || motionReady.payload === null)),
           onClick: save,
         },
         dshmlEditorCopy('picker.save', 'Save'),
       ),
     ]),
-    h('input', {
-      key: 'file',
-      type: 'file',
-      ref: fileRef,
-      accept: 'image/png,image/jpeg,image/webp',
-      className: 'dshml-custom-file',
-      tabIndex: -1,
-      'aria-hidden': 'true',
-      onChange: onFileChange,
-    }),
+    mode === 'create' && kind === 'image'
+      ? h('input', {
+          key: 'file',
+          type: 'file',
+          ref: fileRef,
+          accept: 'image/png,image/jpeg,image/webp',
+          className: 'dshml-custom-file',
+          tabIndex: -1,
+          'aria-hidden': 'true',
+          onChange: onFileChange,
+        })
+      : null,
   ]);
 }

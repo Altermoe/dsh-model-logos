@@ -13,7 +13,7 @@
  */
 import type { ChangeEvent, ReactElement } from 'react';
 import { h, React, getCreateRoot } from './runtime';
-import type { BrandLogo, IconScope, IconState, VendorMark } from './types';
+import type { BrandLogo, CustomIconMotion, IconScope, IconState, VendorMark } from './types';
 import { dshmlBrandName, dshmlBrandNameAliases, dshmlT } from './i18n';
 import { letterTile } from './artwork';
 import { LOGOS, filterLogoGroups, groupLogoEntries } from './logos';
@@ -27,8 +27,9 @@ import {
   dshmlCustomMarkFor,
   dshmlCustomMarkSvg,
 } from './custom-icons';
-import { DSHML_PLAYBACK_DEFAULTS } from './motion';
+import { DSHML_PLAYBACK_DEFAULTS, dshmlAtlasSvg } from './motion';
 import { DshmlCustomIconEditor } from './custom-icon-editor';
+import { DshmlPlayableMark } from './playable-mark';
 import type { DshmlCustomIconEditorMode } from './custom-icon-editor';
 import {
   dshmlClearModelIcon,
@@ -83,6 +84,8 @@ export interface DshmlUiResolution {
 export interface DshmlUiLetterTile {
   title: string;
   svg: string;
+  /** Playing form, present for a user-created icon that carries a `motion`. */
+  animatedSvg?: string;
 }
 
 /** Lazily built, grouped and ranked brand option lists (LOGOS never changes). */
@@ -308,6 +311,8 @@ export interface DshmlUiCustomIcon {
   id: string;
   name: string;
   image: string;
+  /** Sampled animation, when the icon has a valid motion record. */
+  motion?: CustomIconMotion;
 }
 
 /**
@@ -318,7 +323,9 @@ export function dshmlUiCustomIcons(state: unknown): DshmlUiCustomIcon[] {
   const raw =
     state !== null && typeof state === 'object' ? (state as { customIcons?: unknown }).customIcons : undefined;
   return dshmlCustomIconList(dshmlCustomIconsOf(raw)).map(function toView(icon) {
-    return { id: icon.id, name: icon.name, image: icon.image };
+    const view: DshmlUiCustomIcon = { id: icon.id, name: icon.name, image: icon.image };
+    if (icon.motion !== undefined) view.motion = icon.motion;
+    return view;
   });
 }
 
@@ -334,7 +341,10 @@ export function dshmlUiCustomIcon(state: unknown, value: unknown): DshmlUiCustom
   const id = dshmlCustomIconIdOf(value) ?? (typeof value === 'string' ? value : null);
   if (id === null || !Object.prototype.hasOwnProperty.call(icons, id)) return null;
   const icon = icons[id];
-  return icon !== undefined ? { id: icon.id, name: icon.name, image: icon.image } : null;
+  if (icon === undefined) return null;
+  const view: DshmlUiCustomIcon = { id: icon.id, name: icon.name, image: icon.image };
+  if (icon.motion !== undefined) view.motion = icon.motion;
+  return view;
 }
 
 /**
@@ -436,6 +446,8 @@ interface DshmlPickerOptionProps {
   optionKey: string;
   label?: string | null;
   svg?: string | null;
+  /** Playing form of a custom raster icon (picker surface policy applies). */
+  animatedSvg?: string | null;
   ariaLabel?: string | null;
   hint?: string | null;
   selected?: boolean;
@@ -459,11 +471,11 @@ function DshmlPickerOption(props: DshmlPickerOptionProps): ReactElement {
       onClick: props.onSelect,
     },
     [
-      h('span', {
+      h(DshmlPlayableMark, {
         key: 'mark',
         className: 'dshml-picker-option-mark',
-        'aria-hidden': 'true',
-        dangerouslySetInnerHTML: { __html: svg },
+        surface: 'picker',
+        mark: { svg: svg, animatedSvg: props.animatedSvg },
       }),
       h('span', { key: 'label', className: 'dshml-picker-option-label' }, label),
     ],
@@ -830,6 +842,7 @@ function DshmlIconPickerApp(props: DshmlIconPickerAppProps): ReactElement {
         key: 'option',
         optionKey: optionKey,
         svg: dshmlCustomMarkSvg(icon),
+        animatedSvg: dshmlAtlasSvg(icon),
         label: icon.name,
         hint: icon.name,
         ariaLabel: icon.name,
@@ -839,6 +852,17 @@ function DshmlIconPickerApp(props: DshmlIconPickerAppProps): ReactElement {
           selectIcon('custom', icon.id);
         },
       }),
+      icon.motion !== undefined
+        ? h(
+            'span',
+            {
+              key: 'motion-badge',
+              className: 'dshml-picker-motion-badge',
+              title: dshmlUiCopy('picker.motionBadge', 'Motion'),
+            },
+            dshmlUiCopy('picker.motionBadge', 'Motion'),
+          )
+        : null,
       h(
         'button',
         {
@@ -924,7 +948,10 @@ function DshmlIconPickerApp(props: DshmlIconPickerAppProps): ReactElement {
           { key: 'editor', className: 'dshml-picker-body dshml-picker-editor-body' },
           h(DshmlCustomIconEditor, {
             mode: editor.mode,
-            icon: editorTarget !== null ? { id: editorTarget.id, name: editorTarget.name } : null,
+            icon:
+              editorTarget !== null
+                ? { id: editorTarget.id, name: editorTarget.name, motion: editorTarget.motion }
+                : null,
             apply: { scope: scope, providerId: providerId, modelId: modelId },
             onCancel: function onCancelEditor() {
               setEditor(null);
@@ -1000,7 +1027,9 @@ function DshmlIconPickerApp(props: DshmlIconPickerAppProps): ReactElement {
   return h(
     'div',
     {
-      className: 'dshml-picker-dialog',
+      className:
+        'dshml-picker-dialog' +
+        (editing && editor !== null && editor.mode === 'create' ? ' dshml-picker-dialog-wide' : ''),
       role: 'dialog',
       'aria-modal': 'true',
       'aria-labelledby': titleId,
