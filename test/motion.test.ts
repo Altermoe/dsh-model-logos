@@ -148,8 +148,22 @@ describe('playing SVG', () => {
     expect(svg).toContain('dur="0.333s"');
     expect(svg).toContain('calcMode="discrete"');
     expect(svg).toContain('repeatCount="indefinite"');
-    expect(svg).toContain('style="clip-path: inset(0 round 25%)"');
     expect(svg).toContain('preserveAspectRatio="none"');
+    expect(svg).toMatch(
+      /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="0 0 24 24" aria-hidden="true" style="clip-path: inset\(0 round 25%\)">/u,
+    );
+  });
+
+  it('clips the rounded tile on the root, never on the atlas-wide viewport', () => {
+    const svg = dshmlAtlasSvg({ motion: motion() });
+    // `inset(0 round 25%)` resolves percentages against the clipped element's
+    // reference box. On the nested viewport that box is the whole
+    // `frames × 24`-unit image, so the radius becomes a capsule and the
+    // visible frame is sheared; only the square root border box gives 6/24.
+    const nested = /<svg x="0" y="0" width="24" height="24" overflow="hidden"([^>]*)>/u.exec(svg);
+    expect(nested?.[1] ?? null).toBe('');
+    expect(svg.indexOf('clip-path: inset(0 round 25%)')).toBeLessThan(svg.indexOf('<svg x="0" y="0"'));
+    expect(svg.match(/clip-path: inset\(0 round 25%\)/gu)).toHaveLength(1);
   });
 
   it('derives the values length and duration from the stored rate', () => {

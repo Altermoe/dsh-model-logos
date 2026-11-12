@@ -499,7 +499,7 @@ that recorded them, not from the current build.
   and its model reference, the fallback mark afterwards, and the Model icons page
   preview of a stored custom icon. The harness also publishes a watchdog result when
   a driver step throws, so a broken run reports its collected assertions instead of an
-  empty dump. `pnpm run verify:dom` passes **115 assertions** on the final tree.
+  empty dump. `pnpm run verify:dom` passes **141 assertions** on the final tree.
 - **Motion icons.** The `动态` tab samples animated images (ImageDecoder) and
   short videos (a detached muted `<video>` + frame-accurate seeks) through one
   `drawFrame(ms)` source interface. Sampling is capped at 2 s / 24 frames / 128 px;
@@ -509,7 +509,10 @@ that recorded them, not from the current build.
   128 px and capped at 32 KiB; the whole document is capped at 3 MiB by
   `dshmlCreateCustomIcon`. A stored `motion` record is validated by
   `dshmlNormalizeMotion` on every read; any invalid field drops only the animation
-  and keeps the icon. `test/motion.test.ts` pins the sampling maths, sprite
+  and keeps the icon. The playing mark rounds its root `<svg>` and lets the nested
+  viewport clip the strip: a percentage `clip-path` radius on that wide viewport
+  would resolve against the atlas and shear the frame (the DOM gate rasters the
+  playing mark to catch it). `test/motion.test.ts` pins the sampling maths, sprite
   geometry, validation, the playing SVG and the playback-markup decision tree;
   `test/custom-icons.test.ts` pins motion parsing/fallback, the poster cap and the
   document budget; `test/client.test.ts` pins the composer's playing poster and
@@ -520,7 +523,7 @@ that recorded them, not from the current build.
   poster → hover → poster sequence, the four-surface playback group, the Settings
   row playing under `always`, staying still under `never` even on hover, and the
   composer playing under its default policy. `pnpm run verify:dom` passes
-  **140 assertions** on the final tree.
+  **141 assertions** on the final tree.
 - The provider-icon contract is pinned from four sides. `test/resolve.test.ts` pins
   the precedence matrix (override → official channel → letter tile, and a declared
   provider resolving to nothing), the flat document's immutable edits and its

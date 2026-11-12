@@ -298,11 +298,18 @@ function dshmlDurationText(seconds: number): string {
 /**
  * The playing SVG of one motion icon.
  *
- * One 24×24 `<svg>` holds a nested square viewport clipped to the shared 6/24
- * rounded tile; the nested viewport holds a single `<image>` whose `x` attribute
- * is animated through the frames with `calcMode="discrete"`. The strip is
+ * One 24×24 `<svg>` clipped to the shared 6/24 rounded tile holds a nested square
+ * viewport; the nested viewport holds a single `<image>` whose `x` attribute is
+ * animated through the frames with `calcMode="discrete"`. The strip is
  * `24 × frames` wide inside the 24-unit canvas. No ids, scripts, event handlers
  * or external references — two icons can coexist without name collisions.
+ *
+ * The rounded clip sits on the **root** element on purpose. A percentage radius
+ * on `clip-path` resolves against the clipped element's reference box: the
+ * nested viewport's box is its content (`frames × 24` units wide), so
+ * `round 25%` there becomes a capsule as wide as the whole atlas and visibly
+ * shears every frame near the strip ends. The root `<svg>` is a CSS box whose
+ * border box is the square mark, so 25% stays the 6/24 tile radius.
  * @param icon - stored icon carrying a `motion` record.
  * @returns the playing SVG, or `''` when the record is missing/invalid.
  */
@@ -313,8 +320,8 @@ export function dshmlAtlasSvg(icon: Pick<CustomIcon, 'motion'> | null | undefine
   for (let index = 0; index < motion.frames; index += 1) values.push(String(-24 * index));
   const dur = dshmlDurationText(motion.frames / motion.fps);
   return (
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">' +
-    '<svg x="0" y="0" width="24" height="24" overflow="hidden" style="clip-path: inset(0 round 25%)">' +
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true" style="clip-path: inset(0 round 25%)">' +
+    '<svg x="0" y="0" width="24" height="24" overflow="hidden">' +
     '<image href="' +
     escapeXml(motion.atlas) +
     '" x="0" y="0" width="' +

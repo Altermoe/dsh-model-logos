@@ -427,6 +427,47 @@ async function browserDriver(config: DriverConfig): Promise<void> {
       parseFloat(style.opacity) > 0.01
     );
   };
+  /**
+   * Rasterize one mark SVG into a square canvas and return the alpha at the
+   * rounded corner, both mid-edges and the centre.
+   *
+   * The playing mark must paint a full square frame (opaque mid-edges) inside the
+   * rounded tile (transparent corner). A clip-path percentage evaluated against
+   * the atlas-wide nested viewport instead of the square root box turns the clip
+   * into a capsule and leaves transparent wedges along the top/bottom.
+   */
+  const rasterAlphaProbe = async (
+    html: string,
+    size: number,
+  ): Promise<{ corner: number; topCenter: number; bottomCenter: number; center: number } | null> => {
+    if (html.indexOf('<svg') < 0) return null;
+    const url = URL.createObjectURL(new Blob([html], { type: 'image/svg+xml' }));
+    try {
+      const image = new Image();
+      image.width = size;
+      image.height = size;
+      image.src = url;
+      await image.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const context = canvas.getContext('2d');
+      if (context === null) return null;
+      context.drawImage(image, 0, 0, size, size);
+      const data = context.getImageData(0, 0, size, size).data;
+      const alpha = (x: number, y: number): number => data[(y * size + x) * 4 + 3] ?? 0;
+      return {
+        corner: alpha(1, 1),
+        topCenter: alpha(size >> 1, 2),
+        bottomCenter: alpha(size >> 1, size - 3),
+        center: alpha(size >> 1, size >> 1),
+      };
+    } catch {
+      return null;
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  };
   const describeNode = (node: Element | null | undefined): string => {
     if (!node) return 'null';
     const id = node.id ? '#' + node.id : '';
@@ -3048,6 +3089,17 @@ async function browserDriver(config: DriverConfig): Promise<void> {
             true,
             animated !== null,
             animated !== null ? animated.slice(0, 120) : 'no <animate> after pointerover',
+          );
+          const playingAlpha = optionMark !== null ? await rasterAlphaProbe(optionMark.innerHTML, 64) : null;
+          add(
+            'the playing mark paints a full square frame inside the rounded tile',
+            true,
+            playingAlpha !== null &&
+              playingAlpha.corner <= 8 &&
+              playingAlpha.topCenter >= 200 &&
+              playingAlpha.bottomCenter >= 200 &&
+              playingAlpha.center >= 200,
+            playingAlpha !== null ? JSON.stringify(playingAlpha) : 'could not rasterize the playing mark',
           );
           optionMark.dispatchEvent(new PointerEvent('pointerout', { bubbles: true, relatedTarget: document.body }));
           const posterAgain = await waitFor(() => {

@@ -225,6 +225,14 @@ function validateCustomIcons(): void {
   if (!moving.includes('clip-path: inset(0 round 25%)')) {
     problems.push('src/motion.ts: a motion mark must clip the atlas to the shared 6/24 rounded tile');
   }
+  const movingRoot = /^<svg\b[^>]*>/u.exec(moving)?.[0] ?? '';
+  const movingViewport = /<svg x="0" y="0" width="24" height="24" overflow="hidden"([^>]*)>/u.exec(moving)?.[1] ?? '';
+  if (!movingRoot.includes('clip-path: inset(0 round 25%)')) {
+    problems.push('src/motion.ts: a motion mark must clip the rounded tile on the root svg');
+  }
+  if (movingViewport.includes('clip-path')) {
+    problems.push('src/motion.ts: a motion mark must not round the atlas-wide nested viewport');
+  }
   if (/\sid\s*=/.test(moving)) problems.push('src/motion.ts: a motion mark must not use id attributes');
   if (/<script|\son[a-z]+\s*=|https?:/i.test(moving.replace(/\sxmlns[^=]*="[^"]*"/gi, ''))) {
     problems.push('src/motion.ts: a motion mark must stay self-contained');

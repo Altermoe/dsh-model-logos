@@ -336,11 +336,16 @@ private primitives internals.
     `静态图片` / `动态`; the second opens the sampling studio (`src/motion-studio.ts`)
     for animated images and short videos. Sampling is capped at 2 s / 24 frames /
     128 px; one horizontal sprite atlas is stored next to the poster. The playing
-    mark is still one inline SVG string: a nested square viewport clipped by
-    `clip-path: inset(0 round 25%)` holds a single `<image>` whose `x` attribute steps
-    through the frames with `calcMode="discrete"`. No ids, scripts or external
-    references. `ModelMark.animatedSvg` / `VendorMark.animatedSvg` are additive, so
-    any surface that does not play keeps rendering `svg` (the poster).
+    mark is still one inline SVG string: the root `<svg>` carries the shared
+    `clip-path: inset(0 round 25%)` rounded tile, its nested square viewport clips
+    one `<image>` whose `x` attribute steps through the frames with
+    `calcMode="discrete"`. The clip lives on the root on purpose: a percentage radius
+    resolves against the clipped element's reference box, and the nested viewport's box
+    is the whole `frames × 24`-unit strip — `round 25%` there is a capsule that shears
+    every frame. The root is the square mark box, so 25% stays the 6/24 tile radius.
+    No ids, scripts or external references. `ModelMark.animatedSvg` /
+    `VendorMark.animatedSvg` are additive, so any surface that does not play keeps
+    rendering `svg` (the poster).
   - **Playback is a surface decision.** `src/motion.ts` owns the pure policy and
     markup resolver; `DshmlPlayableMark` (React) and `dshmlAttachPlayableMark` (plain
     DOM) share it. The composer defaults to always, Settings → Models / Model icons
