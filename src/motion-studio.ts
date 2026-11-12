@@ -85,7 +85,7 @@ export interface DshmlMotionStudioProps {
 type DshmlStudioStatus = 'idle' | 'reading' | 'ready' | 'failed';
 
 /** Which range handle (or the playhead) is being dragged. */
-type DshmlDragTarget = 'in' | 'out' | 'playhead';
+type DshmlDragTarget = 'in' | 'out' | 'playhead' | 'range';
 
 /** Copy lookup with an English fallback, so a missing key never shows a raw key. */
 function dshmlCopy(key: string, fallback: string, vars?: Readonly<Record<string, string | number>>): string {
@@ -576,6 +576,7 @@ interface DshmlTimelineProps {
   trackRef: { current: HTMLDivElement | null };
   onDragStart: (target: DshmlDragTarget, event: ReactPointerEvent<HTMLElement>) => void;
   onHandleKey: (side: 'in' | 'out', key: string, shift: boolean) => void;
+  onHandleReset: (side: 'in' | 'out') => void;
   onTrackPointerDown: (event: ReactPointerEvent<HTMLElement>) => void;
 }
 
@@ -589,6 +590,7 @@ function DshmlRangeHandle(props: {
   edge: boolean;
   onDragStart: (target: DshmlDragTarget, event: ReactPointerEvent<HTMLElement>) => void;
   onKey: (side: 'in' | 'out', event: ReactKeyboardEvent<HTMLButtonElement>) => void;
+  onReset: (side: 'in' | 'out') => void;
 }): ReactElement {
   return h(
     'button',
@@ -609,6 +611,10 @@ function DshmlRangeHandle(props: {
       },
       onKeyDown: function onKeyDown(event: ReactKeyboardEvent<HTMLButtonElement>) {
         props.onKey(props.side, event);
+      },
+      onDoubleClick: function onDoubleClick(event: React.MouseEvent<HTMLButtonElement>) {
+        event.preventDefault();
+        props.onReset(props.side);
       },
     },
     props.edge ? h('span', { className: 'dshml-motion-handle-mark', 'aria-hidden': 'true' }) : null,
@@ -649,6 +655,11 @@ function DshmlMotionTimeline(props: DshmlTimelineProps): ReactElement {
           className: 'dshml-motion-range',
           'aria-hidden': 'true',
           style: { left: inPct + '%', width: Math.max(0, outPct - inPct) + '%' },
+          onPointerDown: function onRangePointerDown(event: ReactPointerEvent<HTMLSpanElement>) {
+            event.preventDefault();
+            event.stopPropagation();
+            props.onDragStart('range', event);
+          },
         }),
         h('span', {
           key: 'head',
@@ -671,6 +682,7 @@ function DshmlMotionTimeline(props: DshmlTimelineProps): ReactElement {
               event.preventDefault();
             }
           },
+          onReset: props.onHandleReset,
         }),
         h(DshmlRangeHandle, {
           key: 'out',
@@ -687,6 +699,7 @@ function DshmlMotionTimeline(props: DshmlTimelineProps): ReactElement {
               event.preventDefault();
             }
           },
+          onReset: props.onHandleReset,
         }),
       ],
     ),
@@ -714,6 +727,7 @@ interface DshmlSamplesProps {
   disabled: boolean;
   onFrames: (frames: number) => void;
   onSeek: (ms: number) => void;
+  onCancel: () => void;
 }
 
 /** Frame-count slider, the sampled strip and the effective rate. */
@@ -779,19 +793,31 @@ function DshmlMotionSamples(props: DshmlSamplesProps): ReactElement {
     ]),
     h('div', { key: 'strip', className: 'dshml-motion-strip', role: 'group' }, cells),
     props.sampling
-      ? h(
-          'p',
-          { key: 'progress', className: 'dshml-motion-progress', role: 'status' },
-          props.progress !== null
-            ? dshmlCopy('picker.motionSampling', 'Sampling frame {done}/{total}…', {
-                done: props.progress.done,
-                total: props.progress.total,
-              })
-            : dshmlCopy('picker.motionSampling', 'Sampling frame {done}/{total}…', {
-                done: 0,
-                total: props.frames,
-              }),
-        )
+      ? h('div', { key: 'progress', className: 'dshml-motion-progress-row', role: 'status' }, [
+          h(
+            'span',
+            { key: 'text', className: 'dshml-motion-progress' },
+            props.progress !== null
+              ? dshmlCopy('picker.motionSampling', 'Sampling frame {done}/{total}…', {
+                  done: props.progress.done,
+                  total: props.progress.total,
+                })
+              : dshmlCopy('picker.motionSampling', 'Sampling frame {done}/{total}…', {
+                  done: 0,
+                  total: props.frames,
+                }),
+          ),
+          h(
+            'button',
+            {
+              key: 'cancel',
+              type: 'button',
+              className: 'dshml-custom-link',
+              onClick: props.onCancel,
+            },
+            dshmlCopy('picker.cancel', 'Cancel'),
+          ),
+        ])
       : null,
     props.distinct !== null && props.encoded !== null && props.distinct < props.encoded.frames
       ? h(
@@ -815,6 +841,7 @@ interface DshmlBudgetProps {
   overBudget: boolean;
   onSlim: () => void;
   onUndo: () => void;
+  onCancel: () => void;
   disabled: boolean;
 }
 
@@ -896,6 +923,18 @@ function DshmlMotionBudget(props: DshmlBudgetProps): ReactElement {
             props.slimming
               ? dshmlCopy('picker.motionSlimming', 'Shrinking…')
               : dshmlCopy('picker.motionSlim', 'Shrink automatically'),
+          )
+        : null,
+      props.slimming
+        ? h(
+            'button',
+            {
+              key: 'cancel-slim',
+              type: 'button',
+              className: 'dshml-custom-link',
+              onClick: props.onCancel,
+            },
+            dshmlCopy('picker.cancel', 'Cancel'),
           )
         : null,
     ]),
@@ -1022,6 +1061,7 @@ export function DshmlMotionStudio(props: DshmlMotionStudioProps): ReactElement {
   const playheadRef = React.useRef(0);
   const acceptRef = React.useRef<(file: File | null) => void>(function noop() {});
   const onReadyRef = React.useRef(props.onReady);
+  const dragStartRef = React.useRef<{ time: number; range: DshmlMotionRange } | null>(null);
   const cropAreaRef = React.useRef<DshmlCropPixels | null>(null);
   const liveTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   playheadRef.current = playhead;
@@ -1410,6 +1450,16 @@ export function DshmlMotionStudio(props: DshmlMotionStudioProps): ReactElement {
           setPlayhead(target);
           return;
         }
+        if (drag === 'range') {
+          const start = dragStartRef.current;
+          if (start === null) return;
+          const span = Math.max(DSHML_MOTION_MIN_RANGE_MS, start.range.outMs - start.range.inMs);
+          const delta = target - start.time;
+          const nextIn = Math.min(Math.max(0, start.range.inMs + delta), Math.max(0, duration - span));
+          updateRange({ inMs: Math.round(nextIn), outMs: Math.round(nextIn + span) });
+          setPlayhead(Math.round(nextIn));
+          return;
+        }
         const next = dshmlMoveHandle(range, drag, target, duration);
         if (next.inMs !== range.inMs || next.outMs !== range.outMs) {
           if (next.outMs - next.inMs >= DSHML_MOTION_MAX_RANGE_MS) {
@@ -1552,8 +1602,24 @@ export function DshmlMotionStudio(props: DshmlMotionStudioProps): ReactElement {
 
   function startDrag(target: DshmlDragTarget, event: ReactPointerEvent<HTMLElement>): void {
     if (source === null) return;
+    dragStartRef.current = { time: timeAtPointer(event), range };
     setDrag(target);
     if (target === 'playhead') setPlayhead(timeAtPointer(event));
+  }
+
+  /** Double-click a handle: the in point goes to the start, the out point to the end. */
+  function resetHandle(side: 'in' | 'out'): void {
+    if (source === null) return;
+    const duration = Math.max(DSHML_MOTION_MIN_RANGE_MS, source.durationMs);
+    updateRange(dshmlMoveHandle(range, side, side === 'in' ? 0 : duration, duration));
+  }
+
+  /** Abort the current sample / slimming run; the worker stops at its next frame. */
+  function cancelWork(): void {
+    encodeGeneration.current += 1;
+    setSampling(false);
+    setSlimming(false);
+    setProgress(null);
   }
 
   async function slim(): Promise<void> {
@@ -1750,6 +1816,7 @@ export function DshmlMotionStudio(props: DshmlMotionStudioProps): ReactElement {
       trackRef,
       onDragStart: startDrag,
       onHandleKey: handleKey,
+      onHandleReset: resetHandle,
       onTrackPointerDown,
     }),
     h(DshmlMotionSamples, {
@@ -1766,6 +1833,7 @@ export function DshmlMotionStudio(props: DshmlMotionStudioProps): ReactElement {
         setPlaying(false);
         setPlayhead(ms);
       },
+      onCancel: cancelWork,
       disabled: props.disabled === true,
     }),
     h(DshmlMotionBudget, {
@@ -1779,6 +1847,7 @@ export function DshmlMotionStudio(props: DshmlMotionStudioProps): ReactElement {
         void slim();
       },
       onUndo: undo,
+      onCancel: cancelWork,
       disabled: props.disabled === true,
     }),
     errorLine,

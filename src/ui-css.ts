@@ -1520,6 +1520,11 @@ export const DSHML_UI_CSS: string = `
   height: 4px;
   border-radius: 2px;
   background: var(--dsw-alias-state-business-primary, #5686fe);
+  cursor: grab;
+}
+
+.dshml-motion-range:active {
+  cursor: grabbing;
 }
 
 .dshml-motion-playhead {
@@ -1639,6 +1644,12 @@ export const DSHML_UI_CSS: string = `
 .dshml-motion-sample:focus-visible {
   outline: 2px solid var(--dsw-alias-state-business-primary, #5686fe);
   outline-offset: 1px;
+}
+
+.dshml-motion-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .dshml-motion-progress {

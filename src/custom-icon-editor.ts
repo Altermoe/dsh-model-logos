@@ -39,7 +39,13 @@ import {
 import type { DshmlCustomNameProblem } from './custom-icons';
 import { DshmlMotionStudio } from './motion-studio';
 import type { DshmlMotionReadyState } from './motion-studio';
-import { dshmlCreateCustomIcon, dshmlDeleteCustomIcon, dshmlRenameCustomIcon, dshmlUseIconState } from './overrides';
+import {
+  dshmlCreateCustomIcon,
+  dshmlDeleteCustomIcon,
+  dshmlIconState,
+  dshmlRenameCustomIcon,
+  dshmlUseIconState,
+} from './overrides';
 
 /** Copy lookup with an English fallback, so a missing key never shows a raw key. */
 function dshmlEditorCopy(key: string, fallback: string, vars?: Readonly<Record<string, string | number>>): string {
@@ -409,6 +415,17 @@ export function DshmlCustomIconEditor(props: DshmlCustomIconEditorProps): ReactE
     }
   }
 
+  /** The store's localized refusal, or the generic save-failure copy. */
+  function storeRefusal(): string {
+    try {
+      const message = dshmlIconState().error;
+      if (typeof message === 'string' && message.trim() !== '') return message;
+    } catch {
+      /* fall through */
+    }
+    return dshmlEditorCopy('picker.saveFailed', 'Could not save — try again');
+  }
+
   async function save(): Promise<void> {
     if (saving) return;
     const validName = validateName();
@@ -432,7 +449,10 @@ export function DshmlCustomIconEditor(props: DshmlCustomIconEditorProps): ReactE
           const id = await dshmlCreateCustomIcon(validName, motionPayload.poster, props.apply, motionPayload.motion);
           setBusy(false);
           if (id === null) {
-            setError(dshmlEditorCopy('picker.saveFailed', 'Could not save — try again'));
+            // `dshmlCreateCustomIcon` publishes the specific refusal (document
+            // budget, icon limit) on the store; show that instead of a generic
+            // failure so the user knows what to delete.
+            setError(storeRefusal());
             return;
           }
           props.onDone('created');
@@ -453,7 +473,7 @@ export function DshmlCustomIconEditor(props: DshmlCustomIconEditorProps): ReactE
         const id = await dshmlCreateCustomIcon(validName, image, props.apply);
         setBusy(false);
         if (id === null) {
-          setError(dshmlEditorCopy('picker.saveFailed', 'Could not save — try again'));
+          setError(storeRefusal());
           return;
         }
         props.onDone('created');
