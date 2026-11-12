@@ -19,7 +19,7 @@
  */
 import type { ChangeEvent, FormEvent, MouseEvent, ReactElement } from 'react';
 import { h, React } from './runtime';
-import type { CatalogState, VendorMark } from './types';
+import type { CatalogState, DshmlPlaybackMode, DshmlPlaybackSurface, VendorMark } from './types';
 import {
   DSHML_LETTER_ICON,
   DSHML_PICKER_NONE_SVG,
@@ -36,7 +36,15 @@ import {
   dshmlUiUseIconState,
 } from './picker';
 import type { DshmlUiLetterTile } from './picker';
-import { dshmlClearModelIcon, dshmlClearProviderIcon, dshmlUseModelCatalog, dshmlVendorMark } from './overrides';
+import {
+  dshmlClearModelIcon,
+  dshmlClearProviderIcon,
+  dshmlSetPlayback,
+  dshmlUseModelCatalog,
+  dshmlVendorMark,
+} from './overrides';
+import { DshmlPlayableMark } from './playable-mark';
+import { dshmlPlaybackOf } from './motion';
 import { dshmlCustomIconsOf, dshmlCustomMarkFor } from './custom-icons';
 
 /** One model row inside a normalized catalog group. */
@@ -250,6 +258,7 @@ function DshmlSectionRow(props: DshmlSectionRowProps): ReactElement | null {
   const letter = raw === DSHML_LETTER_ICON || resolved.letter === true;
 
   let svg = '';
+  let animatedSvg = '';
   let emptyMark = false;
   if (raw === 'none') {
     svg = DSHML_PICKER_NONE_SVG;
@@ -259,6 +268,7 @@ function DshmlSectionRow(props: DshmlSectionRowProps): ReactElement | null {
     emptyMark = svg === '';
   } else if (props.customMark !== null) {
     svg = props.customMark.svg;
+    animatedSvg = typeof props.customMark.animatedSvg === 'string' ? props.customMark.animatedSvg : '';
   } else if (resolved.key !== null) {
     const logo = dshmlUiLogo(resolved.key);
     if (logo !== null) svg = logo.svg;
@@ -292,11 +302,11 @@ function DshmlSectionRow(props: DshmlSectionRowProps): ReactElement | null {
   const markClass = emptyMark === true ? 'dshml-section-mark dshml-section-mark-empty' : 'dshml-section-mark';
   const mark =
     svg !== ''
-      ? h('span', {
+      ? h(DshmlPlayableMark, {
           key: 'mark',
           className: markClass,
-          'aria-hidden': 'true',
-          dangerouslySetInnerHTML: { __html: svg },
+          surface: 'iconsPage',
+          mark: { svg, animatedSvg: animatedSvg !== '' ? animatedSvg : undefined },
         })
       : h('span', { key: 'mark', className: markClass, 'aria-hidden': 'true' }, '\u2013');
 
@@ -412,10 +422,12 @@ function DshmlSectionProviderRow(props: DshmlSectionProviderRowProps): ReactElem
   const resolution = mark !== null ? mark.resolved : null;
 
   let svg = '';
+  let animatedSvg = '';
   if (raw === 'none') {
     svg = DSHML_PICKER_NONE_SVG;
   } else if (mark !== null && typeof mark.svg === 'string') {
     svg = mark.svg;
+    animatedSvg = typeof mark.animatedSvg === 'string' ? mark.animatedSvg : '';
   }
   // A hand-declared provider without an override keeps the same reserved 22px
   // seat the model rows use (an empty mark, never an invented brand).
@@ -451,12 +463,12 @@ function DshmlSectionProviderRow(props: DshmlSectionProviderRowProps): ReactElem
   const emptySeat = svg === '' && raw === null && fallback === false;
   let markNode: ReactElement;
   if (svg !== '') {
-    markNode = h('span', {
+    markNode = h(DshmlPlayableMark, {
       key: 'mark',
       className: markClass,
+      surface: 'iconsPage',
       title: markTitle !== '' ? markTitle : null,
-      'aria-hidden': 'true',
-      dangerouslySetInnerHTML: { __html: svg },
+      mark: { svg, animatedSvg: animatedSvg !== '' ? animatedSvg : undefined },
     });
   } else if (emptySeat === true) {
     markNode = h('span', { key: 'mark', className: markClass, 'aria-hidden': 'true' });
@@ -526,6 +538,112 @@ function DshmlSectionProviderRow(props: DshmlSectionProviderRowProps): ReactElem
   );
 }
 
+/** Human-readable surface labels for the playback group, in display order. */
+const DSHML_SECTION_SURFACES: readonly DshmlPlaybackSurface[] = Object.freeze([
+  'composer',
+  'settings',
+  'iconsPage',
+  'picker',
+]);
+
+/** One localized surface label. */
+function dshmlSectionSurfaceLabel(surface: DshmlPlaybackSurface): string {
+  if (surface === 'composer') return dshmlSectionCopy('section.playbackComposer', 'Composer');
+  if (surface === 'settings') return dshmlSectionCopy('section.playbackSettings', 'Settings · Models');
+  if (surface === 'iconsPage') return dshmlSectionCopy('section.playbackIconsPage', 'Model icons page');
+  return dshmlSectionCopy('section.playbackPicker', 'Icon picker');
+}
+
+/** The three playback modes, in display order. */
+const DSHML_SECTION_MODES: readonly DshmlPlaybackMode[] = Object.freeze(['always', 'hover', 'never']);
+
+/** One localized mode label. */
+function dshmlSectionModeLabel(mode: DshmlPlaybackMode): string {
+  if (mode === 'always') return dshmlSectionCopy('section.playbackAlways', 'Always');
+  if (mode === 'hover') return dshmlSectionCopy('section.playbackHover', 'On interaction');
+  return dshmlSectionCopy('section.playbackNever', 'Off');
+}
+
+/** Props of the playback settings group. */
+interface DshmlSectionPlaybackProps {
+  playback: Record<DshmlPlaybackSurface, DshmlPlaybackMode>;
+  pending: DshmlPlaybackSurface | '';
+  error: string;
+  onSet: (surface: DshmlPlaybackSurface, mode: DshmlPlaybackMode) => void;
+}
+
+/**
+ * The per-surface playback policy: one row per surface, three radio-like
+ * buttons. The stored value is deliberately shown, even under reduced motion:
+ * that preference lives in the system, not in this document.
+ */
+function DshmlSectionPlayback(props: DshmlSectionPlaybackProps): ReactElement {
+  const rows = DSHML_SECTION_SURFACES.map(function toRow(surface) {
+    const label = dshmlSectionSurfaceLabel(surface);
+    const buttons = DSHML_SECTION_MODES.map(function toMode(mode) {
+      const selected = props.playback[surface] === mode;
+      return h(
+        'button',
+        {
+          key: mode,
+          type: 'button',
+          className: 'dshml-section-mode' + (selected ? ' dshml-section-mode-active' : ''),
+          'aria-pressed': selected ? 'true' : 'false',
+          'data-dshml-playback-mode': mode,
+          disabled: props.pending === surface,
+          onClick: function onMode() {
+            props.onSet(surface, mode);
+          },
+        },
+        dshmlSectionModeLabel(mode),
+      );
+    });
+    return h(
+      'div',
+      {
+        key: surface,
+        className: 'dshml-section-playback-row',
+        'data-dshml-playback-surface': surface,
+      },
+      [
+        h('span', { key: 'label', className: 'dshml-section-playback-label' }, label),
+        h(
+          'div',
+          {
+            key: 'modes',
+            className: 'dshml-section-modes',
+            role: 'group',
+            'aria-label': dshmlSectionCopy('section.playbackAria', 'Motion playback') + ': ' + label,
+          },
+          buttons,
+        ),
+      ],
+    );
+  });
+  return h(
+    'section',
+    { className: 'dshml-section-group dshml-section-playback', 'data-dshml-playback-settings': '1' },
+    [
+      h('div', { key: 'head', className: 'dshml-section-group-head' }, [
+        h(
+          'span',
+          { key: 'title', className: 'dshml-section-group-title' },
+          dshmlSectionCopy('section.playbackTitle', 'Motion playback'),
+        ),
+      ]),
+      h(
+        'p',
+        { key: 'hint', className: 'dshml-section-group-hint' },
+        dshmlSectionCopy('section.playbackHint', 'When the system asks for reduced motion, every surface stays still.'),
+      ),
+      h('div', { key: 'rows', className: 'dshml-section-playback-rows' }, rows),
+      props.error !== ''
+        ? h('p', { key: 'error', className: 'dshml-section-error', role: 'alert' }, props.error)
+        : null,
+    ],
+  );
+}
+
 /**
  * The `settings.section` page: searchable list of catalog models with their
  * current icon, plus manual (providerId, modelId) overrides and a pair form.
@@ -540,6 +658,8 @@ export function DshmlModelIconsSection(_props: unknown): ReactElement {
   const [manualProvider, setManualProvider] = React.useState('');
   const [manualModel, setManualModel] = React.useState('');
   const [manualError, setManualError] = React.useState('');
+  const [pendingPlayback, setPendingPlayback] = React.useState<DshmlPlaybackSurface | ''>('');
+  const [playbackError, setPlaybackError] = React.useState('');
 
   const overrides = dshmlUiOverrides(iconState);
   const providerOverrides = dshmlUiProviderOverrides(iconState);
@@ -694,6 +814,33 @@ export function DshmlModelIconsSection(_props: unknown): ReactElement {
       function failed() {
         setPending('');
         setError(explainWriteFailure());
+      },
+    );
+  }
+
+  /** Persist one surface's playback policy; the store updates optimistically. */
+  function changePlayback(surface: DshmlPlaybackSurface, mode: DshmlPlaybackMode): void {
+    if (pendingPlayback !== '') return;
+    setPlaybackError('');
+    setPendingPlayback(surface);
+    let write: Promise<boolean>;
+    try {
+      write = dshmlSetPlayback(surface, mode);
+    } catch (writeError) {
+      write = Promise.reject(writeError);
+    }
+    Promise.resolve(write).then(
+      function saved(ok) {
+        setPendingPlayback('');
+        if (ok === false) {
+          setPlaybackError(
+            dshmlSectionCopy('section.playbackFailed', 'Could not save the playback setting — try again'),
+          );
+        }
+      },
+      function failed() {
+        setPendingPlayback('');
+        setPlaybackError(dshmlSectionCopy('section.playbackFailed', 'Could not save the playback setting — try again'));
       },
     );
   }
@@ -972,6 +1119,15 @@ export function DshmlModelIconsSection(_props: unknown): ReactElement {
     );
   }
   children.push(manualForm);
+  children.push(
+    h(DshmlSectionPlayback, {
+      key: 'playback',
+      playback: dshmlPlaybackOf(iconState.playback),
+      pending: pendingPlayback,
+      error: playbackError,
+      onSet: changePlayback,
+    }),
+  );
 
   // `data-dshml-section` tells the Settings decorator that this page is
   // plugin-owned: every row already draws its own 22px mark, and the row's

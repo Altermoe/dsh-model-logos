@@ -31,6 +31,7 @@ import {
 } from './overrides';
 import { dshmlDecorateNow, dshmlMountSettingsDecorator, dshmlRequestDecorate } from './decorate';
 import { DSHML_NAV_ICON_CSS } from './nav-icon';
+import { DshmlPlayableMark } from './playable-mark';
 import { DshmlModelIconsSection } from './section';
 
 const LABEL_STYLE_ID = 'dsh-model-logos/label.css';
@@ -147,12 +148,12 @@ function ModelLogoLabel(props: ModelLabelInput): ReactNode {
   const children: ReactNode[] = [];
   if (mark.svg !== null) {
     children.push(
-      h('span', {
+      h(DshmlPlayableMark, {
         key: 'mark',
         className: 'dshml-mark',
-        'aria-hidden': 'true',
+        surface: 'composer',
         title: mark.title ?? undefined,
-        dangerouslySetInnerHTML: { __html: mark.svg },
+        mark: { svg: mark.svg, animatedSvg: mark.animatedSvg, title: mark.title },
       }),
     );
   }

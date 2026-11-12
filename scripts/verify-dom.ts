@@ -2491,6 +2491,15 @@ async function browserDriver(config: DriverConfig): Promise<void> {
           resolve(new File([blob], name, { type: 'image/png' }));
         }, 'image/png');
       });
+    /** A four-frame 32×32 GIF (white block stepping right, 200 ms per frame). */
+    const MOTION_GIF_BASE64 =
+      'R0lGODlhIAAgAPAAABEVHfX3+iH/C05FVFNDQVBFMi4wAwEAAAAh+QQAFAAAACwAAAAAIAAgAAACMISPqcvtD6OctNqLs96chw9+XgiOZGCSabiW2ym+cBtrMCqfNN71/g8MCofEopFRAAAh+QQAFAAAACwAAAAAIAAgAAACMISPqcvtD6OctNqLs968qwCGICeKZDluaKqtwYnCpWyqKx3ibOZ6/g8MCofEovFXAAAh+QQAFAAAACwAAAAAIAAgAAACMISPqcvtD6OctNqLs968xwCGICeKZDluaKqtwYnCpWyqKx3ibOZ6/g8MCofEojFTAAAh+QQAFAAAACwAAAAAIAAgAAACL4SPqcvtD6OctNqLs9684wCGQSeGZDlyaLqtZ/mKsamiM3izmuv1/g8MCofEoqQAADs=';
+    const makeGifFile = (name: string): File => {
+      const binary = atob(MOTION_GIF_BASE64);
+      const bytes = new Uint8Array(binary.length);
+      for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+      return new File([bytes], name, { type: 'image/gif' });
+    };
     const previewValue = (value: unknown, limit: number): string => {
       try {
         const encoded = JSON.stringify(value);
@@ -2532,21 +2541,26 @@ async function browserDriver(config: DriverConfig): Promise<void> {
       );
       const tabs = editor !== null ? qa('.dshml-custom-tab', editor) : [];
       add(
-        'the editor switches icon types through tabs, with the image type active',
+        'the editor offers exactly the still and motion tabs, with the still type active',
         true,
-        tabs.length === 3 && tabs[0]?.getAttribute('aria-selected') === 'true',
+        tabs.length === 2 &&
+          text(tabs[0]).indexOf('静态图片') >= 0 &&
+          text(tabs[1]).indexOf('动态') >= 0 &&
+          tabs[0]?.getAttribute('aria-selected') === 'true' &&
+          tabs[0]?.hasAttribute('disabled') === false &&
+          tabs[1]?.hasAttribute('disabled') === false,
         'tabs=' + JSON.stringify(tabs.map((tab) => text(tab))),
       );
+      if (tabs[1]) clickable(tabs[1]).click();
+      const motionDrop = editor !== null ? await waitFor(() => q('.dshml-motion-drop', editor), 3000) : null;
       add(
-        'animated and video tabs are disabled and carry the coming-soon hint',
+        'the motion tab opens the sampling studio with its source dropzone',
         true,
-        tabs.length === 3 &&
-          tabs[1]?.getAttribute('aria-disabled') === 'true' &&
-          tabs[2]?.getAttribute('aria-disabled') === 'true' &&
-          text(tabs[1]).indexOf('即将实现') >= 0 &&
-          text(tabs[2]).indexOf('即将实现') >= 0,
-        'tabs=' + tabs.map((tab) => text(tab)).join(' | '),
+        motionDrop !== null,
+        motionDrop !== null ? describeNode(motionDrop) : 'no .dshml-motion-drop after switching to the motion tab',
       );
+      if (tabs[0]) clickable(tabs[0]).click();
+      await waitFor(() => (editor !== null ? q('.dshml-custom-file', editor) : null), 3000);
       const nameInput = editor !== null ? q<HTMLInputElement>('.dshml-custom-input', editor) : null;
       const fileInput = editor !== null ? q<HTMLInputElement>('.dshml-custom-file', editor) : null;
       add(
@@ -2787,6 +2801,219 @@ async function browserDriver(config: DriverConfig): Promise<void> {
       add('the custom group lists the created icon with its name', true, false, 'create flow did not produce an id');
     }
 
+    /* ------------- motion custom icon: sample, save, hover-play ----------- */
+    // The same user flow as a still icon, but through the animated-image path:
+    // a real four-frame GIF is decoded by ImageDecoder, sampled, encoded into an
+    // atlas, saved with the model override and then played on the picker's hover
+    // surface. Video is covered by the unit suite and the manual checklist
+    // (headless video decoding is too unstable to gate).
+    let motionId = '';
+    let motionValue: Record<string, unknown> | null = null;
+    for (const leftover of qa('[data-dshml-picker]')) {
+      if (!leftover.isConnected || !visible(leftover)) continue;
+      const closeButton = q<HTMLButtonElement>('.dshml-picker-close', leftover);
+      if (closeButton) clickable(closeButton).click();
+    }
+    await waitFor(() => qa('[data-dshml-picker]').filter(visible).length === 0, 4000);
+    const motionFlowStart = H.mutateCalls.length;
+    const motionPicker = await openModelPicker();
+    if (motionPicker !== null) {
+      const createCell = q<HTMLButtonElement>('.dshml-picker-create', motionPicker);
+      if (createCell) clickable(createCell).click();
+      const motionEditor = motionPicker.isConnected
+        ? await waitFor(() => q('.dshml-custom-editor', motionPicker), 4000)
+        : null;
+      const motionTabs = motionEditor !== null ? qa('.dshml-custom-tab', motionEditor) : [];
+      if (motionTabs[1]) clickable(motionTabs[1]).click();
+      const motionReady = motionEditor !== null ? await waitFor(() => q('.dshml-motion', motionEditor), 3000) : null;
+      const motionName = motionEditor !== null ? q<HTMLInputElement>('.dshml-custom-input', motionEditor) : null;
+      if (motionName) setInputValue(motionName, '动态测试图标');
+      const motionFile =
+        motionEditor !== null ? q<HTMLInputElement>('.dshml-motion .dshml-custom-file', motionEditor) : null;
+      if (motionFile) {
+        const transfer = new DataTransfer();
+        transfer.items.add(makeGifFile('motion-test.gif'));
+        motionFile.files = transfer.files;
+        motionFile.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      const studio = motionEditor !== null ? await waitFor(() => q('.dshml-motion-ready', motionEditor), 10000) : null;
+      add(
+        'importing a GIF opens the motion studio with a timeline and true-size previews',
+        true,
+        studio !== null &&
+          q('.dshml-motion-track', studio) !== null &&
+          qa('.dshml-motion-thumb', studio).length === 16 &&
+          qa('.dshml-motion-tile', studio).length === 4,
+        studio !== null
+          ? 'timeline=' +
+              String(q('.dshml-motion-track', studio) !== null) +
+              ' thumbs=' +
+              qa('.dshml-motion-thumb', studio).length +
+              ' samples=' +
+              qa('.dshml-motion-sample', studio).length +
+              ' tiles=' +
+              qa('.dshml-motion-tile', studio).length
+          : 'no .dshml-motion-ready; drop=' + describeNode(motionReady) + ' file=' + describeNode(motionFile),
+      );
+      const firstSample = await waitFor(() => {
+        const slider = studio !== null ? q<HTMLInputElement>('.dshml-motion-frames-range', studio) : null;
+        const save = motionEditor !== null ? q<HTMLButtonElement>('.dshml-custom-btn-primary', motionEditor) : null;
+        return slider !== null && save !== null && save.disabled === false ? { slider, save } : null;
+      }, 12000);
+      add(
+        'the decoded GIF is sampled and encoded inside the atlas budget',
+        true,
+        firstSample !== null && qa('.dshml-motion-sample', studio).length === Number(firstSample?.slider.value),
+        firstSample !== null
+          ? 'frames=' +
+              String(firstSample.slider.value) +
+              ' samples=' +
+              qa('.dshml-motion-sample', studio).length +
+              ' budget="' +
+              text(q('.dshml-motion-budget', studio)).slice(0, 60) +
+              '"'
+          : 'save stayed disabled while sampling',
+      );
+      add(
+        'the initial sample uses the 12 fps heuristic (10 frames for 0.8s)',
+        true,
+        firstSample !== null && Number(firstSample.slider.value) === 10,
+        firstSample !== null ? 'frames=' + firstSample.slider.value : 'no slider',
+      );
+      if (firstSample !== null) {
+        setInputValue(firstSample.slider, '6');
+        const resampled = await waitFor(() => {
+          const cells = studio !== null ? qa('.dshml-motion-sample', studio) : [];
+          const save = motionEditor !== null ? q<HTMLButtonElement>('.dshml-custom-btn-primary', motionEditor) : null;
+          return cells.length === 6 && save !== null && save.disabled === false ? cells : null;
+        }, 12000);
+        add(
+          'changing the frame count resamples the strip and keeps Save available',
+          true,
+          resampled !== null,
+          'samples=' + qa('.dshml-motion-sample', studio).length,
+        );
+      }
+      const save = motionEditor !== null ? q<HTMLButtonElement>('.dshml-custom-btn-primary', motionEditor) : null;
+      if (save) clickable(save).click();
+      const closed = await waitFor(() => !motionPicker.isConnected || !visible(motionPicker), 12000);
+      const motionCall = H.mutateCalls
+        .slice(motionFlowStart)
+        .find((call) => JSON.stringify(call).indexOf('customIcons') >= 0);
+      const motionOp = findSetOp(Array.isArray(motionCall) ? [motionCall] : [], 'customIcons', 2);
+      const motionPath = motionOp !== null && Array.isArray(motionOp.path) ? motionOp.path : null;
+      motionId = motionPath !== null && motionPath[1] !== undefined ? String(motionPath[1]) : '';
+      motionValue = motionOp !== null && isRecord(motionOp.value) ? motionOp.value : null;
+      const motionDoc = motionValue !== null && isRecord(motionValue.motion) ? motionValue.motion : null;
+      const atlas = motionDoc !== null && typeof motionDoc.atlas === 'string' ? motionDoc.atlas : '';
+      add(
+        'saving a motion icon writes the poster and the sampled atlas',
+        true,
+        closed !== null &&
+          motionId !== '' &&
+          motionValue !== null &&
+          typeof motionValue.image === 'string' &&
+          /^data:image\/(?:png|webp);base64,/.test(motionValue.image) &&
+          /^data:image\/(?:png|webp);base64,/.test(atlas),
+        motionValue !== null
+          ? 'id=' + motionId + ' image=' + previewValue(motionValue.image, 32) + ' atlas=' + previewValue(atlas, 32)
+          : 'no customIcons set op; calls=' + JSON.stringify(H.mutateCalls.slice(motionFlowStart)),
+      );
+      add(
+        'the stored motion geometry matches the sampled range (6 frames, 128px, 7.5fps)',
+        true,
+        motionDoc !== null && motionDoc.frames === 6 && motionDoc.frameWidth === 128 && motionDoc.fps === 7.5,
+        motionDoc !== null
+          ? JSON.stringify({ frames: motionDoc.frames, fps: motionDoc.fps, frameWidth: motionDoc.frameWidth })
+          : 'no motion record',
+      );
+      const motionFrames = motionDoc !== null && typeof motionDoc.frames === 'number' ? motionDoc.frames : 0;
+      const motionFrameWidth =
+        motionDoc !== null && typeof motionDoc.frameWidth === 'number' ? motionDoc.frameWidth : 0;
+      add(
+        'the sampled atlas stays inside the 4096px / 128KiB sprite budget',
+        true,
+        motionDoc !== null && motionFrames * motionFrameWidth <= 4096 && atlas.length <= 131072,
+        motionDoc !== null
+          ? 'width=' + String(motionFrames * motionFrameWidth) + ' chars=' + atlas.length
+          : 'no motion record',
+      );
+      const motionOverride =
+        Array.isArray(motionCall) &&
+        motionCall.some((op) => isRecord(op) && Array.isArray(op.path) && op.path[0] === 'modelIcons')
+          ? (motionCall as unknown[]).find(
+              (op) => isRecord(op) && Array.isArray(op.path) && op.path[0] === 'modelIcons',
+            )
+          : null;
+      add(
+        'the motion icon is applied to the current model as custom:<id>',
+        true,
+        motionId !== '' && isRecord(motionOverride) && motionOverride.value === 'custom:' + motionId,
+        motionOverride !== null ? JSON.stringify(motionOverride) : 'no modelIcons op',
+      );
+      add(
+        'the motion icon persists in the settings document',
+        true,
+        motionId !== '' && isRecord(settingsValue.customIcons) && isRecord(settingsValue.customIcons[motionId]),
+        'customIcons keys=' +
+          (isRecord(settingsValue.customIcons) ? Object.keys(settingsValue.customIcons).join(',') : 'none'),
+      );
+    } else {
+      add('importing a GIF opens the motion studio with a timeline and true-size previews', true, false, 'no picker');
+    }
+
+    if (motionId !== '') {
+      const hoverPicker = await openModelPicker();
+      if (hoverPicker !== null) {
+        const cell = await waitFor(() => q('.dshml-picker-custom-cell', hoverPicker), 5000);
+        const badge = cell !== null ? q('.dshml-picker-motion-badge', cell) : null;
+        add(
+          'the motion icon carries its badge in the picker group',
+          true,
+          badge !== null && text(badge) === '动',
+          badge !== null ? 'badge="' + text(badge) + '"' : 'no .dshml-picker-motion-badge',
+        );
+        const option = cell !== null ? q<HTMLElement>('.dshml-picker-option', cell) : null;
+        const posterHtml = option !== null ? option.innerHTML : '';
+        add(
+          'the picker draws the motion poster before any interaction',
+          true,
+          posterHtml.indexOf('<image') >= 0 && posterHtml.indexOf('<animate') < 0,
+          posterHtml.slice(0, 120),
+        );
+        const optionMark = option !== null ? q<HTMLElement>('.dshml-picker-option-mark', option) : null;
+        if (option !== null && optionMark !== null) {
+          optionMark.dispatchEvent(new PointerEvent('pointerover', { bubbles: true, relatedTarget: null }));
+          const animated = await waitFor(() => {
+            const html = option.innerHTML;
+            return html.indexOf('<animate') >= 0 ? html : null;
+          }, 4000);
+          add(
+            'hovering plays the sampled atlas in the picker',
+            true,
+            animated !== null,
+            animated !== null ? animated.slice(0, 120) : 'no <animate> after pointerover',
+          );
+          optionMark.dispatchEvent(new PointerEvent('pointerout', { bubbles: true, relatedTarget: document.body }));
+          const posterAgain = await waitFor(() => {
+            const html = option.innerHTML;
+            return html.indexOf('<animate') < 0 && html.indexOf('<image') >= 0 ? html : null;
+          }, 4000);
+          add(
+            'leaving the cell returns to the poster',
+            true,
+            posterAgain !== null,
+            posterAgain !== null ? posterAgain.slice(0, 80) : 'mark stayed animated',
+          );
+        }
+        const closeButton = q<HTMLButtonElement>('.dshml-picker-close', hoverPicker);
+        if (closeButton) clickable(closeButton).click();
+        await waitFor(() => !hoverPicker.isConnected || !visible(hoverPicker), 4000);
+      } else {
+        add('the motion icon carries its badge in the picker group', true, false, 'no picker');
+      }
+    }
+
     // Never leave an extra picker mounted: the later section-page scenario opens
     // pickers of its own and `findPicker()` must not resolve this one.
     for (const leftover of qa('[data-dshml-picker]')) {
@@ -2850,6 +3077,152 @@ async function browserDriver(config: DriverConfig): Promise<void> {
           providerRowIds.indexOf(config.officialProvider.id) >= 0 &&
             providerRowIds.indexOf(config.customProvider.id) >= 0,
           'provider rows=' + JSON.stringify(providerRowIds),
+        );
+
+        // Motion playback per surface: four rows, three modes each, and the
+        // default policy the plan documents (composer always, lists hover).
+        const playbackGroup = q('[data-dshml-playback-settings="1"]', host);
+        const playbackRows = playbackGroup !== null ? qa('[data-dshml-playback-surface]', playbackGroup) : [];
+        const playbackPressed = (surface: string, mode: string): boolean => {
+          const row = playbackRows.find(
+            (candidate) => candidate.getAttribute('data-dshml-playback-surface') === surface,
+          );
+          const button = row !== undefined ? q('[data-dshml-playback-mode="' + mode + '"]', row) : null;
+          return button !== null && button.getAttribute('aria-pressed') === 'true';
+        };
+        add(
+          'Model icons page offers a four-surface, three-mode motion playback group',
+          true,
+          playbackGroup !== null &&
+            playbackRows.length === 4 &&
+            ['composer', 'settings', 'iconsPage', 'picker'].every((surface) =>
+              playbackRows.some((row) => row.getAttribute('data-dshml-playback-surface') === surface),
+            ) &&
+            playbackRows.every((row) => qa('[data-dshml-playback-mode]', row).length === 3),
+          playbackGroup !== null
+            ? 'rows=' +
+                JSON.stringify(
+                  playbackRows.map((row) => ({
+                    surface: row.getAttribute('data-dshml-playback-surface'),
+                    modes: qa('[data-dshml-playback-mode]', row).length,
+                  })),
+                )
+            : 'no [data-dshml-playback-settings]',
+        );
+        add(
+          'the playback defaults match the plan (composer always, every list hover)',
+          true,
+          playbackPressed('composer', 'always') &&
+            playbackPressed('settings', 'hover') &&
+            playbackPressed('iconsPage', 'hover') &&
+            playbackPressed('picker', 'hover'),
+          'composer=' +
+            String(playbackPressed('composer', 'always')) +
+            ' settings=' +
+            String(playbackPressed('settings', 'hover')) +
+            ' iconsPage=' +
+            String(playbackPressed('iconsPage', 'hover')) +
+            ' picker=' +
+            String(playbackPressed('picker', 'hover')),
+        );
+
+        const settingsPlaybackRow =
+          playbackRows.find((row) => row.getAttribute('data-dshml-playback-surface') === 'settings') ?? null;
+        const alwaysPlayback = settingsPlaybackRow
+          ? q<HTMLButtonElement>('[data-dshml-playback-mode="always"]', settingsPlaybackRow)
+          : null;
+        const playbackWriteStart = H.mutateCalls.length;
+        if (alwaysPlayback) clickable(alwaysPlayback).click();
+        const playbackWrite = await waitFor(() => {
+          const calls = H.mutateCalls.slice(playbackWriteStart);
+          return calls.find((call) => JSON.stringify(call).indexOf('"playback"') >= 0) ?? null;
+        }, 4000);
+        const playbackOp = Array.isArray(playbackWrite)
+          ? playbackWrite.find(
+              (op) => isRecord(op) && Array.isArray(op.path) && op.path[0] === 'playback' && op.path[1] === 'settings',
+            )
+          : null;
+        add(
+          'choosing "always" for Settings · Models writes playback.settings',
+          true,
+          isRecord(playbackOp) && playbackOp.op === 'set' && playbackOp.value === 'always',
+          playbackOp !== null
+            ? JSON.stringify(playbackOp)
+            : 'no playback write; calls=' + JSON.stringify(H.mutateCalls.slice(playbackWriteStart)),
+        );
+        const settingsMotionMark = iconButton !== null ? q<HTMLElement>('.dshml-model-mark', iconButton) : null;
+        const settingsAnimated = await waitFor(() => {
+          const html = settingsMotionMark !== null ? settingsMotionMark.innerHTML : '';
+          return html.indexOf('<animate') >= 0 ? html : null;
+        }, 5000);
+        add(
+          'the Settings model row plays its motion icon under the always policy',
+          true,
+          settingsAnimated !== null,
+          settingsAnimated !== null ? settingsAnimated.slice(0, 100) : 'mark never contained an <animate>',
+        );
+        const neverPlayback = settingsPlaybackRow
+          ? q<HTMLButtonElement>('[data-dshml-playback-mode="never"]', settingsPlaybackRow)
+          : null;
+        await waitFor(() => (neverPlayback !== null && neverPlayback.disabled === false ? true : null), 4000);
+        const neverWriteStart = H.mutateCalls.length;
+        if (neverPlayback) clickable(neverPlayback).click();
+        const neverWrite = await waitFor(() => {
+          const calls = H.mutateCalls.slice(neverWriteStart);
+          return calls.find((call) => JSON.stringify(call).indexOf('"playback"') >= 0) ?? null;
+        }, 4000);
+        const neverOp = Array.isArray(neverWrite)
+          ? neverWrite.find(
+              (op) => isRecord(op) && Array.isArray(op.path) && op.path[0] === 'playback' && op.path[1] === 'settings',
+            )
+          : null;
+        add(
+          'choosing "never" for Settings · Models writes playback.settings=never',
+          true,
+          isRecord(neverOp) && neverOp.op === 'set' && neverOp.value === 'never',
+          neverOp !== null ? JSON.stringify(neverOp) : 'no playback write',
+        );
+        if (settingsMotionMark !== null) {
+          const stillAfterNever = await waitFor(
+            () => (settingsMotionMark.innerHTML.indexOf('<animate') < 0 ? true : null),
+            4000,
+          );
+          add(
+            'a never policy removes the playing markup from the Settings row',
+            true,
+            stillAfterNever === true,
+            settingsMotionMark.innerHTML.slice(0, 100),
+          );
+          settingsMotionMark.dispatchEvent(new PointerEvent('pointerenter'));
+          await sleep(120);
+          add(
+            'a never policy keeps the Settings mark still even on hover',
+            true,
+            settingsMotionMark.innerHTML.indexOf('<animate') < 0,
+            settingsMotionMark.innerHTML.slice(0, 100),
+          );
+          settingsMotionMark.dispatchEvent(new PointerEvent('pointerleave'));
+        }
+        const hoverPlayback = settingsPlaybackRow
+          ? q<HTMLButtonElement>('[data-dshml-playback-mode="hover"]', settingsPlaybackRow)
+          : null;
+        await waitFor(() => (hoverPlayback !== null && hoverPlayback.disabled === false ? true : null), 4000);
+        const restoreWriteStart = H.mutateCalls.length;
+        if (hoverPlayback) clickable(hoverPlayback).click();
+        const restoreWrite = await waitFor(() => {
+          const calls = H.mutateCalls.slice(restoreWriteStart);
+          return calls.find((call) => JSON.stringify(call).indexOf('"playback"') >= 0) ?? null;
+        }, 4000);
+        const restoreOp = Array.isArray(restoreWrite)
+          ? restoreWrite.find(
+              (op) => isRecord(op) && Array.isArray(op.path) && op.path[0] === 'playback' && op.path[1] === 'settings',
+            )
+          : null;
+        add(
+          'restoring the default hover policy unsets playback.settings',
+          true,
+          isRecord(restoreOp) && restoreOp.op === 'unset',
+          restoreOp !== null ? JSON.stringify(restoreOp) : 'no restore write',
         );
 
         const sectionOfficialRow = q('[data-dshml-provider-row="' + config.officialProvider.id + '"]', host);
@@ -3220,6 +3593,18 @@ async function browserDriver(config: DriverConfig): Promise<void> {
           model: { id: config.firstModel.modelId, name: config.firstModel.displayName },
           placement: 'trigger',
         };
+        // The Model icons page test deliberately tidies the first model back to
+        // auto; restore the motion override the composer probe is about.
+        if (motionId !== '') {
+          await form.mutate([
+            {
+              op: 'set',
+              path: ['modelIcons', config.firstModel.providerId, config.firstModel.modelId],
+              value: 'custom:' + motionId,
+            },
+          ]);
+          await sleep(120);
+        }
         mounted.render(window.React.createElement(labelRegistration.component, props));
         const rendered = await waitFor(() => host.querySelector('.dshml-mark, svg'), 4000);
         add(
@@ -3228,6 +3613,31 @@ async function browserDriver(config: DriverConfig): Promise<void> {
           !!rendered && text(host).indexOf(config.firstModel.displayName) >= 0,
           rendered ? 'markup: ' + host.innerHTML.slice(0, 160) : 'no mark rendered',
         );
+
+        if (motionId !== '') {
+          const composerAnimated = await waitFor(() => (host.querySelector('animate') !== null ? true : null), 4000);
+          add(
+            'the composer label plays a motion icon under the default always policy',
+            true,
+            composerAnimated === true,
+            host.innerHTML.slice(0, 140),
+          );
+          await form.mutate([{ op: 'set', path: ['playback', 'composer'], value: 'never' }]);
+          await sleep(150);
+          mounted.render(window.React.createElement(labelRegistration.component, props));
+          const composerStill = await waitFor(() => {
+            const html = host.innerHTML;
+            return html.indexOf('<animate') < 0 && html.indexOf('<image') >= 0 ? true : null;
+          }, 4000);
+          add(
+            'the composer label honours a never policy but keeps the poster',
+            true,
+            composerStill === true,
+            host.innerHTML.slice(0, 140),
+          );
+          await form.mutate([{ op: 'unset', path: ['playback', 'composer'] }]);
+          await sleep(120);
+        }
         form.mutate([
           {
             op: 'set',

@@ -29,6 +29,7 @@ import {
   dshmlVendorMark,
 } from './overrides';
 import { dshmlOpenIconPicker } from './picker';
+import { dshmlAttachPlayableMark, dshmlDetachPlayableMark } from './playable-mark';
 import { dshmlClearNavIcon, dshmlDecorateNavIcon } from './nav-icon';
 import type { CatalogProvider, DshContext, ModelMark } from './types';
 
@@ -53,26 +54,6 @@ const DSHML_SETTINGS_ROOT = '[data-shortcut-modal="settings"]';
  * name instead of one beside it.
  */
 const DSHML_SECTION_ROOT = '[data-dshml-section="1"]';
-
-/**
- * Last markup this module wrote into each inserted element.
- *
- * The decoration is driven by a MutationObserver over `document.body`, and
- * writing into the nodes it inserted is itself a mutation. Re-writing identical
- * markup (with `innerHTML`, which always replaces the children) would therefore
- * feed the observer, schedule the next pass, and loop for as long as the page is
- * open — the marks flash in the devtools inspector while a timer runs ~25 times
- * a second. Comparing against what was last written turns every no-op pass into
- * a pure read.
- */
-const dshmlWrittenMarkup = new WeakMap<Element, string>();
-
-/** Replace an element's markup only when it differs from the last markup written. */
-function dshmlWriteMarkup(node: Element, markup: string): void {
-  if (dshmlWrittenMarkup.get(node) === markup) return;
-  node.innerHTML = markup;
-  dshmlWrittenMarkup.set(node, markup);
-}
 
 /** Last text this module wrote into each inserted element (the combobox face). */
 const dshmlWrittenText = new WeakMap<Element, string>();
@@ -183,7 +164,13 @@ function dshmlWriteModelMark(button: HTMLButtonElement, mark: ModelMark | null):
     span.className = 'dshml-insert dshml-model-mark';
     button.appendChild(span);
   }
-  dshmlWriteMarkup(span, mark !== null && mark.svg !== null ? mark.svg : DSHML_PLACEHOLDER_SVG);
+  dshmlAttachPlayableMark(
+    span,
+    mark !== null && mark.svg !== null
+      ? { svg: mark.svg, animatedSvg: mark.animatedSvg, title: mark.title }
+      : { svg: DSHML_PLACEHOLDER_SVG },
+    'settings',
+  );
   span.classList.toggle('dshml-model-placeholder', mark === null || mark.svg === null);
   button.classList.toggle('dshml-model-icon-disabled', mark !== null && mark.resolved.disabled);
   button.classList.toggle('dshml-model-icon-custom', mark !== null && mark.resolved.source === 'override');
@@ -338,7 +325,7 @@ function dshmlEnsureSeat(target: Element): HTMLButtonElement | null {
 function dshmlPaintSeat(seat: HTMLButtonElement, entry: CatalogProvider | null): void {
   const mark = entry !== null ? dshmlVendorMark(entry.providerId, entry.displayName, dshmlIsOfficial(entry)) : null;
   if (entry !== null && mark !== null && mark.svg !== null) {
-    dshmlWriteMarkup(seat, mark.svg);
+    dshmlAttachPlayableMark(seat, { svg: mark.svg, animatedSvg: mark.animatedSvg, title: mark.title }, 'settings');
     dshmlSetDataset(seat, 'dshmlVendor', entry.providerId);
     dshmlSetDataset(seat, 'dshmlSeatProvider', entry.providerId);
     seat.classList.toggle('dshml-vendor-empty', false);
@@ -350,7 +337,7 @@ function dshmlPaintSeat(seat: HTMLButtonElement, entry: CatalogProvider | null):
     if (seat.disabled) seat.disabled = false;
     return;
   }
-  dshmlWriteMarkup(seat, '');
+  dshmlAttachPlayableMark(seat, null, 'settings');
   dshmlSetDataset(seat, 'dshmlVendor', null);
   // The identity is kept separately from `data-dshml-vendor`: the vendor marker is
   // reserved for a real vendor mark, while an empty seat still has to know which
@@ -727,7 +714,11 @@ function dshmlBuildCombo(
         : dshmlVendorMark(value, selected !== undefined ? selected.textContent : value, true);
     const labelText = selected !== undefined ? String(selected.textContent ?? '') : '';
     dshmlWriteText(label, labelText);
-    dshmlWriteMarkup(mark, vendor.svg !== null ? vendor.svg : '');
+    dshmlAttachPlayableMark(
+      mark,
+      vendor.svg !== null ? { svg: vendor.svg, animatedSvg: vendor.animatedSvg, title: vendor.title } : null,
+      'settings',
+    );
     if (mark.hidden !== (vendor.svg === null)) mark.hidden = vendor.svg === null;
     const aria = dshmlT('section.provider') + ': ' + labelText;
     if (button.getAttribute('aria-label') !== aria) button.setAttribute('aria-label', aria);
@@ -778,6 +769,10 @@ function dshmlBuildCombo(
   };
 
   const buildMenu = (): void => {
+    for (const item of combo.items) {
+      const staleMark = item.querySelector<HTMLElement>('.dshml-combo-mark');
+      if (staleMark !== null) dshmlDetachPlayableMark(staleMark);
+    }
     menu.replaceChildren();
     combo.items = [];
     const options = [...select.options];
@@ -793,7 +788,11 @@ function dshmlBuildCombo(
       const itemMark = document.createElement('span');
       itemMark.className = 'dshml-combo-mark';
       itemMark.setAttribute('aria-hidden', 'true');
-      if (vendor.svg !== null) itemMark.innerHTML = vendor.svg;
+      dshmlAttachPlayableMark(
+        itemMark,
+        vendor.svg !== null ? { svg: vendor.svg, animatedSvg: vendor.animatedSvg, title: vendor.title } : null,
+        'settings',
+      );
       const itemLabel = document.createElement('span');
       itemLabel.className = 'dshml-combo-item-label';
       itemLabel.textContent = String(option.textContent ?? '');
@@ -999,7 +998,10 @@ function dshmlClearDecorations(state: DecorState): void {
     state.combo.wrapper.remove();
     state.combo = null;
   }
-  for (const node of document.querySelectorAll('[data-dshml-owner="1"]')) node.remove();
+  for (const node of document.querySelectorAll<HTMLElement>('[data-dshml-owner="1"]')) {
+    dshmlDetachPlayableMark(node);
+    node.remove();
+  }
   for (const row of document.querySelectorAll<HTMLElement>('[data-dshml-model-row]')) {
     delete row.dataset.dshmlModelRow;
   }

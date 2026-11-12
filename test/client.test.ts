@@ -198,6 +198,8 @@ interface FakeFormValue {
   providerIcons?: Record<string, string>;
   /** Absent in a legacy profile that never stored a custom icon. */
   customIcons?: Record<string, unknown>;
+  /** Per-surface motion playback policy; absent means the documented defaults. */
+  playback?: Record<string, string>;
 }
 
 /** Snapshot shape the fake settings form returns to the bundle. */
@@ -228,6 +230,8 @@ interface FakeFormOptions {
   providerIcons?: Record<string, string>;
   /** Persisted custom icons; omit for a legacy document that predates them. */
   customIcons?: Record<string, unknown>;
+  /** Persisted per-surface playback policy. */
+  playback?: Record<string, string>;
 }
 
 function createForm(overrides: Record<string, Record<string, string>>, options: FakeFormOptions = {}): FakeForm {
@@ -240,6 +244,7 @@ function createForm(overrides: Record<string, Record<string, string>>, options: 
         modelIcons: overrides,
         ...(options.providerIcons === undefined ? {} : { providerIcons: options.providerIcons }),
         ...(options.customIcons === undefined ? {} : { customIcons: options.customIcons }),
+        ...(options.playback === undefined ? {} : { playback: options.playback }),
       },
       base: {},
       user: {},
@@ -311,6 +316,19 @@ function createForm(overrides: Record<string, Record<string, string>>, options: 
           };
           continue;
         }
+        // Playback policy: ['playback', surface].
+        if (path[0] === 'playback' && path.length === 2) {
+          const surface = String(path[1]);
+          const playback = { ...(form.snapshot.value.playback ?? {}) };
+          if (op.op === 'unset') delete playback[surface];
+          else playback[surface] = String(op.value);
+          form.snapshot = {
+            ...form.snapshot,
+            revision: form.snapshot.revision + 1,
+            value: { ...form.snapshot.value, playback },
+          };
+          continue;
+        }
         if (path[0] === 'customIcons' && path.length === 3 && path[2] === 'name' && op.op === 'set') {
           const iconId = String(path[1]);
           const icons = { ...(form.snapshot.value.customIcons ?? {}) };
@@ -353,6 +371,8 @@ interface ContextOptions {
   providerIcons?: Record<string, string>;
   /** Persisted custom icons; omit for a document written before they existed. */
   customIcons?: Record<string, unknown>;
+  /** Persisted per-surface playback policy. */
+  playback?: Record<string, string>;
   missing?: string[];
   /** Active DSH locale (`en` unless a test forces another language). */
   lang?: string;
@@ -387,6 +407,7 @@ function createContext({
   overrides = {},
   providerIcons,
   customIcons,
+  playback,
   missing = [],
   lang = 'en',
   liveGroups = [],
@@ -400,6 +421,7 @@ function createContext({
   const form = createForm(overrides, {
     ...(providerIcons === undefined ? {} : { providerIcons }),
     ...(customIcons === undefined ? {} : { customIcons }),
+    ...(playback === undefined ? {} : { playback }),
   });
   const mirror = createMirror(namespaces);
   const session = {
@@ -551,6 +573,7 @@ interface DiagnosticsIconState {
   overrides: Record<string, Record<string, string>>;
   providerOverrides: Record<string, string>;
   customIcons: Record<string, { id: string; name: string; image: string }>;
+  playback: Record<string, string>;
   writable: boolean;
   error: string | null;
 }
@@ -621,7 +644,13 @@ const labelRegistration = (registrations: Registration[]): Registration => {
 
 const findClass = (tree: unknown, className: string): FakeElement | undefined =>
   flatten(tree).find((node): node is FakeElement => typeof node !== 'string' && node.props.className === className);
-const findMark = (tree: unknown): FakeElement | undefined => findClass(tree, 'dshml-mark');
+const findMark = (tree: unknown): FakeElement | undefined =>
+  flatten(tree).find(
+    (node): node is FakeElement =>
+      typeof node !== 'string' &&
+      node.props.className === 'dshml-mark' &&
+      node.props.dangerouslySetInnerHTML !== undefined,
+  );
 const findText = (tree: unknown): FakeElement | undefined => findClass(tree, 'dshml-text');
 
 /** Narrow a render result to the element the label contributes. */
@@ -940,6 +969,64 @@ describe('generated client bundle', () => {
     expect(html, 'the raster payload rides an SVG <image>').toContain('<image href="' + image + '"');
     expect(html, 'the tile fills its viewBox').toContain('preserveAspectRatio="xMidYMid slice"');
     expect(html, 'the custom tile rounds like brand artwork').toContain('clip-path: inset(0 round 25%)');
+  });
+
+  it('plays a motion custom icon in the composer under the default always policy', () => {
+    const image = 'data:image/png;base64,iVBORw0KGgo=';
+    const atlas = 'data:image/webp;base64,UklGRg==';
+    const { registrations } = loadClient({
+      customIcons: {
+        'c-motion': {
+          name: 'Motion Icon',
+          kind: 'image',
+          image,
+          motion: { atlas, frames: 4, fps: 12, frameWidth: 128 },
+          createdAt: 1,
+        },
+      },
+      overrides: { acme: { 'acme-chat-1': 'custom:c-motion' } },
+    });
+    const component = labelRegistration(registrations).component;
+    const tree = component(labelProps('acme', 'Acme', 'acme-chat-1', 'Acme Chat 1'));
+    const mark = expectPresent(findMark(tree), 'a motion custom override must draw a playable mark');
+    const html = mark.props.dangerouslySetInnerHTML?.__html ?? '';
+    expect(mark.props.title).toBe('Motion Icon');
+    expect(html, 'the composer policy plays the atlas').toContain('<animate attributeName="x"');
+    expect(html, 'the animation steps frame by frame').toContain('calcMode="discrete"');
+    expect(html, 'the playing mark still references the stored atlas').toContain(atlas);
+  });
+
+  it('honours a persisted never policy by drawing the poster only', () => {
+    const image = 'data:image/png;base64,iVBORw0KGgo=';
+    const atlas = 'data:image/webp;base64,UklGRg==';
+    const { registrations } = loadClient({
+      customIcons: {
+        'c-motion': {
+          name: 'Motion Icon',
+          kind: 'image',
+          image,
+          motion: { atlas, frames: 4, fps: 12, frameWidth: 128 },
+          createdAt: 1,
+        },
+      },
+      overrides: { acme: { 'acme-chat-1': 'custom:c-motion' } },
+      playback: { composer: 'never' },
+    });
+    const component = labelRegistration(registrations).component;
+    const tree = component(labelProps('acme', 'Acme', 'acme-chat-1', 'Acme Chat 1'));
+    const mark = expectPresent(findMark(tree), 'the poster must always render');
+    const html = mark.props.dangerouslySetInnerHTML?.__html ?? '';
+    expect(html).toContain('<image href="' + image + '"');
+    expect(html).not.toContain('<animate');
+  });
+
+  it('adopts the persisted per-surface playback policy with documented defaults', () => {
+    loadClient({ playback: { composer: 'never', settings: 'always' } });
+    const playback = diagnostics().iconState().playback;
+    expect(playback.composer).toBe('never');
+    expect(playback.settings).toBe('always');
+    expect(playback.iconsPage).toBe('hover');
+    expect(playback.picker).toBe('hover');
   });
 
   it('renders no mark for a stale custom reference', () => {
