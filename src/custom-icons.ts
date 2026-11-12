@@ -24,6 +24,7 @@
  * `custom:<id>`.
  */
 import { escapeXml } from './artwork';
+import { dshmlAtlasSvg, dshmlNormalizeMotion } from './motion';
 import type { CustomIcon, CustomIconDocument } from './types';
 
 /** Override-value prefix that names a user-created icon. */
@@ -57,6 +58,25 @@ const DSHML_CUSTOM_TILE_CLIP = 'clip-path: inset(0 round ' + DSHML_CUSTOM_TILE_R
  * payloads from the settings document and matches the Host Config validation.
  */
 export const DSHML_CUSTOM_MAX_DATA_URL = 128 * 1024;
+
+/**
+ * Upper bound on a motion icon's poster (32 KiB of characters).
+ *
+ * The poster is one sampled frame, far smaller than the atlas; keeping it on its
+ * own budget means a poster can never eat the atlas allowance. Static icons keep
+ * the historical {@link DSHML_CUSTOM_MAX_DATA_URL} bound.
+ */
+export const DSHML_CUSTOM_MAX_POSTER = 32 * 1024;
+
+/**
+ * Upper bound on every stored custom icon's data URL characters (3 MiB).
+ *
+ * The settings document is rewritten as a whole on every write and the mirror
+ * carries a copy in `value`, `user` and `base`; 40 icons at a realistic average
+ * stay well below this, while a runaway total would make every settings write
+ * visibly slow.
+ */
+export const DSHML_CUSTOM_MAX_TOTAL_DATA_URL = 3 * 1024 * 1024;
 
 /** Largest source file the picker reads before cropping (browser memory bound). */
 export const DSHML_CUSTOM_MAX_SOURCE_BYTES = 12 * 1024 * 1024;
@@ -172,13 +192,18 @@ function dshmlCustomIconFrom(id: string, raw: unknown): CustomIcon | null {
   // (not rendered as a broken tile) so a future version can read it first.
   if (kind !== undefined && kind !== DSHML_CUSTOM_KIND_IMAGE) return null;
   const createdAt = read('createdAt');
-  return {
+  // `motion` is additive: an invalid atlas, frame count or rate drops only the
+  // animation record, and the icon keeps rendering its poster.
+  const motion = dshmlNormalizeMotion(read('motion'));
+  const icon: CustomIcon = {
     id,
     name,
     kind: DSHML_CUSTOM_KIND_IMAGE,
     image,
     createdAt: typeof createdAt === 'number' && Number.isFinite(createdAt) && createdAt > 0 ? createdAt : 0,
   };
+  if (motion !== null) icon.motion = motion;
+  return icon;
 }
 
 /**
@@ -287,6 +312,11 @@ export function dshmlCropRect(area: unknown, mediaWidth: unknown, mediaHeight: u
 export interface DshmlCustomMark {
   title: string;
   svg: string;
+  /**
+   * Playing form of the tile, present only when the icon carries a valid
+   * `motion` atlas. Surfaces that do not play ignore it.
+   */
+  animatedSvg?: string;
 }
 
 /**
@@ -300,7 +330,21 @@ export function dshmlCustomMarkFor(icons: CustomIconDocument, value: unknown): D
   const id = dshmlCustomIconIdOf(value) ?? (typeof value === 'string' && value !== '' ? value : null);
   if (id === null || !Object.prototype.hasOwnProperty.call(icons, id)) return null;
   const icon = icons[id];
-  return icon !== undefined ? { title: icon.name, svg: dshmlCustomMarkSvg(icon) } : null;
+  if (icon === undefined) return null;
+  const animatedSvg = dshmlAtlasSvg(icon);
+  const mark: DshmlCustomMark = { title: icon.name, svg: dshmlCustomMarkSvg(icon) };
+  if (animatedSvg !== '') mark.animatedSvg = animatedSvg;
+  return mark;
+}
+
+/**
+ * The poster mark of one custom icon. Alias of {@link dshmlCustomMarkSvg} under
+ * the name the motion pipeline uses: the poster is what every degraded case
+ * (old client, corrupted atlas, reduced motion) draws.
+ * @param icon - stored custom icon (or any object carrying its `image`).
+ */
+export function dshmlPosterSvg(icon: Pick<CustomIcon, 'image'> | null | undefined): string {
+  return dshmlCustomMarkSvg(icon);
 }
 
 /**
@@ -321,4 +365,82 @@ export function dshmlCustomMarkSvg(icon: Pick<CustomIcon, 'image'> | null | unde
     '"/>' +
     '</svg>'
   );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Storage budget                                                             */
+/* -------------------------------------------------------------------------- */
+
+/** Verdict of one motion payload against its storage budget. */
+export type DshmlBudgetVerdict = 'ok' | 'warn' | 'over';
+
+/**
+ * Whether a value is acceptable as a motion icon's poster (→ 32 KiB).
+ *
+ * Static icons keep the wider 128 KiB bound so a detailed crop that already
+ * worked is not retroactively rejected; only the sampled poster gets the tighter
+ * cap.
+ * @param value - poster data URL candidate.
+ */
+export function dshmlIsCustomPosterDataUrl(value: unknown): value is string {
+  return (
+    typeof value === 'string' && value.length > 0 && value.length <= DSHML_CUSTOM_MAX_POSTER && DATA_IMAGE.test(value)
+  );
+}
+
+/**
+ * Characters one icon contributes to the document (poster + valid atlas).
+ * @param icon - stored (or candidate) custom icon.
+ */
+export function dshmlCustomDataChars(icon: Pick<CustomIcon, 'image' | 'motion'>): number {
+  const image = typeof icon.image === 'string' ? icon.image.length : 0;
+  const motion = dshmlNormalizeMotion(icon.motion);
+  return image + (motion !== null ? motion.atlas.length : 0);
+}
+
+/**
+ * Total data-URL characters of a custom-icon document.
+ * @param icons - validated custom-icon document.
+ */
+export function dshmlCustomIconsDataChars(icons: CustomIconDocument): number {
+  let total = 0;
+  for (const icon of Object.values(icons)) total += dshmlCustomDataChars(icon);
+  return total;
+}
+
+/**
+ * Whether adding/replacing one icon keeps the document inside the total budget.
+ * The icon being replaced is discounted, so a re-save never counts it twice.
+ * @param icons - current document.
+ * @param candidate - icon that would be stored.
+ * @param replacingId - id whose current payload is replaced, when editing one.
+ */
+export function dshmlCustomFitsTotalBudget(
+  icons: CustomIconDocument,
+  candidate: Pick<CustomIcon, 'image' | 'motion'>,
+  replacingId?: string | null,
+): boolean {
+  let total = 0;
+  for (const icon of Object.values(icons)) {
+    if (replacingId !== undefined && replacingId !== null && icon.id === replacingId) continue;
+    total += dshmlCustomDataChars(icon);
+  }
+  return total + dshmlCustomDataChars(candidate) <= DSHML_CUSTOM_MAX_TOTAL_DATA_URL;
+}
+
+/**
+ * Budget verdict for the sampling studio's live meter.
+ *
+ * The atlas and the poster each have their own cap; the meter warns above 80% of
+ * either cap and turns red the moment one of them is exceeded. It never decides
+ * by itself: the studio only offers the slimming ladder, the user confirms it.
+ * @param atlasChars - encoded atlas data-URL characters.
+ * @param posterChars - encoded poster data-URL characters.
+ */
+export function dshmlBudgetPlan(atlasChars: number, posterChars: number): DshmlBudgetVerdict {
+  const atlas = Number.isFinite(atlasChars) && atlasChars > 0 ? atlasChars : 0;
+  const poster = Number.isFinite(posterChars) && posterChars > 0 ? posterChars : 0;
+  if (atlas > DSHML_CUSTOM_MAX_DATA_URL || poster > DSHML_CUSTOM_MAX_POSTER) return 'over';
+  const ratio = Math.max(atlas / DSHML_CUSTOM_MAX_DATA_URL, poster / DSHML_CUSTOM_MAX_POSTER);
+  return ratio > 0.8 ? 'warn' : 'ok';
 }

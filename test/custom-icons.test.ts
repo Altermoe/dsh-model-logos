@@ -10,7 +10,14 @@ import {
   DSHML_CUSTOM_MAX_DATA_URL,
   DSHML_CUSTOM_MAX_ICONS,
   DSHML_CUSTOM_MAX_NAME,
+  DSHML_CUSTOM_MAX_POSTER,
+  DSHML_CUSTOM_MAX_TOTAL_DATA_URL,
+  dshmlBudgetPlan,
   dshmlCleanCustomName,
+  dshmlCustomDataChars,
+  dshmlCustomFitsTotalBudget,
+  dshmlCustomMarkFor,
+  dshmlIsCustomPosterDataUrl,
   dshmlCropRect,
   dshmlCustomIconIdOf,
   dshmlCustomIconKey,
@@ -26,6 +33,9 @@ import {
 
 /** A minimal valid PNG data URL (content is irrelevant to the validators). */
 const IMAGE = 'data:image/png;base64,iVBORw0KGgo=';
+
+/** A tiny but syntactically valid WebP atlas data URL. */
+const ATLAS = 'data:image/webp;base64,UklGRg==';
 
 /** One persisted icon with every field. */
 function icon(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -245,5 +255,87 @@ describe('custom mark tile', () => {
   it('renders an empty tile for a missing image instead of throwing', () => {
     expect(dshmlCustomMarkSvg(null)).toContain('<image href=""');
     expect(dshmlCustomMarkSvg(undefined)).toMatch(/^<svg/);
+  });
+});
+
+describe('motion records', () => {
+  it('keeps a valid motion record next to the poster', () => {
+    const parsed = dshmlCustomIconsOf({
+      'c-moving': icon({ motion: { atlas: ATLAS, frames: 4, fps: 12, frameWidth: 128 } }),
+    });
+    expect(parsed['c-moving']?.image).toBe(IMAGE);
+    expect(parsed['c-moving']?.motion).toEqual({ atlas: ATLAS, frames: 4, fps: 12, frameWidth: 128 });
+  });
+
+  it('drops only the motion record when the atlas or geometry is invalid', () => {
+    const badMotions: unknown[] = [
+      { atlas: 'data:image/gif;base64,R0lGODlh', frames: 4, fps: 4, frameWidth: 128 },
+      { atlas: ATLAS, frames: 1, fps: 4, frameWidth: 128 },
+      { atlas: ATLAS, frames: 4, fps: Number.NaN, frameWidth: 128 },
+      { atlas: ATLAS, frames: 24, fps: 4, frameWidth: 256 },
+      { atlas: ATLAS, frames: '4', fps: 4, frameWidth: 128 },
+      'motion',
+    ];
+    for (const motion of badMotions) {
+      const parsed = dshmlCustomIconsOf({ 'c-moving': icon({ motion }) });
+      expect(parsed['c-moving'], JSON.stringify(motion)).toBeDefined();
+      expect(parsed['c-moving']?.motion).toBe(undefined);
+      expect(parsed['c-moving']?.image).toBe(IMAGE);
+    }
+  });
+
+  it('builds both the poster mark and the playing mark', () => {
+    const icons = dshmlCustomIconsOf({
+      'c-moving': icon({ motion: { atlas: ATLAS, frames: 4, fps: 12, frameWidth: 128 } }),
+    });
+    const mark = dshmlCustomMarkFor(icons, 'custom:c-moving');
+    expect(mark?.title).toBe('Acme Icon');
+    expect(mark?.svg).toContain('<image href="' + IMAGE + '"');
+    expect(mark?.animatedSvg).toContain('<animate attributeName="x"');
+    expect(mark?.animatedSvg).toContain(ATLAS);
+    // A static icon has no playing form, but still renders.
+    const staticMark = dshmlCustomMarkFor(dshmlCustomIconsOf({ 'c-static': icon() }), 'custom:c-static');
+    expect(staticMark?.svg).toContain('<image');
+    expect(staticMark?.animatedSvg).toBe(undefined);
+  });
+
+  it('caps the poster at 32 KiB for motion icons while keeping the 128 KiB static bound', () => {
+    expect(DSHML_CUSTOM_MAX_POSTER).toBe(32 * 1024);
+    expect(dshmlIsCustomPosterDataUrl(IMAGE)).toBe(true);
+    expect(dshmlIsCustomPosterDataUrl('data:image/webp;base64,UklGRg==')).toBe(true);
+    expect(dshmlIsCustomPosterDataUrl('data:image/png;base64,' + 'A'.repeat(DSHML_CUSTOM_MAX_POSTER))).toBe(false);
+    expect(dshmlIsCustomPosterDataUrl('data:image/gif;base64,R0lGODlh')).toBe(false);
+    expect(dshmlIsCustomImageDataUrl('data:image/png;base64,' + 'A'.repeat(40 * 1024))).toBe(true);
+  });
+
+  it('sums poster + atlas characters and enforces the 3 MiB document budget', () => {
+    const base = dshmlCustomIconsOf({
+      'c-a': icon({ motion: { atlas: ATLAS, frames: 4, fps: 12, frameWidth: 128 } }),
+    });
+    const withIcon = base['c-a'];
+    expect(withIcon).toBeDefined();
+    if (withIcon === undefined) return;
+    expect(dshmlCustomDataChars(withIcon)).toBe(IMAGE.length + ATLAS.length);
+    expect(dshmlCustomFitsTotalBudget(base, { image: IMAGE })).toBe(true);
+    expect(DSHML_CUSTOM_MAX_TOTAL_DATA_URL).toBe(3 * 1024 * 1024);
+    const huge = 'data:image/png;base64,' + 'A'.repeat(DSHML_CUSTOM_MAX_TOTAL_DATA_URL);
+    expect(dshmlCustomFitsTotalBudget(base, { image: huge })).toBe(false);
+    // Re-saving an existing icon does not count its own payload twice.
+    const ceiling = {
+      ...withIcon,
+      image: 'data:image/png;base64,' + 'A'.repeat(DSHML_CUSTOM_MAX_TOTAL_DATA_URL - ATLAS.length - 30),
+    };
+    expect(dshmlCustomFitsTotalBudget(base, ceiling, 'c-a')).toBe(true);
+    expect(dshmlCustomFitsTotalBudget(base, ceiling)).toBe(false);
+  });
+
+  it('gives the studio a three-state budget verdict', () => {
+    const kb = 1024;
+    expect(dshmlBudgetPlan(40 * kb, 8 * kb)).toBe('ok');
+    expect(dshmlBudgetPlan(110 * kb, 8 * kb)).toBe('warn');
+    expect(dshmlBudgetPlan(40 * kb, 30 * kb)).toBe('warn');
+    expect(dshmlBudgetPlan(129 * kb, 8 * kb)).toBe('over');
+    expect(dshmlBudgetPlan(40 * kb, 33 * kb)).toBe('over');
+    expect(dshmlBudgetPlan(Number.NaN, -1)).toBe('ok');
   });
 });

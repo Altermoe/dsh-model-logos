@@ -31,6 +31,7 @@ import { letterTile } from '../src/artwork';
 import { DSHML_NAV_ICON_CSS, DSHML_NAV_ICON_SVG, DSHML_NAV_MARKER } from '../src/nav-icon';
 import { DSHML_BRAND_NAMES } from '../src/i18n';
 import { DSHML_CUSTOM_PREFIX, dshmlCustomMarkSvg } from '../src/custom-icons';
+import { dshmlAtlasSvg } from '../src/motion';
 import type { BrandLogo, LogoGroup, LogoSet } from '../src/types';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -213,6 +214,20 @@ function validateCustomIcons(): void {
   }
   if (/<script|\son[a-z]+\s*=|https?:/i.test(sample.replace(/\sxmlns[^=]*="[^"]*"/gi, ''))) {
     problems.push('src/custom-icons.ts: a custom mark must stay self-contained');
+  }
+  const moving = dshmlAtlasSvg({
+    motion: { atlas: 'data:image/webp;base64,UklGRg==', frames: 4, fps: 12, frameWidth: 128 },
+  });
+  if (!moving.trim().startsWith('<svg')) problems.push('src/motion.ts: a motion mark must start with <svg');
+  if (!moving.includes('<animate') || !moving.includes('calcMode="discrete"')) {
+    problems.push('src/motion.ts: a motion mark must animate the atlas with calcMode="discrete"');
+  }
+  if (!moving.includes('clip-path: inset(0 round 25%)')) {
+    problems.push('src/motion.ts: a motion mark must clip the atlas to the shared 6/24 rounded tile');
+  }
+  if (/\sid\s*=/.test(moving)) problems.push('src/motion.ts: a motion mark must not use id attributes');
+  if (/<script|\son[a-z]+\s*=|https?:/i.test(moving.replace(/\sxmlns[^=]*="[^"]*"/gi, ''))) {
+    problems.push('src/motion.ts: a motion mark must stay self-contained');
   }
 }
 

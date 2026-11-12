@@ -27,6 +27,7 @@ import {
   dshmlCustomMarkFor,
   dshmlCustomMarkSvg,
 } from './custom-icons';
+import { DSHML_PLAYBACK_DEFAULTS } from './motion';
 import { DshmlCustomIconEditor } from './custom-icon-editor';
 import type { DshmlCustomIconEditorMode } from './custom-icon-editor';
 import {
@@ -105,7 +106,15 @@ export function dshmlUiCopy(key: string, fallback: string): string {
 
 /** State rendered while the icon store is missing, broken or still loading. */
 function dshmlUiFallbackState(): IconState {
-  return { status: 'loading', overrides: {}, providerOverrides: {}, customIcons: {}, writable: false, error: '' };
+  return {
+    status: 'loading',
+    overrides: {},
+    providerOverrides: {},
+    customIcons: {},
+    playback: { ...DSHML_PLAYBACK_DEFAULTS },
+    writable: false,
+    error: '',
+  };
 }
 
 /** Current icon-store snapshot, or the safe fallback state. */

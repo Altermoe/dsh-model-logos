@@ -38,14 +38,24 @@ import {
 import {
   DSHML_CUSTOM_KIND_IMAGE,
   DSHML_CUSTOM_MAX_ICONS,
+  dshmlCustomFitsTotalBudget,
   dshmlCustomIconKey,
   dshmlCustomIconsOf,
   dshmlCustomMarkSvg,
   dshmlIsCustomIconId,
   dshmlIsCustomImageDataUrl,
+  dshmlIsCustomPosterDataUrl,
   dshmlNewCustomIconId,
   dshmlValidateCustomName,
 } from './custom-icons';
+import {
+  DSHML_PLAYBACK_DEFAULTS,
+  DSHML_PLAYBACK_SURFACES,
+  dshmlAtlasSvg,
+  dshmlIsPlaybackMode,
+  dshmlNormalizeMotion,
+  dshmlPlaybackOf,
+} from './motion';
 import { letterTile } from './artwork';
 import { LOGOS } from './logos';
 import { React } from './runtime';
@@ -59,7 +69,11 @@ import type {
   ConfigFormsService,
   ConfigMutateOp,
   CustomIcon,
+  CustomIconMotion,
   DshContext,
+  DshmlPlayback,
+  DshmlPlaybackMode,
+  DshmlPlaybackSurface,
   IconResolution,
   IconScope,
   IconState,
@@ -85,8 +99,11 @@ export const DSHML_SETTINGS_FIELD = 'modelIcons';
 /** Settings field carrying the per-provider (vendor) overrides. */
 export const DSHML_PROVIDER_SETTINGS_FIELD = 'providerIcons';
 
-/** Settings field carrying the user-created icons (`id → { name, kind, image, createdAt }`). */
+/** Settings field carrying the user-created icons (`id → { name, kind, image, motion?, createdAt }`). */
 export const DSHML_CUSTOM_SETTINGS_FIELD = 'customIcons';
+
+/** Settings field carrying the per-surface motion playback policy. */
+export const DSHML_PLAYBACK_SETTINGS_FIELD = 'playback';
 
 /** Snapshot store for the icon overrides. */
 const dshmlIconsRef: { snapshot: IconState; listeners: Set<() => void> } = {
@@ -95,6 +112,7 @@ const dshmlIconsRef: { snapshot: IconState; listeners: Set<() => void> } = {
     overrides: {},
     providerOverrides: {},
     customIcons: {},
+    playback: { ...DSHML_PLAYBACK_DEFAULTS },
     writable: false,
     error: null,
   },
@@ -262,7 +280,10 @@ export function dshmlModelMark(provider: Identity | null | undefined, model: Ide
   if (resolved.custom !== null) {
     const icon = dshmlCustomIconById(resolved.custom);
     if (icon === null) return { resolved, svg: null, title: null };
-    return { resolved, svg: dshmlCustomMarkSvg(icon), title: icon.name };
+    const animatedSvg = dshmlAtlasSvg(icon);
+    const mark: ModelMark = { resolved, svg: dshmlCustomMarkSvg(icon), title: icon.name };
+    if (animatedSvg !== '') mark.animatedSvg = animatedSvg;
+    return mark;
   }
   if (resolved.letter) {
     const tile = letterTile(dshmlLetterTextFor(provider, model));
@@ -290,7 +311,10 @@ export function dshmlVendorMark(providerId: string, displayName?: string | null,
   if (resolved.custom !== null) {
     const icon = dshmlCustomIconById(resolved.custom);
     if (icon === null) return { key: null, svg: null, title: null, resolved };
-    return { key: null, svg: dshmlCustomMarkSvg(icon), title: icon.name, resolved };
+    const animatedSvg = dshmlAtlasSvg(icon);
+    const mark: VendorMark = { key: null, svg: dshmlCustomMarkSvg(icon), title: icon.name, resolved };
+    if (animatedSvg !== '') mark.animatedSvg = animatedSvg;
+    return mark;
   }
   if (resolved.letter) {
     const tile = letterTile(providerLetterTextFor(providerId, displayName));
@@ -328,6 +352,7 @@ function dshmlAcceptIconForm(form: ConfigForm): void {
       overrides: previous.overrides,
       providerOverrides: previous.providerOverrides,
       customIcons: previous.customIcons,
+      playback: previous.playback,
       writable: false,
       error: typeof snapshot.error === 'string' ? snapshot.error : dshmlT('picker.unavailable'),
     });
@@ -344,6 +369,8 @@ function dshmlAcceptIconForm(form: ConfigForm): void {
     value !== null && typeof value === 'object' ? dshmlRead(value, DSHML_PROVIDER_SETTINGS_FIELD) : undefined;
   const rawCustom =
     value !== null && typeof value === 'object' ? dshmlRead(value, DSHML_CUSTOM_SETTINGS_FIELD) : undefined;
+  const rawPlayback =
+    value !== null && typeof value === 'object' ? dshmlRead(value, DSHML_PLAYBACK_SETTINGS_FIELD) : undefined;
   const overrides: OverrideDocument =
     rawModel !== null && typeof rawModel === 'object' && !Array.isArray(rawModel) ? (rawModel as OverrideDocument) : {};
   const providerOverrides: ProviderOverrideDocument =
@@ -351,6 +378,7 @@ function dshmlAcceptIconForm(form: ConfigForm): void {
       ? (rawProvider as ProviderOverrideDocument)
       : {};
   const customIcons = dshmlCustomIconsOf(rawCustom);
+  const playback = dshmlPlaybackOf(rawPlayback);
   const previous = dshmlIconState();
   const writing = dshmlIconFormWriting > 0;
   // Keep an optimistic value while a queued write has not been folded back yet.
@@ -366,11 +394,13 @@ function dshmlAcceptIconForm(form: ConfigForm): void {
     Object.keys(previous.customIcons).length > 0 && previous.status === 'ready' && writing
       ? previous.customIcons
       : customIcons;
+  const mergedPlayback = previous.status === 'ready' && writing ? previous.playback : playback;
   dshmlPublishIcons({
     status: 'ready',
     overrides: merged,
     providerOverrides: mergedProviders,
     customIcons: mergedCustom,
+    playback: mergedPlayback,
     writable: snapshot.writable === true,
     error: null,
   });
@@ -530,18 +560,26 @@ function dshmlCustomIconTarget(
  * Create one user-created icon and, optionally, apply it to a picker target in
  * the same settings write (so the icon and its reference cannot drift apart).
  * @param name - raw name input; validated here.
- * @param image - cropped PNG/WebP data URL produced by the crop dialog.
+ * @param image - poster PNG/WebP data URL produced by the crop dialog or the
+ *   motion sampler's first frame.
  * @param apply - scope + identity to set as the current icon.
+ * @param motion - optional sampled animation stored next to the poster.
  * @returns the generated icon id, or null when rejected/refused.
  */
 export async function dshmlCreateCustomIcon(
   name: unknown,
   image: unknown,
   apply?: DshmlCustomIconApply | null,
+  motion?: CustomIconMotion | null,
 ): Promise<string | null> {
   const state = dshmlIconState();
   const validated = dshmlValidateCustomName(name, state.customIcons);
   if (!validated.ok || !dshmlIsCustomImageDataUrl(image)) return null;
+  // A sampled animation is all-or-nothing: an invalid atlas must be rejected at
+  // the write boundary instead of being stored as a half-working record.
+  const normalizedMotion = motion === undefined || motion === null ? null : dshmlNormalizeMotion(motion);
+  if (motion !== undefined && motion !== null && normalizedMotion === null) return null;
+  if (normalizedMotion !== null && !dshmlIsCustomPosterDataUrl(image)) return null;
   if (Object.keys(state.customIcons).length >= DSHML_CUSTOM_MAX_ICONS) {
     dshmlPublishIcons({ ...state, error: dshmlT('picker.iconLimit', { n: DSHML_CUSTOM_MAX_ICONS }) });
     return null;
@@ -558,6 +596,11 @@ export async function dshmlCreateCustomIcon(
     image,
     createdAt: Date.now(),
   };
+  if (normalizedMotion !== null) icon.motion = normalizedMotion;
+  if (!dshmlCustomFitsTotalBudget(state.customIcons, icon)) {
+    dshmlPublishIcons({ ...state, error: dshmlT('picker.totalBudget') });
+    return null;
+  }
   const ops: ConfigMutateOp[] = [{ op: 'set', path: [DSHML_CUSTOM_SETTINGS_FIELD, id], value: icon }];
   if (target !== undefined) {
     ops.push(
@@ -633,6 +676,41 @@ export async function dshmlDeleteCustomIcon(id: unknown): Promise<boolean> {
   Reflect.deleteProperty(customIcons, id);
   return dshmlWriteOps(ops, function optimistic(previous) {
     return { ...previous, customIcons, overrides, providerOverrides };
+  });
+}
+
+/* -------------------------------------------------------------------------- */
+/* Motion playback policy                                                     */
+/* -------------------------------------------------------------------------- */
+
+/** The playback mode currently configured for one surface. */
+export function dshmlPlaybackModeFor(surface: DshmlPlaybackSurface): DshmlPlaybackMode {
+  return dshmlPlaybackOf(dshmlIconState().playback)[surface];
+}
+
+/**
+ * Persist one surface's playback policy.
+ *
+ * Choosing the documented default unsets the field so the settings document only
+ * records deliberate devations from the default. The store is updated
+ * optimistically, so every mounted surface repaints in the same frame.
+ * @param surface - composer / settings / iconsPage / picker.
+ * @param mode - always / hover / never.
+ * @returns whether the Host accepted the write.
+ */
+export async function dshmlSetPlayback(surface: unknown, mode: unknown): Promise<boolean> {
+  if (!DSHML_PLAYBACK_SURFACES.includes(surface as DshmlPlaybackSurface)) return false;
+  if (!dshmlIsPlaybackMode(mode)) return false;
+  const target = surface as DshmlPlaybackSurface;
+  const current: DshmlPlayback = dshmlPlaybackOf(dshmlIconState().playback);
+  if (current[target] === mode) return true;
+  const next: DshmlPlayback = { ...current, [target]: mode };
+  const ops: ConfigMutateOp[] =
+    mode === DSHML_PLAYBACK_DEFAULTS[target]
+      ? [{ op: 'unset', path: [DSHML_PLAYBACK_SETTINGS_FIELD, target] }]
+      : [{ op: 'set', path: [DSHML_PLAYBACK_SETTINGS_FIELD, target], value: mode }];
+  return dshmlWriteOps(ops, function optimistic(previous) {
+    return { ...previous, playback: next };
   });
 }
 
