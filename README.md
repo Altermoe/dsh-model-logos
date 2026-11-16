@@ -167,17 +167,21 @@ stores one horizontal sprite atlas next to the first-frame poster. Nothing is
 uploaded and nothing is fetched at runtime; like every other mark, the animation
 travels inside the settings document.
 
-The example below is a real nine-frame GIF. The studio frames the square crop over
-the playhead, previews the four shipped mark sizes (20 / 22 / 36 / 64 px), and
-reports the payload against its 128 KiB atlas budget as you move the frame,
-frame-edge and quality controls. When the sample is over budget, **Shrink
-automatically** walks a fixed quality → frame-count → frame-edge ladder, lists
-every change it made and offers one-click undo — the screenshot shows the result
-of that pass.
+The example below is a real nine-frame GIF. One canvas is the whole workspace: it
+plays the sampled result, and **Source** swaps the same square for the crop surface
+over the playhead frame — Ctrl / ⌘ + wheel (or a trackpad pinch) zooms the crop, and
+a plain wheel still scrolls the dialog. The timeline carries the clip's total length
+and its own zoom, the strip under the frame slider jumps between sampled frames, and
+the four shipped mark sizes (20 / 22 / 36 / 64 px) render at true size. The size
+meter sits in a dock that stays in view next to Save: dragging the crop box only
+re-crops confirmed frames, so the payload updates without re-decoding the clip. When
+the sample is over budget, **Shrink automatically** walks a fixed quality →
+frame-count → frame-edge ladder, reports what it changed and offers one-click undo —
+the screenshot shows the result of that pass.
 
 ![The example source: a nine-frame GIF looping inside a square tile](docs/preview-motion-sample.gif)
 
-![The motion sampling studio with that GIF loaded: monitor, framing, timeline, sampled strip, true-size previews and the size meter](docs/preview-motion-studio.png)
+![The motion sampling studio with that GIF loaded: the stage, the zoomable timeline, the sampled strip, true-size previews and the sticky size dock](docs/preview-motion-studio.png)
 
 Playback is a per-surface decision, set at the bottom of the Model icons page: the
 composer label defaults to **always**, while Settings → Models, the Model icons

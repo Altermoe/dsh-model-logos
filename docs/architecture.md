@@ -346,6 +346,25 @@ private primitives internals.
     No ids, scripts or external references. `ModelMark.animatedSvg` /
     `VendorMark.animatedSvg` are additive, so any surface that does not play keeps
     rendering `svg` (the poster).
+  - **The studio is a monitor, not a form.** One canvas panel owns the stage: it
+    plays the sampled atlas in `成品` and, in `原片`, mounts the cropper over the
+    playhead frame — same square, same place, so framing and judging never swap
+    panels. The framing zoom floats over the stage (an overlay cannot shift the
+    layout), the source timeline carries the clip length and its own zoom (the lane
+    widens inside a native scroller and the thumbnail count follows, which is why
+    zooming never re-decodes), and the size meter lives in a dock that sticks above
+    Save. Both rows of that dock are always present, so an error, a live notice or a
+    progress tick replaces the text of a reserved line instead of resizing the modal.
+  - **Sampling is four cached stages, not one pass.** `src/sprite.ts` keys each stage
+    by what it actually depends on: decoded source frames by frame identity
+    (`frameKeyAt`), cropped 128 px frames by sampling window + crop rectangle,
+    composed atlases by frame edge, and encoded data URLs by quality. Dragging the
+    crop box therefore re-runs crop → compose → encode and never a decode; a new
+    frame edge only re-composes; a new quality only re-encodes. Decoded frames are
+    held at ≤ 512 px — four times the largest stored frame edge — so the cache stays
+    around 25 MB for a full 24-frame clip instead of the ~96 MB full-resolution
+    frames would need. The studio owns one cache per imported file; a cache handle
+    from another source is never reused.
   - **Playback is a surface decision.** `src/motion.ts` owns the pure policy and
     markup resolver; `DshmlPlayableMark` (React) and `dshmlAttachPlayableMark` (plain
     DOM) share it. The composer defaults to always, Settings → Models / Model icons

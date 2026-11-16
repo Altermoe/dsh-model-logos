@@ -45,6 +45,27 @@ pnpm run release      # interactive release: gates, commit, push, tag, publish, 
 pnpm publish         # prepublishOnly runs verify, then packs the prebuilt artifacts
 ```
 
+`verify:dom` needs the Windows Edge binary and reads two fixtures through
+`node_modules`; a checkout hosted inside WSL can be driven from the Windows side
+without reinstalling anything:
+
+```bash
+# Windows shell, repo reachable as \\wsl.localhost\<distro>\…\dsh-model-logos
+# NODE_OPTIONS must be empty: the desktop runtime injects a safe-delete shim that
+# cannot trash files on a UNC path (the gate removes its own temp harness).
+set NODE_OPTIONS=
+set DSHML_REACT_UMD=C:\Temp\dshml-umd\react.development.js
+set DSHML_REACT_DOM_UMD=C:\Temp\dshml-umd\react-dom.development.js
+node --experimental-strip-types scripts/verify-dom.ts
+# copy the two UMD builds out of node_modules/.pnpm/react@*/node_modules/… first:
+# Windows cannot follow pnpm's symlinks over the WSL network share.
+```
+
+Newer Edge builds detach the one-shot launcher, so `--dump-dom` can return an empty
+document even though the page ran: the script falls back to opening the same page
+over CDP (`--remote-debugging-port=0`) and reading the driver's result block, and
+calls `Page.bringToFront` so `:focus` matches for the focus-ring assertions.
+
 Publishing is a manual step. `pnpm publish` triggers `prepublishOnly`, which runs
 the full `verify` gate before the tarball is built; `files` in `package.json`
 carries the generated `client.js` / `index.js`, so an npm install needs no local
@@ -170,17 +191,22 @@ src/custom-icon-editor.ts
                     image upload + react-easy-crop viewport + zoom + canvas encode,
                     the motion studio mount, rename and confirm-then-delete;
                     rendered inside the picker's modal shell
-src/media-source.ts DshmlMediaSource (drawFrame(ms) + duration + preview URL),
-                    dshmlOpenMediaSource, dshmlMediaKindOf, DshmlMediaError — the
+src/media-source.ts DshmlMediaSource (drawFrame(ms, canvas) filling the target +
+                    frameKeyAt + duration × frame count), dshmlOpenMediaSource,
+                    dshmlMediaKindOf, dshmlMediaFormatLabel, DshmlMediaError — the
                     ImageDecoder path for animated images and the detached
-                    `<video>` seek path for videos; both decode into a ≤1024px
-                    work canvas
-src/sprite.ts       dshmlEncodeMotionIcon, dshmlFitMotionBudget — render frames,
-                    compose/encode the atlas + poster, and the fixed quality →
-                    frame-count → frame-edge slimming ladder
+                    `<video>` seek path for videos; the caller chooses the target
+                    size so the sampler decodes straight into its cache
+src/sprite.ts       dshmlEncodeMotionIcon, dshmlFitMotionBudget,
+                    dshmlCreateSampleCache, dshmlSampleCacheFor,
+                    dshmlMotionCrop — the four-stage sampling cache (decode →
+                    crop → compose → encode), the atlas + poster encoders and the
+                    fixed quality → frame-count → frame-edge slimming ladder
 src/motion-studio.ts
-                    DshmlMotionStudio — import / monitor / framing / timeline /
-                    sampling / budget / true-size preview state machine
+                    DshmlMotionStudio — import plus the merged canvas (stage,
+                    transport, framing overlay), the zoomable source timeline,
+                    the frame slider with its sampled strip, the true-size tiles
+                    and the sticky size dock
 src/playable-mark.ts
                     DshmlPlayableMark, dshmlAttachPlayableMark — the React and
                     plain-DOM playback surfaces (always / hover / never, reduced
@@ -518,31 +544,37 @@ that recorded them, not from the current build.
   and its model reference, the fallback mark afterwards, and the Model icons page
   preview of a stored custom icon. The harness also publishes a watchdog result when
   a driver step throws, so a broken run reports its collected assertions instead of an
-  empty dump. `pnpm run verify:dom` passes **141 assertions** on the final tree.
+  empty dump.
 - **Motion icons.** The `动态` tab samples animated images (ImageDecoder) and
   short videos (a detached muted `<video>` + frame-accurate seeks) through one
-  `drawFrame(ms)` source interface. Sampling is capped at 2 s / 24 frames / 128 px;
-  `src/sprite.ts` renders each distinct frame count once, composes the horizontal
-  atlas, encodes WebP (PNG fallback) and walks the quality → frame-count →
-  frame-edge ladder until the atlas fits 128 KiB. The poster is frame 0 encoded at
-  128 px and capped at 32 KiB; the whole document is capped at 3 MiB by
-  `dshmlCreateCustomIcon`. A stored `motion` record is validated by
-  `dshmlNormalizeMotion` on every read; any invalid field drops only the animation
-  and keeps the icon. The playing mark rounds its root `<svg>` and lets the nested
-  viewport clip the strip: a percentage `clip-path` radius on that wide viewport
-  would resolve against the atlas and shear the frame (the DOM gate rasters the
-  playing mark to catch it). `test/motion.test.ts` pins the sampling maths, sprite
-  geometry, validation, the playing SVG and the playback-markup decision tree;
-  `test/custom-icons.test.ts` pins motion parsing/fallback, the poster cap and the
-  document budget; `test/client.test.ts` pins the composer's playing poster and
-  the adopted per-surface policy. `scripts/verify-dom.ts` drives the whole motion
-  flow from the rendered UI: two enabled tabs, a real four-frame GIF through
-  ImageDecoder, the timeline / strip / true-size previews, a frame-count change,
-  the saved `image` + `motion` (6 frames, 128 px, 7.5 fps), the picker's
-  poster → hover → poster sequence, the four-surface playback group, the Settings
-  row playing under `always`, staying still under `never` even on hover, and the
-  composer playing under its default policy. `pnpm run verify:dom` passes
-  **141 assertions** on the final tree.
+  `drawFrame(ms, canvas)` source interface. Sampling is capped at 2 s / 24 frames /
+  128 px. `src/sprite.ts` keeps one cache per stage — decoded frames by frame
+  identity, cropped frames by sampling window + crop, atlases by frame edge,
+  encoded data URLs by quality — so a crop drag never re-decodes the clip, a frame
+  edge change only re-composes and a quality change only re-encodes; decoded frames
+  are held at ≤ 512 px to bound the cache (~25 MB for 24 frames). It then walks the
+  quality → frame-count → frame-edge ladder until the atlas fits 128 KiB. The
+  poster is frame 0 encoded at 128 px and capped at 32 KiB; the whole document is
+  capped at 3 MiB by `dshmlCreateCustomIcon`. A stored `motion` record is validated
+  by `dshmlNormalizeMotion` on every read; any invalid field drops only the
+  animation and keeps the icon. The playing mark rounds its root `<svg>` and lets
+  the nested viewport clip the strip: a percentage `clip-path` radius on that wide
+  viewport would resolve against the atlas and shear the frame (the DOM gate rasters
+  the playing mark to catch it). `test/motion.test.ts` pins the sampling maths,
+  sprite geometry, timeline cells, validation, the playing SVG and the
+  playback-markup decision tree; `test/sprite.test.ts` pins the cache contract by
+  counting decodes, draws and encodes per change; `test/custom-icons.test.ts` pins
+  motion parsing/fallback, both crop-rectangle shapes, the poster cap and the
+  document budget; `test/client.test.ts` pins the composer's playing poster and the
+  adopted per-surface policy. `scripts/verify-dom.ts` drives the whole motion flow
+  from the rendered UI: two enabled tabs, a real four-frame GIF through
+  ImageDecoder, the stage swapping between the result canvas and the crop surface,
+  the timeline zoom widening its lane, the sticky dock, the strip / true-size
+  previews, a frame-count change, the saved `image` + `motion` (6 frames, 128 px,
+  7.5 fps), the picker's poster → hover → poster sequence, the four-surface playback
+  group, the Settings row playing under `always`, staying still under `never` even
+  on hover, and the composer playing under its default policy.
+  `pnpm run verify:dom` passes **144 assertions** on the final tree.
 - The provider-icon contract is pinned from four sides. `test/resolve.test.ts` pins
   the precedence matrix (override → official channel → letter tile, and a declared
   provider resolving to nothing), the flat document's immutable edits and its
