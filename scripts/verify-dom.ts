@@ -48,8 +48,15 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const FIXTURE = join(ROOT, 'test', 'fixtures', 'settings-models.html');
 const CLIENT = join(ROOT, 'client.js');
-const REACT_UMD = join(ROOT, 'node_modules', 'react', 'umd', 'react.development.js');
-const REACT_DOM_UMD = join(ROOT, 'node_modules', 'react-dom', 'umd', 'react-dom.development.js');
+// A checkout hosted in WSL is driven by the Windows Edge binary (that is the
+// browser this gate targets), and Windows cannot follow pnpm's symlinks over
+// `\\wsl.localhost`. Point these two at copies of the UMD builds when the
+// node_modules links are unreadable for the browser's host:
+//   DSHML_REACT_UMD=<path to react.development.js>
+//   DSHML_REACT_DOM_UMD=<path to react-dom.development.js>
+const REACT_UMD = process.env.DSHML_REACT_UMD ?? join(ROOT, 'node_modules', 'react', 'umd', 'react.development.js');
+const REACT_DOM_UMD =
+  process.env.DSHML_REACT_DOM_UMD ?? join(ROOT, 'node_modules', 'react-dom', 'umd', 'react-dom.development.js');
 
 const args = process.argv.slice(2);
 const valueAfter = (flag: string): string | null => {
@@ -1390,6 +1397,11 @@ async function browserDriver(config: DriverConfig): Promise<void> {
       }
     }
     await sleep(350);
+    // The driver fills the name field, which leaves a focus ring in the capture.
+    // No control is mid-interaction at this point, so drop focus first: the
+    // screenshot then shows the resting UI instead of an automation artifact.
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    await sleep(120);
     const motionEditor = OPEN === 'motion' ? q('.dshml-custom-editor') : null;
     const screenshotResult: ScreenshotResult = {
       mode: 'screenshot',
@@ -2988,6 +3000,57 @@ async function browserDriver(config: DriverConfig): Promise<void> {
               qa('.dshml-motion-tile', studio).length
           : 'no .dshml-motion-ready; drop=' + describeNode(motionReady) + ' file=' + describeNode(motionFile),
       );
+      // The merged canvas: one stage that swaps the baked playback for the crop
+      // surface, with the transport underneath in both modes.
+      const stage = studio !== null ? q('.dshml-motion-stage', studio) : null;
+      const resultButton = studio !== null ? qa<HTMLButtonElement>('.dshml-motion-seg-btn', studio)[0] : null;
+      const sourceButton = studio !== null ? qa<HTMLButtonElement>('.dshml-motion-seg-btn', studio)[1] : null;
+      if (sourceButton) clickable(sourceButton).click();
+      const cropped = await waitFor(() => (stage !== null ? q('.reactEasyCrop_Container', stage) : null), 4000);
+      const zoomPill = stage !== null ? q('.dshml-motion-zoom', stage) : null;
+      if (resultButton) clickable(resultButton).click();
+      const baked = await waitFor(() => (stage !== null ? q('canvas.dshml-motion-canvas', stage) : null), 4000);
+      add(
+        'the stage swaps between the result canvas and the crop surface without moving',
+        true,
+        studio !== null &&
+          cropped !== null &&
+          zoomPill !== null &&
+          baked !== null &&
+          qa('.dshml-motion-stage', studio).length === 1,
+        'stage=' + describeNode(stage) + ' cropper=' + describeNode(cropped) + ' canvas=' + describeNode(baked),
+      );
+      // Timeline zoom widens the lane instead of re-slicing the strip; the cell
+      // count follows, and the source is scanned once into a thumbnail bank.
+      const lane = studio !== null ? q<HTMLElement>('.dshml-motion-lane', studio) : null;
+      const zoomIn =
+        studio !== null ? qa<HTMLButtonElement>('.dshml-motion-zoomctl .dshml-motion-icon-btn', studio)[1] : null;
+      const widthBefore = lane !== null ? lane.getBoundingClientRect().width : 0;
+      const cellsBefore = studio !== null ? qa('.dshml-motion-thumb', studio).length : 0;
+      if (zoomIn) clickable(zoomIn).click();
+      const zoomed = await waitFor(() => {
+        const next = studio !== null ? q<HTMLElement>('.dshml-motion-lane', studio) : null;
+        if (next === null) return null;
+        return next.getBoundingClientRect().width > widthBefore * 1.8 ? next : null;
+      }, 3000);
+      add(
+        'zooming the timeline widens the lane and adds thumbnail cells',
+        true,
+        zoomed !== null && (studio !== null ? qa('.dshml-motion-thumb', studio).length : 0) > cellsBefore,
+        'cells ' + cellsBefore + ' → ' + (studio !== null ? qa('.dshml-motion-thumb', studio).length : 0),
+      );
+      const dock = studio !== null ? q('.dshml-motion-dock', studio) : null;
+      const work = studio !== null ? q('.dshml-motion-work', studio) : null;
+      add(
+        'the size dock is mounted after the work area and always carries a meter and a status line',
+        true,
+        dock !== null &&
+          work !== null &&
+          q('.dshml-motion-meter', dock) !== null &&
+          q('.dshml-motion-status', dock) !== null &&
+          (work.compareDocumentPosition(dock) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
+        describeNode(dock),
+      );
       const firstSample = await waitFor(() => {
         const slider = studio !== null ? q<HTMLInputElement>('.dshml-motion-frames-range', studio) : null;
         const save = motionEditor !== null ? q<HTMLButtonElement>('.dshml-custom-btn-primary', motionEditor) : null;
@@ -3003,7 +3066,7 @@ async function browserDriver(config: DriverConfig): Promise<void> {
               ' samples=' +
               qa('.dshml-motion-sample', studio).length +
               ' budget="' +
-              text(q('.dshml-motion-budget', studio)).slice(0, 60) +
+              text(q('.dshml-motion-dock', studio)).slice(0, 60) +
               '"'
           : 'save stayed disabled while sampling',
       );
@@ -4223,22 +4286,24 @@ const sleepMs = (ms: number): Promise<void> =>
     setTimeout(done, ms);
   });
 
+/** One headless page driven over CDP: the session plus its launcher handle. */
+interface DshmlCdpPage {
+  session: CdpSession;
+  /** Evaluate an expression in the page and return its value. */
+  evaluate(expression: string): Promise<unknown>;
+  /** Release the page and wait for the browser process to exit. */
+  close(): Promise<void>;
+}
+
 /**
- * Capture a screenshot through CDP instead of `--screenshot`.
+ * Start headless Edge with a debugging port and navigate it to `url`.
  *
- * `--screenshot` fires when `--virtual-time-budget` expires, and virtual time
- * races through the motion studio's asynchronous `ImageDecoder` work: with a
- * 120 s budget the GIF had not decoded its third frame before the capture. CDP
- * waits in real time for the driver's result block, which is only written after
- * the studio finished sampling.
+ * Newer Edge builds detach the one-shot launcher, so `--dump-dom` and
+ * `--screenshot` can come back empty even though the page rendered fine. Driving
+ * the page over CDP keeps a live handle on the browser and lets the caller wait
+ * in real time for the driver's result block.
  */
-async function captureMotionScreenshot(
-  edge: string,
-  edgeArgs: string[],
-  profileDir: string,
-  url: string,
-  pngPath: string,
-): Promise<DriverResult | null> {
+async function openCdpPage(edge: string, edgeArgs: string[], profileDir: string, url: string): Promise<DshmlCdpPage> {
   const child = spawn(
     edge,
     [...edgeArgs, '--remote-debugging-port=0', `--user-data-dir=${profileDir}`, 'about:blank'],
@@ -4290,19 +4355,97 @@ async function captureMotionScreenshot(
     if (targetUrl === null) throw new Error('no CDP page target');
 
     session = await CdpSession.connect(targetUrl);
-    await session.call('Page.enable');
-    await session.call('Runtime.enable');
-    await session.call('Page.navigate', { url });
+    const live = session;
+    await live.call('Page.enable');
+    await live.call('Runtime.enable');
+    // Without an active target the document has no focus, so `:focus` never
+    // matches and the focus-ring assertions would read the default styles.
+    await live.call('Page.bringToFront');
+    await live.call('Page.navigate', { url });
+    return {
+      session: live,
+      async evaluate(expression: string): Promise<unknown> {
+        const reply = await live.call<{ result?: { value?: unknown } }>('Runtime.evaluate', {
+          expression,
+          returnByValue: true,
+        });
+        return reply.result?.value;
+      },
+      async close(): Promise<void> {
+        live.close();
+        await stop();
+      },
+    };
+  } catch (error) {
+    session?.close();
+    await stop();
+    throw error;
+  }
+}
 
+/** The result-block text the in-page driver writes, or `''` while it runs. */
+const RESULT_EXPRESSION =
+  "document.getElementById('dshml-result') ? document.getElementById('dshml-result').textContent : ''";
+
+/**
+ * Read the driver's result block over CDP.
+ *
+ * Used as the fallback for the one-shot `--dump-dom` path: the assertions run in
+ * the page either way, only the channel that carries them back differs.
+ */
+async function readResultViaCdp(
+  edge: string,
+  edgeArgs: string[],
+  profileDir: string,
+  url: string,
+): Promise<DriverResult | null> {
+  const page = await openCdpPage(edge, edgeArgs, profileDir, url);
+  try {
+    const readyDeadline = Date.now() + 120000;
+    let resultText = '';
+    while (Date.now() < readyDeadline) {
+      const value = await page.evaluate(RESULT_EXPRESSION);
+      if (typeof value === 'string' && value !== '') {
+        resultText = value;
+        break;
+      }
+      await sleepMs(100);
+    }
+    if (resultText === '') return null;
+    try {
+      const parsed: unknown = JSON.parse(resultText);
+      return isDriverResult(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  } finally {
+    await page.close();
+  }
+}
+
+/**
+ * Capture a README / design preview through CDP.
+ *
+ * `--screenshot` fires when `--virtual-time-budget` expires, and virtual time
+ * races through asynchronous work — the motion studio's `ImageDecoder` steps and
+ * the driver's own waits. CDP waits in real time for the driver's result block,
+ * which is only written once the page reached the state the preview documents,
+ * and then asks for one frame. Every `--open` mode uses this path so no preview
+ * can be captured mid-flight.
+ */
+async function capturePreviewScreenshot(
+  edge: string,
+  edgeArgs: string[],
+  profileDir: string,
+  url: string,
+  pngPath: string,
+): Promise<DriverResult | null> {
+  const page = await openCdpPage(edge, edgeArgs, profileDir, url);
+  try {
     const readyDeadline = Date.now() + 90000;
     let resultText = '';
     while (Date.now() < readyDeadline) {
-      const reply = await session.call<{ result?: { value?: unknown } }>('Runtime.evaluate', {
-        expression:
-          "document.getElementById('dshml-result') ? document.getElementById('dshml-result').textContent : ''",
-        returnByValue: true,
-      });
-      const value = reply.result?.value;
+      const value = await page.evaluate(RESULT_EXPRESSION);
       if (typeof value === 'string' && value !== '') {
         resultText = value;
         break;
@@ -4311,7 +4454,7 @@ async function captureMotionScreenshot(
     }
     if (resultText === '') throw new Error('the driver produced no result block');
 
-    const shot = await session.call<{ data?: string }>('Page.captureScreenshot', {
+    const shot = await page.session.call<{ data?: string }>('Page.captureScreenshot', {
       format: 'png',
       fromSurface: true,
       captureBeyondViewport: false,
@@ -4326,8 +4469,7 @@ async function captureMotionScreenshot(
       return null;
     }
   } finally {
-    session?.close();
-    await stop();
+    await page.close();
   }
 }
 
@@ -4456,52 +4598,36 @@ async function main(): Promise<void> {
       const url = pathToFileURL(harnessPath).href + query;
       rmSync(pngPath, { force: true });
       const width = openMode === 'motion' ? 960 : 1280;
+      // The viewports are sized so the dialog owns the frame: the motion studio
+      // and the custom-icon editor shrank when the panels were merged, and a
+      // needlessly tall window only added dimmed Settings page around them.
       const height =
         openMode === 'motion'
-          ? 1520
+          ? 940
           : openMode === 'playback'
             ? 980
-            : openMode === 'picker' || openMode === 'custom'
+            : openMode === 'picker'
               ? 1100
-              : 1500;
+              : openMode === 'custom'
+                ? 820
+                : 1500;
       let result: DriverResult | null = null;
-      if (openMode === 'motion') {
-        try {
-          result = await captureMotionScreenshot(
-            edge,
-            [...edgeArgsBase, '--force-device-scale-factor=' + String(scale), `--window-size=${width},${height}`],
-            profileDir,
-            url,
-            pngPath,
-          );
-        } catch (error) {
-          console.error('error: motion screenshot failed: ' + readableError(error));
-          rmSync(pngPath, { force: true });
-          process.exit(1);
-        }
-      } else {
-        const run = runEdge(
+      try {
+        // Every preview goes through CDP: `--screenshot` fires when its
+        // virtual-time budget expires, which can be before the driver has
+        // settled (that is how an in-flight crop or a focused field ended up in
+        // a shipped preview). CDP captures after the driver writes its result.
+        result = await capturePreviewScreenshot(
           edge,
-          [
-            ...edgeArgsBase,
-            '--force-device-scale-factor=' + String(scale),
-            `--user-data-dir=${profileDir}`,
-            `--window-size=${width},${height}`,
-            '--virtual-time-budget=8000',
-            `--screenshot=${pngPath}`,
-            '--dump-dom',
-            url,
-          ],
-          120000,
+          [...edgeArgsBase, '--force-device-scale-factor=' + String(scale), `--window-size=${width},${height}`],
+          profileDir,
+          url,
+          pngPath,
         );
-        result = parseResult(run.stdout);
-        const deadline = Date.now() + 20000;
-        while (!existsSync(pngPath) && Date.now() < deadline) await sleepMs(200);
-        if (!existsSync(pngPath) || statSync(pngPath).size === 0) {
-          console.error('error: no screenshot produced at ' + pngPath);
-          if (run.stderr) console.error(run.stderr.slice(0, 2000));
-          process.exit(1);
-        }
+      } catch (error) {
+        console.error('error: screenshot failed: ' + readableError(error));
+        rmSync(pngPath, { force: true });
+        process.exit(1);
       }
       if (result !== null && result.mode === 'screenshot') {
         const decorated = result.decorated;
@@ -4532,7 +4658,15 @@ async function main(): Promise<void> {
       [...edgeArgsBase, `--user-data-dir=${profileDir}`, '--virtual-time-budget=30000', '--dump-dom', url],
       150000,
     );
-    const result = parseResult(run.stdout);
+    let result = parseResult(run.stdout);
+    if (result === null) {
+      // `--dump-dom` depends on the one-shot launcher staying attached to its
+      // stdout, which newer Edge builds do not: the assertions still ran, the
+      // text simply never came back. Re-open the same page over CDP and read the
+      // result block the driver wrote.
+      console.log('note: the DOM dump carried no result block; reading it over CDP instead');
+      result = await readResultViaCdp(edge, edgeArgsBase, `${profileDir}-cdp`, url);
+    }
     if (result === null || result.mode !== 'verify') {
       console.error('error: the harness page produced no result block.');
       if (run.stderr) console.error(run.stderr.slice(0, 4000));

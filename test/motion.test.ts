@@ -13,6 +13,8 @@ import {
   DSHML_MOTION_MAX_PLAYBACK_FPS,
   DSHML_MOTION_MIN_PLAYBACK_FPS,
   DSHML_MOTION_SAMPLE_MIN_FRAMES,
+  DSHML_MOTION_THUMB_BANK,
+  DSHML_MOTION_TIMELINE_CELLS,
   DSHML_PLAYBACK_DEFAULTS,
   dshmlAtlasSvg,
   dshmlClampRange,
@@ -27,6 +29,8 @@ import {
   dshmlSampleTimes,
   dshmlSpriteLayout,
   dshmlSpriteLayoutFits,
+  dshmlTimelineCellSource,
+  dshmlTimelineCells,
 } from '../src/motion';
 
 /** A tiny but syntactically valid WebP data URL (content is irrelevant here). */
@@ -102,6 +106,36 @@ describe('sprite geometry', () => {
     expect(dshmlSpriteLayoutFits(4, 257)).toBe(false);
     expect(dshmlSpriteLayoutFits(24, 256)).toBe(false);
     expect(dshmlSpriteLayoutFits(4.5, 128)).toBe(false);
+  });
+});
+
+describe('timeline strip', () => {
+  it('draws the starting density at zoom 1 and follows the zoomed width', () => {
+    expect(dshmlTimelineCells(1)).toBe(DSHML_MOTION_TIMELINE_CELLS);
+    expect(dshmlTimelineCells(2)).toBe(DSHML_MOTION_TIMELINE_CELLS * 2);
+    // Never wider than the thumbnail bank, and never below a usable minimum.
+    expect(dshmlTimelineCells(4)).toBe(DSHML_MOTION_THUMB_BANK);
+    expect(dshmlTimelineCells(8)).toBe(DSHML_MOTION_THUMB_BANK);
+    expect(dshmlTimelineCells(0)).toBeLessThanOrEqual(DSHML_MOTION_TIMELINE_CELLS);
+    expect(dshmlTimelineCells(Number.NaN)).toBe(DSHML_MOTION_TIMELINE_CELLS);
+  });
+
+  it('maps every cell onto a bank thumbnail, left to right', () => {
+    const cells = dshmlTimelineCells(2);
+    const first = dshmlTimelineCellSource(0, cells, DSHML_MOTION_THUMB_BANK);
+    const last = dshmlTimelineCellSource(cells - 1, cells, DSHML_MOTION_THUMB_BANK);
+    expect(first).toBe(0);
+    expect(last).toBe(DSHML_MOTION_THUMB_BANK - 1);
+    // Strictly monotonic: no cell shows an earlier thumbnail than its left neighbour.
+    let previous = -1;
+    for (let cell = 0; cell < cells; cell += 1) {
+      const source = dshmlTimelineCellSource(cell, cells, DSHML_MOTION_THUMB_BANK);
+      expect(source).toBeGreaterThanOrEqual(previous);
+      expect(source).toBeLessThan(DSHML_MOTION_THUMB_BANK);
+      previous = source;
+    }
+    expect(dshmlTimelineCellSource(0, 0, 0)).toBe(0);
+    expect(dshmlTimelineCellSource(99, 4, 4)).toBe(3);
   });
 });
 

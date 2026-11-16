@@ -308,6 +308,25 @@ export function dshmlCropRect(area: unknown, mediaWidth: unknown, mediaHeight: u
   return { sx, sy, sw, sh };
 }
 
+/**
+ * Clamp a source rectangle (`{sx, sy, sw, sh}`) into the media box.
+ *
+ * {@link dshmlCropRect} takes the cropper's `{x, y, width, height}` shape; every
+ * caller after the cropper passes the `sx/sy/sw/sh` shape around instead, so the
+ * conversion lives here once rather than at each call site.
+ * @param crop - candidate rectangle in natural pixels.
+ * @param mediaWidth - image natural width.
+ * @param mediaHeight - image natural height.
+ */
+export function dshmlClampCropRect(
+  crop: DshmlCropPixels | null | undefined,
+  mediaWidth: unknown,
+  mediaHeight: unknown,
+): DshmlCropPixels | null {
+  if (crop === null || crop === undefined || typeof crop !== 'object') return null;
+  return dshmlCropRect({ x: crop.sx, y: crop.sy, width: crop.sw, height: crop.sh }, mediaWidth, mediaHeight);
+}
+
 /** One custom icon rendered as a mark: the stored name plus the SVG tile. */
 export interface DshmlCustomMark {
   title: string;
@@ -429,11 +448,22 @@ export function dshmlCustomFitsTotalBudget(
 }
 
 /**
+ * Share of a storage cap above which the meter turns amber.
+ *
+ * 88% keeps the warning for payloads that are genuinely close to the cap: at
+ * 80% a perfectly savable icon (e.g. 24 frames at 102 KiB of 128 KiB) showed the
+ * "nearly there" colour on every sample, which read as a problem when there was
+ * none. The `over` verdict is unchanged — the cap itself never moved.
+ */
+const DSHML_BUDGET_WARN_RATIO = 0.88;
+
+/**
  * Budget verdict for the sampling studio's live meter.
  *
- * The atlas and the poster each have their own cap; the meter warns above 80% of
- * either cap and turns red the moment one of them is exceeded. It never decides
- * by itself: the studio only offers the slimming ladder, the user confirms it.
+ * The atlas and the poster each have their own cap; the meter warns above
+ * {@link DSHML_BUDGET_WARN_RATIO} of either cap and turns red the moment one of
+ * them is exceeded. It never decides by itself: the studio only offers the
+ * slimming ladder, the user confirms it.
  * @param atlasChars - encoded atlas data-URL characters.
  * @param posterChars - encoded poster data-URL characters.
  */
@@ -442,5 +472,5 @@ export function dshmlBudgetPlan(atlasChars: number, posterChars: number): DshmlB
   const poster = Number.isFinite(posterChars) && posterChars > 0 ? posterChars : 0;
   if (atlas > DSHML_CUSTOM_MAX_DATA_URL || poster > DSHML_CUSTOM_MAX_POSTER) return 'over';
   const ratio = Math.max(atlas / DSHML_CUSTOM_MAX_DATA_URL, poster / DSHML_CUSTOM_MAX_POSTER);
-  return ratio > 0.8 ? 'warn' : 'ok';
+  return ratio > DSHML_BUDGET_WARN_RATIO ? 'warn' : 'ok';
 }

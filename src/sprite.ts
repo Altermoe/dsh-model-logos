@@ -8,17 +8,36 @@
  * ladder — quality, then frame count, then frame edge — so the UI only has to
  * present the changes the ladder reports.
  *
- * Decoding is the expensive step, so one call renders each distinct frame count
- * once (and each frame once): the quality ladder re-encodes the same atlas canvas
- * and the size ladder re-composes from the same 128 px frames. Nothing here
- * touches the settings document: it returns data URLs and byte counts, and the
- * editor decides whether to store them.
+ * Sampling is split into four stages with one cache each, because the studio
+ * re-samples on every debounced change and the stages cost wildly different
+ * amounts:
+ *
+ *   decode  (source.drawFrame)  keyed by the source frame identity
+ *   crop    (drawImage → 128px) keyed by the sampling window + crop rectangle
+ *   compose (atlas strip)       keyed by the cropped frames + frame edge
+ *   encode  (toDataURL)         keyed by the atlas + quality
+ *
+ * Dragging the crop box therefore re-runs crop → compose → encode, never a
+ * decode; changing the frame edge only re-composes; changing the quality only
+ * re-encodes. Decoded frames live in a bounded LRU at
+ * {@link DSHML_MOTION_DECODE_PX} (see that constant for the resolution trade),
+ * the composed and encoded entries are small and capped in count.
+ *
+ * Nothing here touches the settings document: it returns data URLs and byte
+ * counts, and the editor decides whether to store them.
  */
-import { DSHML_CUSTOM_MAX_DATA_URL, DSHML_CUSTOM_MAX_POSTER, dshmlBudgetPlan, dshmlCropRect } from './custom-icons';
+import {
+  DSHML_CUSTOM_MAX_DATA_URL,
+  DSHML_CUSTOM_MAX_POSTER,
+  dshmlBudgetPlan,
+  dshmlClampCropRect,
+} from './custom-icons';
 import type { DshmlBudgetVerdict, DshmlCropPixels } from './custom-icons';
 import { DshmlMediaError } from './media-source';
 import type { DshmlMediaSource } from './media-source';
 import {
+  DSHML_MOTION_DECODE_CACHE,
+  DSHML_MOTION_DECODE_PX,
   DSHML_MOTION_DEFAULT_FRAME_WIDTH,
   DSHML_MOTION_DEFAULT_QUALITY,
   DSHML_MOTION_FRAME_PX_LADDER,
@@ -76,9 +95,107 @@ const RENDER_PX = 128;
 /** Poster encoding qualities, best first. */
 const POSTER_QUALITIES: readonly number[] = Object.freeze([0.8, 0.7, 0.6, 0.5, 0.4]);
 
+/** Composed atlases one cache keeps (a few frame counts × two frame edges). */
+const ATLAS_CACHE_LIMIT = 6;
+
+/** Encoded atlases one cache keeps (each is a data URL, so the count stays low). */
+const ENCODE_CACHE_LIMIT = 8;
+
+/** Cropped frame sets one cache keeps (the current window plus the ladder's). */
+const CROP_CACHE_LIMIT = 8;
+
+/** One rendered frame sequence plus its distinct-frame count. */
+interface DshmlFrameSet {
+  frames: HTMLCanvasElement[];
+  distinct: number;
+}
+
+/** One encoded data URL and its character count. */
+interface DshmlEncodedChunk {
+  data: string;
+  chars: number;
+}
+
+/** One encoded poster (the quality ladder remembers which step won). */
+interface DshmlEncodedPoster extends DshmlEncodedChunk {
+  quality: number;
+}
+
+/**
+ * The sampling cache of one open source.
+ *
+ * The studio creates one per imported file and passes it to every encode and
+ * slimming run, which is what keeps the crop interactive: the decoded frames,
+ * the cropped 128 px frames, the composed atlases and the encoded data URLs all
+ * survive the next call. A cache is only valid for the source it was created
+ * for; {@link dshmlSampleCacheFor} enforces that.
+ */
+export interface DshmlSampleCache {
+  /** The source the cached pixels belong to. */
+  readonly source: DshmlMediaSource;
+  /** Decoded source frames, keyed by {@link DshmlMediaSource.frameKeyAt}. */
+  readonly decoded: Map<string, HTMLCanvasElement>;
+  /** Cropped 128 px frames, keyed by sampling window + crop. */
+  readonly cropped: Map<string, DshmlFrameSet>;
+  /** Composed atlas canvases, keyed by cropped frames + frame edge. */
+  readonly atlases: Map<string, HTMLCanvasElement>;
+  /** Encoded atlases, keyed by atlas + quality. */
+  readonly encoded: Map<string, DshmlEncodedChunk>;
+  /** Encoded posters, keyed by the cropped frame set. */
+  readonly posters: Map<string, DshmlEncodedPoster>;
+}
+
+/**
+ * A fresh sampling cache for one source. The caller keeps it for the lifetime of
+ * the imported file and drops it together with the source.
+ * @param source - the opened media source.
+ */
+export function dshmlCreateSampleCache(source: DshmlMediaSource): DshmlSampleCache {
+  return {
+    source,
+    decoded: new Map(),
+    cropped: new Map(),
+    atlases: new Map(),
+    encoded: new Map(),
+    posters: new Map(),
+  };
+}
+
+/**
+ * The cache to use for this source: the given one when it belongs to the same
+ * source, a fresh one otherwise (and when none was given). The studio keeps one
+ * cache per imported file, so a stale handle can never mix two clips.
+ * @param source - the source about to be sampled.
+ * @param cache - the studio's cache handle, when it has one.
+ */
+export function dshmlSampleCacheFor(source: DshmlMediaSource, cache?: DshmlSampleCache | null): DshmlSampleCache {
+  if (cache !== undefined && cache !== null && cache.source === source) return cache;
+  return dshmlCreateSampleCache(source);
+}
+
+/** Insert into a bounded map, evicting the oldest entry once it is full. */
+function dshmlRemember<K, V>(map: Map<K, V>, key: K, value: V, limit: number): V {
+  map.set(key, value);
+  while (map.size > limit) {
+    const oldest = map.keys().next();
+    if (oldest.done === true) break;
+    map.delete(oldest.value);
+  }
+  return value;
+}
+
+/** Read a map entry and mark it as the most recently used. */
+function dshmlRecall<K, V>(map: Map<K, V>, key: K): V | undefined {
+  const value = map.get(key);
+  if (value === undefined) return undefined;
+  map.delete(key);
+  map.set(key, value);
+  return value;
+}
+
 /** The crop box of one source, defaulting to the centred maximal square. */
 export function dshmlMotionCrop(source: DshmlMediaSource, raw: DshmlCropPixels | null): DshmlCropPixels {
-  const clamped = dshmlCropRect(raw, source.width, source.height);
+  const clamped = dshmlClampCropRect(raw, source.width, source.height);
   if (clamped !== null) return clamped;
   const side = Math.min(source.width, source.height);
   return {
@@ -94,33 +211,69 @@ function dshmlCheckCancel(isCancelled: (() => boolean) | undefined): void {
   if (isCancelled !== undefined && isCancelled()) throw new DshmlMediaError('cancelled');
 }
 
-/** One rendered frame sequence plus its distinct-frame count. */
-interface DshmlFrameSet {
-  frames: HTMLCanvasElement[];
-  distinct: number;
+/** Size of the decoded-frame cache canvas: the work aspect, long edge ≤ cache px. */
+function dshmlCacheSize(source: DshmlMediaSource): { width: number; height: number } {
+  const longest = Math.max(1, Math.max(source.width, source.height));
+  const scale = Math.min(1, DSHML_MOTION_DECODE_PX / longest);
+  return {
+    width: Math.max(1, Math.round(source.width * scale)),
+    height: Math.max(1, Math.round(source.height * scale)),
+  };
+}
+
+/** Decode one source frame into the bounded cache (or reuse the cached canvas). */
+async function dshmlDecodeFrame(
+  cache: DshmlSampleCache,
+  ms: number,
+  isCancelled: (() => boolean) | undefined,
+): Promise<HTMLCanvasElement> {
+  const key = cache.source.frameKeyAt(ms);
+  const cached = dshmlRecall(cache.decoded, key);
+  if (cached !== undefined) return cached;
+  dshmlCheckCancel(isCancelled);
+  const size = dshmlCacheSize(cache.source);
+  const frame = document.createElement('canvas');
+  frame.width = size.width;
+  frame.height = size.height;
+  await cache.source.drawFrame(ms, frame);
+  dshmlCheckCancel(isCancelled);
+  return dshmlRemember(cache.decoded, key, frame, DSHML_MOTION_DECODE_CACHE);
+}
+
+/** Key of one cropped frame set: the sampling window plus the crop rectangle. */
+function dshmlCropKey(range: DshmlMotionRange, count: number, crop: DshmlCropPixels): string {
+  return range.inMs + ':' + range.outMs + ':' + count + '|' + crop.sx + ':' + crop.sy + ':' + crop.sw + ':' + crop.sh;
 }
 
 /**
  * Render the requested sampling times as square frame canvases.
  *
  * Frames are always rendered at {@link RENDER_PX} so a later size-ladder step
- * (128 → 112 → 96) can reuse them without another decode.
+ * (128 → 112 → 96) can reuse them without another decode. The decode itself
+ * comes from the shared cache, and only the crop rectangle is applied here — so
+ * a new crop reuses every decoded frame of the same clip.
  */
 async function dshmlRenderFrames(
-  source: DshmlMediaSource,
+  cache: DshmlSampleCache,
   times: readonly number[],
   crop: DshmlCropPixels,
   progress: DshmlSampleProgress | undefined,
   isCancelled: (() => boolean) | undefined,
 ): Promise<DshmlFrameSet> {
-  const work = document.createElement('canvas');
-  work.width = source.width;
-  work.height = source.height;
+  const source = cache.source;
+  const cacheSize = dshmlCacheSize(source);
+  // The crop rectangle is in work-canvas pixels; the decoded frames may be
+  // smaller, so the source rectangle is scaled into cache pixels.
+  const scale = cacheSize.width / Math.max(1, source.width);
+  const sx = crop.sx * scale;
+  const sy = crop.sy * scale;
+  const sw = Math.max(1, crop.sw * scale);
+  const sh = Math.max(1, crop.sh * scale);
   const frames: HTMLCanvasElement[] = [];
   for (let index = 0; index < times.length; index += 1) {
     dshmlCheckCancel(isCancelled);
     const time = times[index] ?? 0;
-    await source.drawFrame(time, work);
+    const decoded = await dshmlDecodeFrame(cache, time, isCancelled);
     dshmlCheckCancel(isCancelled);
     const frame = document.createElement('canvas');
     frame.width = RENDER_PX;
@@ -129,12 +282,30 @@ async function dshmlRenderFrames(
     if (context === null) throw new DshmlMediaError('decode-failed', 'canvas unavailable');
     context.imageSmoothingEnabled = true;
     context.imageSmoothingQuality = 'high';
-    context.drawImage(work, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, RENDER_PX, RENDER_PX);
+    context.drawImage(decoded, sx, sy, sw, sh, 0, 0, RENDER_PX, RENDER_PX);
     frames.push(frame);
     progress?.(index + 1, times.length);
   }
   if (frames.length === 0) throw new DshmlMediaError('no-frames');
   return { frames, distinct: dshmlDistinctFrames(frames) };
+}
+
+/** The cropped frame set of one sampling window, from the cache when possible. */
+async function dshmlCroppedFrames(
+  cache: DshmlSampleCache,
+  options: DshmlEncodeOptions,
+  crop: DshmlCropPixels,
+  progress: DshmlSampleProgress | undefined,
+  isCancelled: (() => boolean) | undefined,
+): Promise<{ frames: DshmlFrameSet; key: string }> {
+  const key = dshmlCropKey(options.range, options.frames, crop);
+  const cached = dshmlRecall(cache.cropped, key);
+  if (cached !== undefined) return { frames: cached, key };
+  const times = dshmlSampleTimes(options.range, options.frames);
+  if (times.length === 0) throw new DshmlMediaError('no-frames');
+  const rendered = await dshmlRenderFrames(cache, times, crop, progress, isCancelled);
+  dshmlRemember(cache.cropped, key, rendered, CROP_CACHE_LIMIT);
+  return { frames: rendered, key };
 }
 
 /** Compose one atlas strip, scaling each {@link RENDER_PX} frame to `frameWidth`. */
@@ -155,25 +326,62 @@ function dshmlComposeAtlas(frames: readonly HTMLCanvasElement[], frameWidth: num
   return atlas;
 }
 
+/** The atlas of one frame set at one frame edge, from the cache when possible. */
+function dshmlAtlasCanvas(
+  cache: DshmlSampleCache,
+  cropKey: string,
+  frames: DshmlFrameSet,
+  frameWidth: number,
+): { atlas: HTMLCanvasElement; key: string } {
+  const key = cropKey + '|' + frameWidth;
+  const cached = dshmlRecall(cache.atlases, key);
+  if (cached !== undefined) return { atlas: cached, key };
+  const atlas = dshmlComposeAtlas(frames.frames, frameWidth);
+  dshmlRemember(cache.atlases, key, atlas, ATLAS_CACHE_LIMIT);
+  return { atlas, key };
+}
+
 /** Encode one canvas as WebP, falling back to PNG when the quality argument is ignored. */
-function dshmlEncodeCanvas(canvas: HTMLCanvasElement, quality: number): { data: string; chars: number } {
+function dshmlEncodeCanvas(canvas: HTMLCanvasElement, quality: number): DshmlEncodedChunk {
   let data = canvas.toDataURL('image/webp', quality);
   if (!data.startsWith('data:image/webp;base64,')) data = canvas.toDataURL('image/png');
   return { data, chars: data.length };
 }
 
+/** The encoded atlas of one canvas at one quality, from the cache when possible. */
+function dshmlEncodedAtlas(
+  cache: DshmlSampleCache,
+  atlasKey: string,
+  atlas: HTMLCanvasElement,
+  quality: number,
+): DshmlEncodedChunk {
+  const key = atlasKey + '|' + quality;
+  const cached = dshmlRecall(cache.encoded, key);
+  if (cached !== undefined) return cached;
+  return dshmlRemember(cache.encoded, key, dshmlEncodeCanvas(atlas, quality), ENCODE_CACHE_LIMIT);
+}
+
 /** Encode the poster, lowering WebP quality until it fits the 32 KiB cap. */
-function dshmlEncodePoster(frame: HTMLCanvasElement): { data: string; chars: number; quality: number } {
+function dshmlEncodePoster(frame: HTMLCanvasElement): DshmlEncodedPoster {
   let best = dshmlEncodeCanvas(frame, POSTER_QUALITIES[0] ?? 0.8);
   let quality = POSTER_QUALITIES[0] ?? 0.8;
-  if (best.chars <= DSHML_CUSTOM_MAX_POSTER) return { data: best.data, chars: best.chars, quality };
+  if (best.chars <= DSHML_CUSTOM_MAX_POSTER) return { ...best, quality };
   for (const candidate of POSTER_QUALITIES.slice(1)) {
     const encoded = dshmlEncodeCanvas(frame, candidate);
     quality = candidate;
     best = encoded;
     if (encoded.chars <= DSHML_CUSTOM_MAX_POSTER) break;
   }
-  return { data: best.data, chars: best.chars, quality };
+  return { ...best, quality };
+}
+
+/** The poster of one cropped frame set, from the cache when possible. */
+function dshmlPoster(cache: DshmlSampleCache, cropKey: string, frames: DshmlFrameSet): DshmlEncodedPoster {
+  const cached = dshmlRecall(cache.posters, cropKey);
+  if (cached !== undefined) return cached;
+  const first = frames.frames[0];
+  if (first === undefined) throw new DshmlMediaError('no-frames');
+  return dshmlRemember(cache.posters, cropKey, dshmlEncodePoster(first), CROP_CACHE_LIMIT);
 }
 
 /** Whether two rendered frames differ (a sampled frame may repeat a source one). */
@@ -226,35 +434,27 @@ function dshmlCheckOptions(source: DshmlMediaSource, options: DshmlEncodeOptions
   }
 }
 
-/** The shareable result of one encode attempt. */
-interface DshmlEncodedAttempt {
-  encoded: DshmlEncodedMotion;
-  frames: DshmlFrameSet;
-}
-
-/** Render one frame sequence and encode it at one quality/frame edge. */
+/** Encode one already-cropped frame set at one quality/frame edge. */
 function dshmlEncodeAttempt(
+  cache: DshmlSampleCache,
   options: DshmlEncodeOptions,
   frames: DshmlFrameSet,
-  poster: { data: string; chars: number; quality: number },
-): DshmlEncodedAttempt {
-  const atlas = dshmlComposeAtlas(frames.frames, options.frameWidth);
-  const encodedAtlas = dshmlEncodeCanvas(atlas, options.quality);
-  const verdict = dshmlBudgetPlan(encodedAtlas.chars, poster.chars);
+  cropKey: string,
+): DshmlEncodedMotion {
+  const { atlas, key } = dshmlAtlasCanvas(cache, cropKey, frames, options.frameWidth);
+  const encodedAtlas = dshmlEncodedAtlas(cache, key, atlas, options.quality);
+  const poster = dshmlPoster(cache, cropKey, frames);
   return {
-    frames,
-    encoded: {
-      atlas: encodedAtlas.data,
-      poster: poster.data,
-      frames: options.frames,
-      fps: dshmlEffectiveFps(options.range, options.frames),
-      frameWidth: options.frameWidth,
-      quality: options.quality,
-      atlasChars: encodedAtlas.chars,
-      posterChars: poster.chars,
-      distinctFrames: frames.distinct,
-      verdict,
-    },
+    atlas: encodedAtlas.data,
+    poster: poster.data,
+    frames: options.frames,
+    fps: dshmlEffectiveFps(options.range, options.frames),
+    frameWidth: options.frameWidth,
+    quality: options.quality,
+    atlasChars: encodedAtlas.chars,
+    posterChars: poster.chars,
+    distinctFrames: frames.distinct,
+    verdict: dshmlBudgetPlan(encodedAtlas.chars, poster.chars),
   };
 }
 
@@ -267,21 +467,20 @@ function dshmlEncodeAttempt(
  * @param options - range, frame count, frame edge, quality and crop.
  * @param progress - optional frame-progress callback.
  * @param isCancelled - polled between frames; a superseded run aborts early.
+ * @param cache - the studio's sampling cache for this source (decodes are reused).
  */
 export async function dshmlEncodeMotionIcon(
   source: DshmlMediaSource,
   options: DshmlEncodeOptions,
   progress?: DshmlSampleProgress,
   isCancelled?: () => boolean,
+  cache?: DshmlSampleCache | null,
 ): Promise<DshmlEncodedMotion> {
   dshmlCheckOptions(source, options);
-  const times = dshmlSampleTimes(options.range, options.frames);
-  if (times.length === 0) throw new DshmlMediaError('no-frames');
+  const store = dshmlSampleCacheFor(source, cache);
   const crop = dshmlMotionCrop(source, options.crop);
-  const frames = await dshmlRenderFrames(source, times, crop, progress, isCancelled);
-  const first = frames.frames[0];
-  if (first === undefined) throw new DshmlMediaError('no-frames');
-  return dshmlEncodeAttempt(options, frames, dshmlEncodePoster(first)).encoded;
+  const { frames, key } = await dshmlCroppedFrames(store, options, crop, progress, isCancelled);
+  return dshmlEncodeAttempt(store, options, frames, key);
 }
 
 /**
@@ -295,44 +494,39 @@ export async function dshmlEncodeMotionIcon(
  * @param options - user's current settings.
  * @param progress - frame-progress callback.
  * @param isCancelled - polled between frames.
+ * @param cache - the studio's sampling cache for this source.
  */
 export async function dshmlFitMotionBudget(
   source: DshmlMediaSource,
   options: DshmlEncodeOptions,
   progress?: DshmlSampleProgress,
   isCancelled?: () => boolean,
+  cache?: DshmlSampleCache | null,
 ): Promise<{ encoded: DshmlEncodedMotion; changes: DshmlSlimChange[] }> {
   dshmlCheckOptions(source, options);
+  const store = dshmlSampleCacheFor(source, cache);
   const crop = dshmlMotionCrop(source, options.crop);
   const changes: DshmlSlimChange[] = [];
   const record = function record(kind: DshmlSlimChange['kind'], from: number, to: number): void {
     if (from !== to) changes.push({ kind, from, to });
   };
-  const cache = new Map<number, DshmlFrameSet>();
-  const getFrames = async function getFrames(count: number): Promise<DshmlFrameSet> {
-    const cached = cache.get(count);
-    if (cached !== undefined) return cached;
-    const times = dshmlSampleTimes(options.range, count);
-    if (times.length === 0) throw new DshmlMediaError('no-frames');
-    const rendered = await dshmlRenderFrames(source, times, crop, progress, isCancelled);
-    cache.set(count, rendered);
-    return rendered;
+  // Each count needs its own sampled timeline; the crop cache hands back the
+  // frame set it already produced, so a repeated count never re-renders.
+  const getFrames = async function getFrames(count: number): Promise<{ frames: DshmlFrameSet; key: string }> {
+    return dshmlCroppedFrames(store, { ...options, frames: count }, crop, progress, isCancelled);
   };
-  const firstFrames = await getFrames(options.frames);
-  const firstFrame = firstFrames.frames[0];
-  if (firstFrame === undefined) throw new DshmlMediaError('no-frames');
-  const poster = dshmlEncodePoster(firstFrame);
+  const first = await getFrames(options.frames);
 
   // 1. Quality: re-encode the same atlas canvas.
   const qualityLadder = DSHML_MOTION_QUALITY_LADDER.includes(options.quality)
     ? DSHML_MOTION_QUALITY_LADDER.slice(DSHML_MOTION_QUALITY_LADDER.indexOf(options.quality))
     : [options.quality, ...DSHML_MOTION_QUALITY_LADDER];
-  let last: DshmlEncodedAttempt | null = null;
+  let last: DshmlEncodedMotion | null = null;
   for (const quality of qualityLadder) {
-    last = dshmlEncodeAttempt({ ...options, quality }, firstFrames, poster);
-    if (last.encoded.verdict !== 'over') {
+    last = dshmlEncodeAttempt(store, { ...options, quality }, first.frames, first.key);
+    if (last.verdict !== 'over') {
       record('quality', options.quality, quality);
-      return { encoded: last.encoded, changes };
+      return { encoded: last, changes };
     }
   }
   record('quality', options.quality, DSHML_MOTION_SLIM_QUALITY);
@@ -342,40 +536,43 @@ export async function dshmlFitMotionBudget(
   for (let frames = options.frames - 2; frames >= 4; frames -= 2) {
     const rendered = await getFrames(frames);
     last = dshmlEncodeAttempt(
+      store,
       { ...options, frames, frameWidth: currentWidth, quality: DSHML_MOTION_SLIM_QUALITY },
-      rendered,
-      poster,
+      rendered.frames,
+      rendered.key,
     );
-    if (last.encoded.verdict !== 'over') {
+    if (last.verdict !== 'over') {
       record('frames', options.frames, frames);
-      return { encoded: last.encoded, changes };
+      return { encoded: last, changes };
     }
   }
   record('frames', options.frames, 4);
 
   // 3. Frame edge: reuse the 4-frame render, only re-compose at the smaller edge.
-  const smallestFrames = await getFrames(4);
+  const smallest = await getFrames(4);
   for (const frameWidth of DSHML_MOTION_FRAME_PX_LADDER) {
     if (frameWidth >= currentWidth) continue;
     last = dshmlEncodeAttempt(
+      store,
       { ...options, frames: 4, frameWidth, quality: DSHML_MOTION_SLIM_QUALITY },
-      smallestFrames,
-      poster,
+      smallest.frames,
+      smallest.key,
     );
-    if (last.encoded.verdict !== 'over') {
+    if (last.verdict !== 'over') {
       record('size', currentWidth, frameWidth);
-      return { encoded: last.encoded, changes };
+      return { encoded: last, changes };
     }
   }
   record('size', currentWidth, DSHML_MOTION_FRAME_PX_LADDER[DSHML_MOTION_FRAME_PX_LADDER.length - 1] ?? 96);
   if (last === null) {
     last = dshmlEncodeAttempt(
+      store,
       { ...options, frames: 4, frameWidth: 96, quality: DSHML_MOTION_SLIM_QUALITY },
-      smallestFrames,
-      poster,
+      smallest.frames,
+      smallest.key,
     );
   }
-  return { encoded: last.encoded, changes };
+  return { encoded: last, changes };
 }
 
 /** The storage caps the studio's meter is allowed to mention. */

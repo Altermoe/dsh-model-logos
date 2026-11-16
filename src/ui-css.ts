@@ -893,11 +893,16 @@ export const DSHML_UI_CSS: string = `
 }
 
 .dshml-picker-editor-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
   padding-top: 4px;
 }
 
 .dshml-custom-editor {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 12px;
   min-height: 0;
@@ -1255,6 +1260,26 @@ export const DSHML_UI_CSS: string = `
   pointer-events: none;
 }
 
+/* The editor owns the layout of its body: a scrolling content region plus a
+   pinned action row, so Save never scrolls out of reach. */
+.dshml-custom-scroll {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  padding: 2px;
+  margin: -2px;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.dshml-custom-actions {
+  flex: none;
+  padding-top: 10px;
+  border-top: 0.5px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.08));
+}
+
 .dshml-motion {
   display: flex;
   flex-direction: column;
@@ -1263,14 +1288,23 @@ export const DSHML_UI_CSS: string = `
 }
 
 .dshml-motion-ready {
-  gap: 14px;
+  flex: 1 1 auto;
 }
 
-.dshml-motion-top {
+/* One stage and one side column: the picture keeps its place while it is being
+   watched, framed, trimmed or sampled. */
+.dshml-motion-work {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.12fr) minmax(300px, 0.88fr);
   gap: 12px;
-  align-items: start;
+  min-height: 0;
+}
+
+.dshml-motion-side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
 }
 
 .dshml-motion-panel {
@@ -1293,6 +1327,7 @@ export const DSHML_UI_CSS: string = `
 }
 
 .dshml-motion-panel-title {
+  flex: none;
   font-size: 12px;
   font-weight: 600;
   line-height: 18px;
@@ -1301,6 +1336,7 @@ export const DSHML_UI_CSS: string = `
 
 .dshml-motion-seg {
   display: inline-flex;
+  flex: none;
   gap: 2px;
   padding: 2px;
   border-radius: 7px;
@@ -1326,6 +1362,45 @@ export const DSHML_UI_CSS: string = `
   box-shadow: 0 1px 2px rgba(16, 20, 28, 0.12);
 }
 
+.dshml-motion-canvas-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  min-height: 22px;
+}
+
+.dshml-motion-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary, #5c6472);
+}
+
+.dshml-motion-file-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The container badge sits next to the name, so the format is always readable. */
+.dshml-motion-format {
+  flex: none;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-layer-3, rgba(0, 0, 0, 0.06));
+  color: var(--dsw-alias-label-tertiary, #8b93a3);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 14px;
+}
+
 .dshml-motion-stage {
   position: relative;
   display: flex;
@@ -1337,8 +1412,7 @@ export const DSHML_UI_CSS: string = `
   background: #11151d;
 }
 
-.dshml-motion-canvas,
-.dshml-motion-video {
+.dshml-motion-canvas {
   display: block;
   width: 100%;
   height: 100%;
@@ -1355,6 +1429,57 @@ export const DSHML_UI_CSS: string = `
   color: var(--dsw-alias-label-tertiary, #8b93a3);
   font-size: 11px;
   text-align: center;
+}
+
+/* Framing zoom floats over the stage: it belongs to Source mode only, and an
+   overlay cannot shift the layout when the mode changes. */
+.dshml-motion-zoom {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 16px);
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(10, 13, 19, 0.72);
+  color: #ffffff;
+  transform: translateX(-50%);
+}
+
+.dshml-motion-zoom-label {
+  flex: none;
+  font-size: 11px;
+  line-height: 16px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.dshml-motion-zoom-range {
+  width: 92px;
+  min-width: 60px;
+  accent-color: #ffffff;
+}
+
+.dshml-motion-zoom-fit {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #ffffff;
+  font: inherit;
+  font-size: 11px;
+  line-height: 16px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.dshml-motion-zoom-fit:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .dshml-motion-transport {
@@ -1379,19 +1504,19 @@ export const DSHML_UI_CSS: string = `
   cursor: pointer;
 }
 
-.dshml-motion-icon-btn:hover {
+.dshml-motion-icon-btn:hover:not(:disabled) {
   background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.06));
   color: var(--dsw-alias-label-primary, #1c1f26);
+}
+
+.dshml-motion-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .dshml-motion-icon-btn:focus-visible {
   outline: 2px solid var(--dsw-alias-state-business-primary, #5686fe);
   outline-offset: 1px;
-}
-
-.dshml-motion-play {
-  background: var(--dsw-alias-bg-layer-1, #ffffff);
-  box-shadow: 0 0 0 0.5px var(--dsw-alias-border-l3, rgba(0, 0, 0, 0.14));
 }
 
 .dshml-motion-time {
@@ -1403,26 +1528,13 @@ export const DSHML_UI_CSS: string = `
 }
 
 .dshml-motion-note {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 11px;
   line-height: 16px;
   color: var(--dsw-alias-label-tertiary, #8b93a3);
-}
-
-.dshml-motion-cropper {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  overflow: hidden;
-  border-radius: var(--dsw-radius-md, 8px);
-  background: #11151d;
-}
-
-.dshml-motion-framing-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
 }
 
 .dshml-motion-preview {
@@ -1477,9 +1589,75 @@ export const DSHML_UI_CSS: string = `
   background: var(--dsw-alias-bg-layer-2, #f5f6f8);
 }
 
+.dshml-motion-total {
+  flex: none;
+  margin-left: 6px;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-tertiary, #8b93a3);
+}
+
+.dshml-motion-zoomctl {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.dshml-motion-zoom-value {
+  min-width: 30px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary, #5c6472);
+  font: inherit;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  line-height: 18px;
+  cursor: pointer;
+}
+
+.dshml-motion-zoom-value:hover {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.06));
+}
+
+.dshml-motion-zoom-value:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #5686fe);
+  outline-offset: 1px;
+}
+
+/* Zoom widens the lane inside a native horizontal scroller; the fixed height
+   reserves room for the thin scrollbar so zooming never resizes the panel. */
+.dshml-motion-scroller {
+  min-width: 0;
+  height: 84px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
+.dshml-motion-scroller::-webkit-scrollbar {
+  height: 8px;
+}
+
+.dshml-motion-scroller::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+  background: var(--dsw-alias-scrollbar-bg-l2, rgba(0, 0, 0, 0.16));
+}
+
+.dshml-motion-lane {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 100%;
+  height: 76px;
+}
+
 .dshml-motion-thumbs {
   display: grid;
-  grid-template-columns: repeat(16, minmax(0, 1fr));
   gap: 2px;
   height: 44px;
   overflow: hidden;
@@ -1499,7 +1677,11 @@ export const DSHML_UI_CSS: string = `
 
 .dshml-motion-track {
   position: relative;
+  /* The range handles are centred on the clip edges, so the track keeps half a
+     handle of room on both sides: at 0% / 100% the handle then stays inside the
+     scroller instead of being clipped by it. */
   height: 24px;
+  margin: 0 7px;
   cursor: pointer;
   touch-action: none;
 }
@@ -1578,11 +1760,6 @@ export const DSHML_UI_CSS: string = `
   color: var(--dsw-alias-label-tertiary, #8b93a3);
 }
 
-.dshml-motion-live {
-  min-height: 14px;
-  color: var(--dsw-alias-state-warning-primary, #b25e09);
-}
-
 .dshml-motion-samples {
   display: flex;
   flex-direction: column;
@@ -1591,36 +1768,77 @@ export const DSHML_UI_CSS: string = `
 
 .dshml-motion-sample-head {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .dshml-motion-sample-label {
+  flex: none;
   font-size: 12px;
   line-height: 18px;
   color: var(--dsw-alias-label-secondary, #5c6472);
 }
 
 .dshml-motion-frames-range {
-  flex: 1 1 120px;
-  min-width: 100px;
+  flex: 1 1 90px;
+  min-width: 60px;
   accent-color: var(--dsw-alias-state-business-primary, #5686fe);
 }
 
 .dshml-motion-sample-value {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
   font-size: 11px;
   line-height: 16px;
   color: var(--dsw-alias-label-tertiary, #8b93a3);
 }
 
+.dshml-motion-strip-wrap {
+  position: relative;
+  min-width: 0;
+}
+
+/* A fade on the right edge says "there are more frames" without moving
+   anything; it only turns on while the strip actually overflows. */
+.dshml-motion-strip-wrap::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 10px;
+  width: 28px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), var(--dsw-alias-bg-layer-1, #ffffff));
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--ds-transition-duration-fast, 120ms) var(--ds-ease-in-out, ease);
+}
+
+.dshml-motion-strip-wrap.dshml-motion-more::after {
+  opacity: 1;
+}
+
 .dshml-motion-strip {
   display: flex;
   gap: 4px;
-  min-height: 44px;
+  height: 52px;
   overflow-x: auto;
-  padding-bottom: 2px;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
+.dshml-motion-strip::-webkit-scrollbar {
+  height: 8px;
+}
+
+.dshml-motion-strip::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+  background: var(--dsw-alias-scrollbar-bg-l2, rgba(0, 0, 0, 0.16));
 }
 
 .dshml-motion-sample {
@@ -1646,43 +1864,71 @@ export const DSHML_UI_CSS: string = `
   outline-offset: 1px;
 }
 
-.dshml-motion-progress-row {
+/* The dock sticks to the bottom of the scrolling body, right above Save: the
+   meter and the single status line stay in view while the editor scrolls. Both
+   rows are always present, so a warning or a progress tick never resizes the
+   modal. */
+.dshml-motion-dock {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex: none;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 2px;
+  padding: 8px 0 2px;
+  border-top: 0.5px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.08));
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
 }
 
-.dshml-motion-progress {
+.dshml-motion-status {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  min-height: 16px;
   margin: 0;
+  overflow: hidden;
   font-size: 11px;
   line-height: 16px;
+  white-space: nowrap;
   color: var(--dsw-alias-label-tertiary, #8b93a3);
 }
 
-.dshml-motion-budget {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-top: 4px;
-  border-top: 0.5px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.08));
+.dshml-motion-status-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dshml-motion-status-error {
+  color: var(--dsw-alias-state-error-primary, #d92d20);
+}
+
+.dshml-motion-status-warn {
+  color: var(--dsw-alias-state-warning-primary, #b25e09);
 }
 
 .dshml-motion-budget-row {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 10px;
+  min-width: 0;
 }
 
 .dshml-motion-budget-label {
+  flex: none;
   font-size: 12px;
   line-height: 18px;
   color: var(--dsw-alias-label-secondary, #5c6472);
 }
 
 .dshml-motion-meter {
-  flex: 1 1 140px;
-  min-width: 100px;
+  flex: 1 1 auto;
+  min-width: 60px;
   height: 8px;
   overflow: hidden;
   border-radius: 999px;
@@ -1706,27 +1952,18 @@ export const DSHML_UI_CSS: string = `
 }
 
 .dshml-motion-budget-value {
+  flex: none;
   font-variant-numeric: tabular-nums;
   font-size: 11px;
   line-height: 16px;
   color: var(--dsw-alias-label-tertiary, #8b93a3);
 }
 
-.dshml-motion-notes {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 8px;
-}
-
-.dshml-motion-note-list {
-  flex: 1 1 100%;
-  margin: 0;
-  padding-left: 16px;
-}
-
-.dshml-motion-error {
-  margin: 0;
+.dshml-motion-slim {
+  flex: none;
+  height: 26px;
+  padding: 0 10px;
+  font-size: 11px;
 }
 
 .dshml-motion-static-switch {
@@ -1734,23 +1971,12 @@ export const DSHML_UI_CSS: string = `
   justify-content: flex-end;
 }
 
-.dshml-motion-source-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding-top: 2px;
-}
-
-.dshml-motion-source-actions .dshml-custom-hint {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.dshml-motion-drop {
+  min-height: 220px;
 }
 
 @media (max-width: 640px) {
-  .dshml-motion-top {
+  .dshml-motion-work {
     grid-template-columns: minmax(0, 1fr);
   }
 

@@ -68,6 +68,55 @@ export const DSHML_MOTION_MAX_SOURCE_FRAMES = 1200;
 /** Longest edge of the work canvas every source is decoded into. */
 export const DSHML_MOTION_WORK_PX = 1024;
 
+/**
+ * Longest edge the sampling cache decodes source frames at.
+ *
+ * The cache trades resolution for memory so that dragging the crop box no
+ * longer re-decodes the clip: 24 frames at 128 px would be 1.5 MB but too
+ * coarse to crop from, while 24 frames at the 1024 px work size are ~96 MB.
+ * 512 px is four times the largest stored frame edge, so any crop covering at
+ * least a quarter of the source still samples 1:1 or better; below that the
+ * upscale is bounded — and the stored atlas is 128 px either way.
+ */
+export const DSHML_MOTION_DECODE_PX = 512;
+
+/** Decoded source frames one open source keeps before evicting the oldest. */
+export const DSHML_MOTION_DECODE_CACHE = 32;
+
+/** Timeline zoom steps: the strip content is this many times the track width. */
+export const DSHML_MOTION_TIMELINE_ZOOMS: readonly number[] = Object.freeze([1, 2, 4, 8]);
+
+/** Thumbnails one source is scanned into, once, at open time. */
+export const DSHML_MOTION_THUMB_BANK = 32;
+
+/** Timeline strip cells at zoom 1 (the density the strip starts at). */
+export const DSHML_MOTION_TIMELINE_CELLS = 16;
+
+/**
+ * Thumbnail cells a timeline strip draws at one zoom step.
+ *
+ * Cells follow the zoomed content width, so the strip keeps a constant density
+ * instead of stretching 16 thumbnails over a wider lane; the bank bounds it.
+ * @param zoom - content width multiplier (1 … 8).
+ */
+export function dshmlTimelineCells(zoom: number): number {
+  const value = Number.isFinite(zoom) ? Math.min(8, Math.max(1, zoom)) : 1;
+  return Math.min(DSHML_MOTION_THUMB_BANK, Math.max(12, Math.round(DSHML_MOTION_TIMELINE_CELLS * value)));
+}
+
+/**
+ * Bank thumbnail one timeline cell shows: the cell's left edge mapped onto the
+ * bank, so the strip always runs left to right and starts at the first thumb.
+ * @param cell - cell index (0 … cells − 1).
+ * @param cells - cell count of the strip.
+ * @param bank - thumbnails available for the whole source.
+ */
+export function dshmlTimelineCellSource(cell: number, cells: number, bank: number): number {
+  if (cells <= 0 || bank <= 0) return 0;
+  const index = Math.floor((Math.max(0, cell) * bank) / cells);
+  return Math.min(bank - 1, Math.max(0, index));
+}
+
 /** Recording the source frame timestamps gives up after this long. */
 export const DSHML_MOTION_MAX_DECODE_MS = 15_000;
 

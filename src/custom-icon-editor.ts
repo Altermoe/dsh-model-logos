@@ -92,6 +92,27 @@ export interface DshmlCustomIconEditorProps {
 /** Encoded crop exceeded the stored payload budget. */
 const DSHML_ENCODE_TOO_BIG = 'dshml-custom-icon-too-big';
 
+/**
+ * Highest crop zoom, shared by the static cropper and the motion stage.
+ *
+ * 5× is what a logo needs: at 3× a small mark inside a wide screenshot still
+ * leaves most of the crop box empty.
+ */
+const DSHML_CUSTOM_MAX_ZOOM = 5;
+
+/**
+ * Wheel zoom is opt-in per gesture.
+ *
+ * `react-easy-crop` calls this before it touches the event: returning false
+ * leaves the wheel to the page, so a plain wheel keeps scrolling the dialog and
+ * only Ctrl / ⌘ + wheel (or a trackpad pinch, which the browser reports as a
+ * `ctrlKey` wheel) zooms the crop. Returning true also lets the cropper
+ * `preventDefault`, which is what stops the browser from zooming the whole page.
+ */
+function dshmlZoomOnWheelOnly(event: WheelEvent): boolean {
+  return event.ctrlKey || event.metaKey;
+}
+
 /** Read a browser File as a data URL (the cropper accepts data URLs directly). */
 function dshmlReadFile(file: File): Promise<string> {
   return new Promise<string>(function executor(resolve, reject) {
@@ -271,11 +292,12 @@ function DshmlCustomImagePanel(props: {
         rotation: 0,
         aspect: 1,
         minZoom: 1,
-        maxZoom: 3,
+        maxZoom: DSHML_CUSTOM_MAX_ZOOM,
         cropShape: 'rect',
         showGrid: true,
-        zoomSpeed: 1,
-        zoomWithScroll: false,
+        zoomSpeed: 0.5,
+        zoomWithScroll: true,
+        onWheelRequest: dshmlZoomOnWheelOnly,
         restrictPosition: true,
         style: {},
         classes: {},
@@ -289,23 +311,31 @@ function DshmlCustomImagePanel(props: {
         },
       }),
     ]),
-    h('label', { key: 'zoom', className: 'dshml-custom-zoom' }, [
-      h('span', { key: 'label', className: 'dshml-custom-zoom-label' }, zoomLabel),
-      h('input', {
-        key: 'range',
-        type: 'range',
-        className: 'dshml-custom-zoom-range',
-        min: 1,
-        max: 3,
-        step: 0.01,
-        value: props.zoom,
-        'aria-label': zoomLabel,
-        onChange: function onZoom(event: ChangeEvent<HTMLInputElement>) {
-          const next = Number(event.target.value);
-          if (Number.isFinite(next)) props.onZoomChange(next);
-        },
-      }),
-    ]),
+    h(
+      'label',
+      {
+        key: 'zoom',
+        className: 'dshml-custom-zoom',
+        title: dshmlEditorCopy('picker.wheelZoom', 'Ctrl / ⌘ + wheel to zoom'),
+      },
+      [
+        h('span', { key: 'label', className: 'dshml-custom-zoom-label' }, zoomLabel),
+        h('input', {
+          key: 'range',
+          type: 'range',
+          className: 'dshml-custom-zoom-range',
+          min: 1,
+          max: DSHML_CUSTOM_MAX_ZOOM,
+          step: 0.01,
+          value: props.zoom,
+          'aria-label': zoomLabel,
+          onChange: function onZoom(event: ChangeEvent<HTMLInputElement>) {
+            const next = Number(event.target.value);
+            if (Number.isFinite(next)) props.onZoomChange(next);
+          },
+        }),
+      ],
+    ),
     h(
       'div',
       { key: 'actions', className: 'dshml-custom-image-actions' },
@@ -685,22 +715,26 @@ export function DshmlCustomIconEditor(props: DshmlCustomIconEditorProps): ReactE
         ])
       : null;
 
+  // The body is a scrolling region plus a pinned action row: the studio's sticky
+  // size dock and Save stay visible however tall the crop or the timeline gets.
   return h('div', { className: 'dshml-custom-editor' }, [
-    tabRow,
-    nameField,
-    motionRenameHint,
-    imagePanel,
-    motionPanel,
-    error !== ''
-      ? h('p', { key: 'error', className: 'dshml-picker-error', role: 'alert' }, error)
-      : unavailable
-        ? h(
-            'p',
-            { key: 'unavailable', className: 'dshml-picker-notice', role: 'status' },
-            dshmlEditorCopy('picker.unavailable', 'Icon settings unavailable (host plugin not loaded)'),
-          )
-        : null,
-    deleteSection,
+    h('div', { key: 'scroll', className: 'dshml-custom-scroll' }, [
+      tabRow,
+      nameField,
+      motionRenameHint,
+      imagePanel,
+      motionPanel,
+      error !== ''
+        ? h('p', { key: 'error', className: 'dshml-picker-error', role: 'alert' }, error)
+        : unavailable
+          ? h(
+              'p',
+              { key: 'unavailable', className: 'dshml-picker-notice', role: 'status' },
+              dshmlEditorCopy('picker.unavailable', 'Icon settings unavailable (host plugin not loaded)'),
+            )
+          : null,
+      deleteSection,
+    ]),
     h('div', { key: 'actions', className: 'dshml-custom-actions' }, [
       h(
         'button',

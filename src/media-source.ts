@@ -1,8 +1,9 @@
 /**
  * Frame access for the motion sampling studio.
  *
- * Animated images and videos are opened through one interface — a work-resolution
- * `drawFrame(ms)` plus a duration and a preview URL — so the studio, the sampler
+ * Animated images and videos are opened through one interface — a
+ * `drawFrame(ms, canvas)` that fills the target, a stable per-frame identity for
+ * the sampling cache, a duration and a frame count — so the studio, the sampler
  * and the sprite encoder never branch on the source format. Two browser-only
  * paths sit behind it:
  *
@@ -11,9 +12,13 @@
  *    on demand at the timestamp nearest the requested time;
  *  - videos use a detached muted `<video>` (blob URL) and seek to each sample.
  *
- * Nothing here is stored: the original file is read once, the work canvas is
- * capped at {@link DSHML_MOTION_WORK_PX} on its long edge (so a 4K video never
- * decodes at full size), and the object URL dies with {@link DshmlMediaSource.dispose}.
+ * `drawFrame` scales into whatever canvas it is handed, so the sampler decodes
+ * straight into its bounded cache instead of paying for a full work-canvas copy
+ * per frame.
+ *
+ * Nothing here is stored: the original file is read once, a work canvas is capped
+ * at {@link DSHML_MOTION_WORK_PX} on its long edge (so a 4K video never decodes at
+ * full size), and the video's object URL dies with {@link DshmlMediaSource.dispose}.
  */
 import {
   DSHML_MOTION_MAX_IMAGE_BYTES,
@@ -55,10 +60,17 @@ export interface DshmlMediaSource {
   height: number;
   /** Animated images only; videos report null. */
   frameCount: number | null;
-  /** Blob URL of the original file, for the "original" monitor. */
-  previewUrl: string;
-  /** Draw the frame at `ms` into a target canvas of `width × height`. */
+  /**
+   * Draw the frame at `ms` into `target`, filling it. The target may be smaller
+   * than the work canvas: the sampler decodes into its own bounded cache.
+   */
   drawFrame(ms: number, target: HTMLCanvasElement): Promise<void>;
+  /**
+   * Stable identity of the frame nearest `ms`, used as the sampling cache key.
+   * Animated images report the source frame index, so a different frame count
+   * still reuses every frame it shares with the previous sample.
+   */
+  frameKeyAt(ms: number): string;
   /** Release the decoder / video element and revoke the object URL. */
   dispose(): void;
 }
@@ -99,6 +111,20 @@ const EXTENSION_TYPES: Readonly<Record<string, string>> = Object.freeze({
   mkv: 'video/x-matroska',
 });
 
+/** Short uppercase container label for the studio's format badge. */
+const FORMAT_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  'image/png': 'PNG',
+  'image/apng': 'APNG',
+  'image/jpeg': 'JPEG',
+  'image/webp': 'WEBP',
+  'image/gif': 'GIF',
+  'image/avif': 'AVIF',
+  'video/mp4': 'MP4',
+  'video/webm': 'WEBM',
+  'video/quicktime': 'MOV',
+  'video/x-matroska': 'MKV',
+});
+
 /** The media type of a File (declared type first, extension second). */
 export function dshmlMediaTypeOf(file: File): string {
   const raw = typeof file.type === 'string' ? file.type.split(';')[0] : '';
@@ -120,6 +146,28 @@ export function dshmlMediaKindOf(file: File): DshmlMediaKind | null {
   if (type.startsWith('video/')) return VIDEO_TYPES.has(type) ? 'video' : null;
   if (type.startsWith('image/')) return ANIMATED_IMAGE_TYPES.has(type) ? 'animated' : null;
   return null;
+}
+
+/**
+ * Short container label of one source file (`GIF`, `MP4`, `APNG` …) for the
+ * studio's format badge, or `''` when the type is unknown.
+ * @param file - picked/dropped/pasted file.
+ */
+export function dshmlMediaFormatLabel(file: File): string {
+  const type = dshmlMediaTypeOf(file);
+  const label = FORMAT_LABELS[type];
+  if (label !== undefined) return label;
+  // Unknown container: fall back to the raw extension, upper-cased.
+  const name = typeof file.name === 'string' ? file.name : '';
+  const dot = name.lastIndexOf('.');
+  const extension =
+    dot >= 0
+      ? name
+          .slice(dot + 1)
+          .trim()
+          .toUpperCase()
+      : '';
+  return extension.length > 0 && extension.length <= 5 ? extension : '';
 }
 
 /** Map any thrown value to a media error code, or null for a foreign error. */
@@ -189,8 +237,10 @@ function dshmlNearestFrame(timestamps: readonly number[], ms: number): number {
   return found;
 }
 
-/** Draw one decoded frame into a work canvas and close it immediately. */
-function dshmlPaintFrame(frame: DshmlDecodedFrame, target: HTMLCanvasElement, width: number, height: number): void {
+/** Draw one decoded frame into the target canvas (filling it) and close it. */
+function dshmlPaintFrame(frame: DshmlDecodedFrame, target: HTMLCanvasElement): void {
+  const width = Math.max(1, target.width);
+  const height = Math.max(1, target.height);
   try {
     const context = target.getContext('2d');
     if (context === null) throw new DshmlMediaError('decode-failed', 'canvas unavailable');
@@ -279,7 +329,6 @@ async function dshmlOpenAnimatedImage(file: File, isCancelled: (() => boolean) |
   const lastDelta = Math.max(1, last - beforeLast);
   durationUs = last + lastDelta;
   const work = dshmlWorkSize(width, height);
-  const previewUrl = URL.createObjectURL(file);
   let disposed = false;
   let chain: Promise<void> = Promise.resolve();
   const run = async (ms: number, target: HTMLCanvasElement): Promise<void> => {
@@ -295,7 +344,7 @@ async function dshmlOpenAnimatedImage(file: File, isCancelled: (() => boolean) |
       decoded.image.close();
       throw new DshmlMediaError('cancelled');
     }
-    dshmlPaintFrame(decoded.image, target, work.width, work.height);
+    dshmlPaintFrame(decoded.image, target);
   };
   return {
     kind: 'animated',
@@ -303,13 +352,15 @@ async function dshmlOpenAnimatedImage(file: File, isCancelled: (() => boolean) |
     width: work.width,
     height: work.height,
     frameCount: timestamps.length,
-    previewUrl,
     drawFrame(ms: number, target: HTMLCanvasElement): Promise<void> {
       chain = chain.then(
         () => run(ms, target),
         () => run(ms, target),
       );
       return chain;
+    },
+    frameKeyAt(ms: number): string {
+      return 'f' + String(dshmlNearestFrame(timestamps, ms));
     },
     dispose(): void {
       if (disposed) return;
@@ -319,7 +370,6 @@ async function dshmlOpenAnimatedImage(file: File, isCancelled: (() => boolean) |
       } catch {
         /* already closed */
       }
-      URL.revokeObjectURL(previewUrl);
     },
   };
 }
@@ -410,10 +460,12 @@ async function dshmlOpenVideo(file: File, isCancelled: (() => boolean) | undefin
     if (disposed) throw new DshmlMediaError('cancelled');
     const context = target.getContext('2d');
     if (context === null) throw new DshmlMediaError('decode-failed', 'canvas unavailable');
-    context.clearRect(0, 0, work.width, work.height);
+    const width = Math.max(1, target.width);
+    const height = Math.max(1, target.height);
+    context.clearRect(0, 0, width, height);
     context.imageSmoothingEnabled = true;
     context.imageSmoothingQuality = 'high';
-    context.drawImage(video, 0, 0, work.width, work.height);
+    context.drawImage(video, 0, 0, width, height);
   };
   return {
     kind: 'video',
@@ -421,13 +473,18 @@ async function dshmlOpenVideo(file: File, isCancelled: (() => boolean) | undefin
     width: work.width,
     height: work.height,
     frameCount: null,
-    previewUrl,
     drawFrame(ms: number, target: HTMLCanvasElement): Promise<void> {
       chain = chain.then(
         () => run(ms, target),
         () => run(ms, target),
       );
       return chain;
+    },
+    frameKeyAt(ms: number): string {
+      // A video cannot name its frames, so bucket the requested time into 10 ms
+      // windows: two samples of the same 30 fps frame then share one decode,
+      // and a different frame count still reuses what it can.
+      return 't' + String(Math.round(ms / 10));
     },
     dispose(): void {
       if (disposed) return;

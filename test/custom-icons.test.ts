@@ -13,6 +13,7 @@ import {
   DSHML_CUSTOM_MAX_POSTER,
   DSHML_CUSTOM_MAX_TOTAL_DATA_URL,
   dshmlBudgetPlan,
+  dshmlClampCropRect,
   dshmlCleanCustomName,
   dshmlCustomDataChars,
   dshmlCustomFitsTotalBudget,
@@ -229,6 +230,27 @@ describe('crop geometry', () => {
     expect(dshmlCropRect({ x: 0, y: 0, width: 10, height: 10 }, 0, 100)).toBe(null);
     expect(dshmlCropRect({ x: 0, y: 0, width: 10, height: 10 }, 100, Number.POSITIVE_INFINITY)).toBe(null);
   });
+
+  it('clamps the sampler source rectangle, which uses the sx/sy/sw/sh shape', () => {
+    // The sampler passes `DshmlCropPixels` around; the cropper reports
+    // `{ x, y, width, height }`. Reading the wrong shape silently discarded the
+    // crop and always sampled the centred square, so this pins the conversion.
+    expect(dshmlClampCropRect({ sx: 10.4, sy: 20.6, sw: 50.2, sh: 40.5 }, 100, 100)).toEqual({
+      sx: 10,
+      sy: 21,
+      sw: 50,
+      sh: 41,
+    });
+    expect(dshmlClampCropRect({ sx: 80, sy: 90, sw: 100, sh: 100 }, 100, 100)).toEqual({
+      sx: 80,
+      sy: 90,
+      sw: 20,
+      sh: 10,
+    });
+    expect(dshmlClampCropRect(null, 100, 100)).toBe(null);
+    expect(dshmlClampCropRect(undefined, 100, 100)).toBe(null);
+    expect(dshmlClampCropRect({ sx: 0, sy: 0, sw: 10, sh: 10 }, 100, 100)).toEqual({ sx: 0, sy: 0, sw: 10, sh: 10 });
+  });
 });
 
 describe('custom mark tile', () => {
@@ -331,8 +353,11 @@ describe('motion records', () => {
 
   it('gives the studio a three-state budget verdict', () => {
     const kb = 1024;
+    // 88% of a cap is where the meter turns amber: a savable payload at 84% of
+    // the atlas cap must read `ok`, not "nearly full".
     expect(dshmlBudgetPlan(40 * kb, 8 * kb)).toBe('ok');
-    expect(dshmlBudgetPlan(110 * kb, 8 * kb)).toBe('warn');
+    expect(dshmlBudgetPlan(110 * kb, 8 * kb)).toBe('ok');
+    expect(dshmlBudgetPlan(115 * kb, 8 * kb)).toBe('warn');
     expect(dshmlBudgetPlan(40 * kb, 30 * kb)).toBe('warn');
     expect(dshmlBudgetPlan(129 * kb, 8 * kb)).toBe('over');
     expect(dshmlBudgetPlan(40 * kb, 33 * kb)).toBe('over');
