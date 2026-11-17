@@ -308,6 +308,42 @@ export function dshmlCropRect(area: unknown, mediaWidth: unknown, mediaHeight: u
   return { sx, sy, sw, sh };
 }
 
+/** Lowest crop zoom: the image is fitted to the crop box, so 1 shows all of it. */
+export const DSHML_CROP_MIN_ZOOM = 1;
+
+/** The part of a wheel event the crop-zoom policy reads (so it is testable). */
+export interface DshmlWheelGesture {
+  deltaX: number;
+  deltaY: number;
+  ctrlKey: boolean;
+  metaKey: boolean;
+}
+
+/**
+ * Whether the crop viewport takes a wheel event for zoom, or leaves it to the
+ * dialog.
+ *
+ * A plain wheel over the crop box zooms — that is what a cropper is for, and
+ * what `react-easy-crop`'s `zoomWithScroll` promises. To keep the enclosing
+ * dialog scrollable, the gesture is handed back to the page once it is already
+ * pushing against the zoom limit it would move into: scrolling out of a 1× crop
+ * (or into a maxed-out one) scrolls the dialog instead of being swallowed.
+ * Ctrl / ⌘ + wheel and a trackpad pinch (which the browser reports as a
+ * `ctrlKey` wheel) always zoom: that gesture means zoom, and consuming it is
+ * also what stops the browser from zooming the whole page.
+ *
+ * @param gesture - wheel deltas and modifier keys.
+ * @param zoom - current crop zoom.
+ * @param maxZoom - highest zoom the cropper accepts.
+ * @returns true to zoom (and prevent the page default), false to let the page scroll.
+ */
+export function dshmlWheelZoomsCrop(gesture: DshmlWheelGesture, zoom: number, maxZoom: number): boolean {
+  if (gesture.ctrlKey || gesture.metaKey) return true;
+  const delta = gesture.deltaY !== 0 ? gesture.deltaY : gesture.deltaX;
+  if (!Number.isFinite(delta) || delta === 0) return false;
+  return delta < 0 ? zoom < maxZoom : zoom > DSHML_CROP_MIN_ZOOM;
+}
+
 /**
  * Clamp a source rectangle (`{sx, sy, sw, sh}`) into the media box.
  *

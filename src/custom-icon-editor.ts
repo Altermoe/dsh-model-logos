@@ -35,6 +35,7 @@ import {
   dshmlIsAcceptedImageType,
   dshmlIsCustomImageDataUrl,
   dshmlValidateCustomName,
+  dshmlWheelZoomsCrop,
 } from './custom-icons';
 import type { DshmlCustomNameProblem } from './custom-icons';
 import { DshmlMotionStudio } from './motion-studio';
@@ -99,19 +100,6 @@ const DSHML_ENCODE_TOO_BIG = 'dshml-custom-icon-too-big';
  * leaves most of the crop box empty.
  */
 const DSHML_CUSTOM_MAX_ZOOM = 5;
-
-/**
- * Wheel zoom is opt-in per gesture.
- *
- * `react-easy-crop` calls this before it touches the event: returning false
- * leaves the wheel to the page, so a plain wheel keeps scrolling the dialog and
- * only Ctrl / ⌘ + wheel (or a trackpad pinch, which the browser reports as a
- * `ctrlKey` wheel) zooms the crop. Returning true also lets the cropper
- * `preventDefault`, which is what stops the browser from zooming the whole page.
- */
-function dshmlZoomOnWheelOnly(event: WheelEvent): boolean {
-  return event.ctrlKey || event.metaKey;
-}
 
 /** Read a browser File as a data URL (the cropper accepts data URLs directly). */
 function dshmlReadFile(file: File): Promise<string> {
@@ -297,7 +285,9 @@ function DshmlCustomImagePanel(props: {
         showGrid: true,
         zoomSpeed: 0.5,
         zoomWithScroll: true,
-        onWheelRequest: dshmlZoomOnWheelOnly,
+        onWheelRequest: function onWheelRequest(event: WheelEvent): boolean {
+          return dshmlWheelZoomsCrop(event, props.zoom, DSHML_CUSTOM_MAX_ZOOM);
+        },
         restrictPosition: true,
         style: {},
         classes: {},
@@ -316,7 +306,7 @@ function DshmlCustomImagePanel(props: {
       {
         key: 'zoom',
         className: 'dshml-custom-zoom',
-        title: dshmlEditorCopy('picker.wheelZoom', 'Ctrl / ⌘ + wheel to zoom'),
+        title: dshmlEditorCopy('picker.wheelZoom', 'Wheel or pinch to zoom'),
       },
       [
         h('span', { key: 'label', className: 'dshml-custom-zoom-label' }, zoomLabel),

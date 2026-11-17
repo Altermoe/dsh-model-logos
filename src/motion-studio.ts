@@ -40,7 +40,7 @@ import type { Area, Point } from 'react-easy-crop';
 import { h, React } from './runtime';
 import { dshmlT } from './i18n';
 import type { CustomIconMotion } from './types';
-import { dshmlBudgetPlan, dshmlCropRect, dshmlPosterSvg } from './custom-icons';
+import { dshmlBudgetPlan, dshmlCropRect, dshmlPosterSvg, dshmlWheelZoomsCrop } from './custom-icons';
 import type { DshmlCropPixels } from './custom-icons';
 import {
   DSHML_MEDIA_ACCEPT,
@@ -387,11 +387,6 @@ interface DshmlCanvasProps {
 /** Highest crop zoom; the framing slider and the cropper must agree. */
 const DSHML_MOTION_MAX_ZOOM = 5;
 
-/** Wheel zoom is opt-in per gesture so the modal keeps its scroll wheel. */
-function dshmlZoomOnWheelOnly(event: WheelEvent): boolean {
-  return event.ctrlKey || event.metaKey;
-}
-
 /**
  * The stage, its mode switch and the transport: the one place the clip is
  * watched, framed and scrubbed.
@@ -449,10 +444,13 @@ function DshmlMotionCanvas(props: DshmlCanvasProps): ReactElement {
                 cropShape: 'rect',
                 showGrid: true,
                 zoomSpeed: 0.5,
-                // Ctrl / ⌘ + wheel (and a trackpad pinch, which reports ctrlKey)
-                // zooms; a plain wheel still scrolls the dialog.
+                // A plain wheel zooms the crop; the gesture is handed back to
+                // the modal once it pushes past a zoom limit, so the panel still
+                // scrolls. Ctrl / ⌘ + wheel and a trackpad pinch always zoom.
                 zoomWithScroll: true,
-                onWheelRequest: dshmlZoomOnWheelOnly,
+                onWheelRequest: function onWheelRequest(event: WheelEvent): boolean {
+                  return dshmlWheelZoomsCrop(event, props.zoom, DSHML_MOTION_MAX_ZOOM);
+                },
                 restrictPosition: true,
                 style: {},
                 classes: {},
@@ -485,7 +483,7 @@ function DshmlMotionCanvas(props: DshmlCanvasProps): ReactElement {
               {
                 key: 'zoom',
                 className: 'dshml-motion-zoom',
-                title: dshmlCopy('picker.wheelZoom', 'Ctrl / ⌘ + wheel to zoom'),
+                title: dshmlCopy('picker.wheelZoom', 'Wheel or pinch to zoom'),
               },
               [
                 h('span', { key: 'label', className: 'dshml-motion-zoom-label' }, zoomLabel),

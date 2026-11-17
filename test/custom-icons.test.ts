@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { CustomIconDocument } from '../src/types';
 import {
+  DSHML_CROP_MIN_ZOOM,
   DSHML_CUSTOM_MAX_DATA_URL,
   DSHML_CUSTOM_MAX_ICONS,
   DSHML_CUSTOM_MAX_NAME,
@@ -30,6 +31,7 @@ import {
   dshmlIsCustomImageDataUrl,
   dshmlNewCustomIconId,
   dshmlValidateCustomName,
+  dshmlWheelZoomsCrop,
 } from '../src/custom-icons';
 
 /** A minimal valid PNG data URL (content is irrelevant to the validators). */
@@ -250,6 +252,41 @@ describe('crop geometry', () => {
     expect(dshmlClampCropRect(null, 100, 100)).toBe(null);
     expect(dshmlClampCropRect(undefined, 100, 100)).toBe(null);
     expect(dshmlClampCropRect({ sx: 0, sy: 0, sw: 10, sh: 10 }, 100, 100)).toEqual({ sx: 0, sy: 0, sw: 10, sh: 10 });
+  });
+});
+
+describe('crop wheel zoom', () => {
+  /** One wheel gesture; deltas follow the DOM sign (negative = scroll up = zoom in). */
+  const gesture = (deltaY: number, modifiers: { ctrlKey?: boolean; metaKey?: boolean } = {}) => ({
+    deltaX: 0,
+    deltaY,
+    ctrlKey: modifiers.ctrlKey === true,
+    metaKey: modifiers.metaKey === true,
+  });
+
+  it('zooms on a plain wheel, which is what a cropper is for', () => {
+    // Both croppers previously gated the wheel on Ctrl / ⌘, so a plain wheel over
+    // the crop box did nothing at all.
+    expect(dshmlWheelZoomsCrop(gesture(-120), 1, 5)).toBe(true);
+    expect(dshmlWheelZoomsCrop(gesture(120), 3, 5)).toBe(true);
+  });
+
+  it('leaves the gesture to the dialog once the crop is at the limit it pushes against', () => {
+    expect(dshmlWheelZoomsCrop(gesture(120), DSHML_CROP_MIN_ZOOM, 5)).toBe(false);
+    expect(dshmlWheelZoomsCrop(gesture(-120), 5, 5)).toBe(false);
+    expect(dshmlWheelZoomsCrop(gesture(120), 1.02, 5)).toBe(true);
+  });
+
+  it('always consumes a pinch or an explicit modifier, so the page never zooms', () => {
+    expect(dshmlWheelZoomsCrop(gesture(120, { ctrlKey: true }), DSHML_CROP_MIN_ZOOM, 5)).toBe(true);
+    expect(dshmlWheelZoomsCrop(gesture(-120, { ctrlKey: true }), 5, 5)).toBe(true);
+    expect(dshmlWheelZoomsCrop(gesture(0, { metaKey: true }), 3, 5)).toBe(true);
+  });
+
+  it('falls back to the horizontal delta and ignores a delta-less event', () => {
+    expect(dshmlWheelZoomsCrop({ deltaX: -120, deltaY: 0, ctrlKey: false, metaKey: false }, 1, 5)).toBe(true);
+    expect(dshmlWheelZoomsCrop({ deltaX: 0, deltaY: 0, ctrlKey: false, metaKey: false }, 1, 5)).toBe(false);
+    expect(dshmlWheelZoomsCrop(gesture(Number.NaN), 1, 5)).toBe(false);
   });
 });
 

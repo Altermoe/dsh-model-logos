@@ -1161,6 +1161,32 @@ async function browserDriver(config: DriverConfig): Promise<void> {
     return node.closest<HTMLElement>('button, [role="option"], [role="menuitem"], [role="menuitemradio"], li') || node;
   }
 
+  /**
+   * Dispatch one wheel gesture at a node and report whether the page default was
+   * prevented — i.e. whether the crop consumed it to zoom instead of letting the
+   * dialog scroll. Deltas follow the DOM sign: negative scrolls up (zoom in).
+   */
+  function wheelCrop(target: Element, deltaY: number, modifiers: { ctrlKey?: boolean } = {}): boolean {
+    const event = new WheelEvent('wheel', {
+      deltaX: 0,
+      deltaY,
+      deltaMode: 0,
+      bubbles: true,
+      cancelable: true,
+      ctrlKey: modifiers.ctrlKey === true,
+    });
+    target.dispatchEvent(event);
+    return event.defaultPrevented;
+  }
+
+  /** Current zoom of a range slider, or null when it is not mounted. */
+  function zoomValue(selector: string, root: ParentNode | null): number | null {
+    const range = q<HTMLInputElement>(selector, root);
+    if (range === null) return null;
+    const value = Number(range.value);
+    return Number.isFinite(value) ? value : null;
+  }
+
   /** Write a controlled React input the way a real keystroke would. */
   function setInputValue(input: HTMLInputElement, value: string): void {
     const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
@@ -2732,7 +2758,47 @@ async function browserDriver(config: DriverConfig): Promise<void> {
         cropArea !== null,
         cropArea !== null ? describeNode(cropArea) : 'no .reactEasyCrop_CropArea inside .dshml-custom-cropper',
       );
+      // The wheel has to zoom the crop. It used to be gated on Ctrl / ⌘, so a
+      // plain wheel over the crop surface did nothing; the gesture now falls back
+      // to the dialog only when it is already at the zoom limit it pushes into.
+      const stillSurface = editor !== null ? q('.dshml-custom-cropper .reactEasyCrop_Container', editor) : null;
+      const stillScrollsAtMin =
+        stillSurface !== null
+          ? !wheelCrop(stillSurface, 120) && zoomValue('.dshml-custom-zoom-range', editor) === 1
+          : false;
+      const stillWheelConsumed = stillSurface !== null ? wheelCrop(stillSurface, -120) : false;
+      const stillWheelZoom = await waitFor(() => {
+        const value = zoomValue('.dshml-custom-zoom-range', editor);
+        return value !== null && value > 1.05 ? value : null;
+      }, 2000);
+      add(
+        'the wheel zooms the still cropper, and scrolling past its 1× floor reaches the dialog',
+        true,
+        stillWheelConsumed && stillWheelZoom !== null && stillScrollsAtMin,
+        'surface=' +
+          describeNode(stillSurface) +
+          ' consumed=' +
+          String(stillWheelConsumed) +
+          ' zoom=' +
+          String(stillWheelZoom) +
+          ' minScrolls=' +
+          String(stillScrollsAtMin),
+      );
+      const stillPinchConsumed = stillSurface !== null ? wheelCrop(stillSurface, -120, { ctrlKey: true }) : false;
+      add(
+        'a trackpad pinch (ctrlKey wheel) is always consumed, so the page never zooms instead',
+        true,
+        stillPinchConsumed,
+        'pinch consumed=' + String(stillPinchConsumed),
+      );
       const saveButton = editor !== null ? q<HTMLButtonElement>('.dshml-custom-btn-primary', editor) : null;
+      // Back to 1× so the saved crop keeps the framing the rest of the flow
+      // asserts against.
+      if (stillSurface !== null) {
+        wheelCrop(stillSurface, 120);
+        wheelCrop(stillSurface, 120);
+      }
+      await waitFor(() => zoomValue('.dshml-custom-zoom-range', editor) === 1, 2000);
       if (saveButton) clickable(saveButton).click();
       const createClosed = await waitFor(() => !customPicker.isConnected || !visible(customPicker), 8000);
       add(
@@ -3008,6 +3074,34 @@ async function browserDriver(config: DriverConfig): Promise<void> {
       if (sourceButton) clickable(sourceButton).click();
       const cropped = await waitFor(() => (stage !== null ? q('.reactEasyCrop_Container', stage) : null), 4000);
       const zoomPill = stage !== null ? q('.dshml-motion-zoom', stage) : null;
+      // The same wheel contract as the still cropper: zoom while there is room,
+      // hand the gesture back to the modal at the limit. Read while the source
+      // side is still up — switching to Result unmounts the cropper.
+      const motionScrollsAtMin =
+        cropped !== null ? !wheelCrop(cropped, 120) && zoomValue('.dshml-motion-zoom-range', stage) === 1 : false;
+      const motionWheelConsumed = cropped !== null ? wheelCrop(cropped, -120) : false;
+      const motionWheelZoom = await waitFor(() => {
+        const value = zoomValue('.dshml-motion-zoom-range', stage);
+        return value !== null && value > 1.05 ? value : null;
+      }, 2000);
+      add(
+        'the wheel zooms the motion stage crop, and scrolling past its 1× floor reaches the modal',
+        true,
+        motionWheelConsumed && motionWheelZoom !== null && motionScrollsAtMin,
+        'surface=' +
+          describeNode(cropped) +
+          ' consumed=' +
+          String(motionWheelConsumed) +
+          ' zoom=' +
+          String(motionWheelZoom) +
+          ' minScrolls=' +
+          String(motionScrollsAtMin),
+      );
+      if (cropped !== null) {
+        wheelCrop(cropped, 120);
+        wheelCrop(cropped, 120);
+      }
+      await waitFor(() => zoomValue('.dshml-motion-zoom-range', stage) === 1, 2000);
       if (resultButton) clickable(resultButton).click();
       const baked = await waitFor(() => (stage !== null ? q('canvas.dshml-motion-canvas', stage) : null), 4000);
       add(
