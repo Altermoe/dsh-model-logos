@@ -295,14 +295,24 @@ export function dshmlEffectiveFps(range: DshmlMotionRange, count: number): numbe
 }
 
 /**
- * Initial frame count for one range: 12 fps, bounded to 4–24 (and never more
- * than the range can justify).
+ * Initial frame count for one range: 12 fps by default, clipped to the source's
+ * own frame rate when it is known (D3), and always bounded to 4–24.
+ *
+ * The rate is capped by {@link DSHML_MOTION_MAX_SAMPLE_FPS}: sampling a 60 fps
+ * source 60 times per second at 128 px stores noise. A slow source (say a 6 fps
+ * video) starts on its own frame count instead of being padded to the heuristic,
+ * so the studio does not seek for every stored frame twice.
  * @param range - sampling range in milliseconds.
+ * @param sourceFrameRate - measured source frame rate, or null when unknown.
  */
-export function dshmlInitialFrameCount(range: DshmlMotionRange): number {
+export function dshmlInitialFrameCount(range: DshmlMotionRange, sourceFrameRate?: number | null): number {
   const seconds = (range.outMs - range.inMs) / 1000;
   if (!Number.isFinite(seconds) || seconds <= 0) return DSHML_MOTION_SAMPLE_MIN_FRAMES;
-  const frames = Math.round(seconds * DSHML_MOTION_INITIAL_FPS);
+  const rate =
+    typeof sourceFrameRate === 'number' && Number.isFinite(sourceFrameRate) && sourceFrameRate > 0
+      ? Math.min(sourceFrameRate, DSHML_MOTION_MAX_SAMPLE_FPS)
+      : DSHML_MOTION_INITIAL_FPS;
+  const frames = Math.round(seconds * rate);
   return Math.min(DSHML_MOTION_MAX_FRAMES, Math.max(DSHML_MOTION_SAMPLE_MIN_FRAMES, frames));
 }
 

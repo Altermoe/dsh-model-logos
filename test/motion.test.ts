@@ -76,6 +76,11 @@ describe('initial frame count', () => {
     expect(dshmlInitialFrameCount({ inMs: 0, outMs: 1500 })).toBe(18);
     expect(dshmlInitialFrameCount({ inMs: 0, outMs: 2000 })).toBe(DSHML_MOTION_MAX_FRAMES);
     expect(dshmlInitialFrameCount({ inMs: 0, outMs: 10_000 })).toBe(DSHML_MOTION_MAX_FRAMES);
+    // D3: a measured source rate clips the heuristic, still inside the 4–24 cap.
+    expect(dshmlInitialFrameCount({ inMs: 0, outMs: 2000 }, 5)).toBe(10);
+    expect(dshmlInitialFrameCount({ inMs: 0, outMs: 2000 }, 30)).toBe(DSHML_MOTION_MAX_FRAMES);
+    expect(dshmlInitialFrameCount({ inMs: 0, outMs: 200 }, 5)).toBe(DSHML_MOTION_SAMPLE_MIN_FRAMES);
+    expect(dshmlInitialFrameCount({ inMs: 0, outMs: 1500 }, null)).toBe(18);
     expect(dshmlInitialFrameCount({ inMs: 0, outMs: 0 })).toBe(DSHML_MOTION_SAMPLE_MIN_FRAMES);
   });
 });

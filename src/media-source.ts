@@ -61,6 +61,13 @@ export interface DshmlMediaSource {
   /** Animated images only; videos report null. */
   frameCount: number | null;
   /**
+   * Source frame rate when it is known: animated images derive it from their
+   * frame timestamps, videos from a short muted playback probe. Null when the
+   * engine cannot present frames to `requestVideoFrameCallback`, so callers fall
+   * back to the studio's own sampling heuristic instead of guessing.
+   */
+  frameRate: number | null;
+  /**
    * Draw the frame at `ms` into `target`, filling it. The target may be smaller
    * than the work canvas: the sampler decodes into its own bounded cache.
    */
@@ -217,6 +224,107 @@ function dshmlWorkSize(width: number, height: number): { width: number; height: 
   return { width: Math.max(1, Math.round(w * scale)), height: Math.max(1, Math.round(h * scale)) };
 }
 
+/**
+ * Frames per second described by consecutive presentation times, or null when
+ * the sample is too small / too irregular to trust.
+ *
+ * The median delta ignores a dropped frame at either end of a short probe; the
+ * result is rounded to two decimals so it can end up in the settings document
+ * when the studio derives a frame count from it.
+ * @param times - presentation times in seconds, in ascending order.
+ */
+export function dshmlFrameRateFromTimes(times: readonly number[]): number | null {
+  const deltas: number[] = [];
+  for (let index = 1; index < times.length; index += 1) {
+    const delta = (times[index] ?? 0) - (times[index - 1] ?? 0);
+    if (delta > 0.0005 && delta < 0.5) deltas.push(delta);
+  }
+  if (deltas.length === 0) return null;
+  const sorted = deltas.toSorted((left, right) => left - right);
+  const median = sorted[sorted.length >> 1] ?? 0;
+  if (!(median > 0)) return null;
+  const fps = 1 / median;
+  if (!Number.isFinite(fps)) return null;
+  return Math.round(Math.min(60, Math.max(1, fps)) * 100) / 100;
+}
+
+/** Presentation times the probe wants before trusting the rate. */
+const DSHML_FRAME_RATE_SAMPLES = 5;
+
+/** Upper bound on the muted playback probe (a slow source must not stall import). */
+const DSHML_FRAME_RATE_TIMEOUT_MS = 900;
+
+/**
+ * Measure a video's source frame rate by playing a few muted frames.
+ *
+ * A detached, muted video still presents frames to `requestVideoFrameCallback` in
+ * Chromium (measured), so the probe needs no DOM insertion and no user gesture.
+ * Its whole point is D3: a video that reports 6 fps must not be sampled 24 times
+ * for a two-second window. Every failure mode (no callback API, play blocked,
+ * no frame inside the timeout) returns null and leaves the old heuristic path in
+ * place, so an engine that cannot present a detached video merely loses the
+ * optimisation.
+ * @param video - detached video element with metadata loaded.
+ * @param isCancelled - polled once before playing.
+ */
+async function dshmlProbeFrameRate(
+  video: HTMLVideoElement,
+  isCancelled: (() => boolean) | undefined,
+): Promise<number | null> {
+  if (isCancelled !== undefined && isCancelled()) return null;
+  if (typeof video.requestVideoFrameCallback !== 'function') return null;
+  return new Promise<number | null>(function executor(resolve) {
+    const times: number[] = [];
+    let handle = 0;
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const finish = function finish(value: number | null): void {
+      if (settled) return;
+      settled = true;
+      if (timer !== null) clearTimeout(timer);
+      try {
+        video.cancelVideoFrameCallback?.(handle);
+      } catch {
+        /* the callback may already have run */
+      }
+      try {
+        video.pause();
+      } catch {
+        /* detached element */
+      }
+      resolve(value);
+    };
+    const onFrame = function onFrame(_now: number, metadata: VideoFrameCallbackMetadata): void {
+      if (settled) return;
+      times.push(metadata.mediaTime);
+      if (times.length >= DSHML_FRAME_RATE_SAMPLES) {
+        finish(dshmlFrameRateFromTimes(times));
+        return;
+      }
+      handle = video.requestVideoFrameCallback(onFrame);
+    };
+    timer = setTimeout(function onTimeout() {
+      finish(dshmlFrameRateFromTimes(times));
+    }, DSHML_FRAME_RATE_TIMEOUT_MS);
+    try {
+      video.currentTime = 0;
+    } catch {
+      /* metadata is loaded, so this should not throw */
+    }
+    try {
+      handle = video.requestVideoFrameCallback(onFrame);
+      const started = video.play();
+      if (started !== undefined && started !== null && typeof started.catch === 'function') {
+        started.catch(function onPlayBlocked() {
+          finish(dshmlFrameRateFromTimes(times));
+        });
+      }
+    } catch {
+      finish(null);
+    }
+  });
+}
+
 /** The source frame whose timestamp is nearest but not after `ms`. */
 function dshmlNearestFrame(timestamps: readonly number[], ms: number): number {
   if (timestamps.length === 0) return 0;
@@ -329,6 +437,8 @@ async function dshmlOpenAnimatedImage(file: File, isCancelled: (() => boolean) |
   const lastDelta = Math.max(1, last - beforeLast);
   durationUs = last + lastDelta;
   const work = dshmlWorkSize(width, height);
+  // Animated frames carry exact presentation times, so the rate is free here.
+  const frameRate = dshmlFrameRateFromTimes(timestamps.map((stamp) => stamp / 1_000_000));
   let disposed = false;
   let chain: Promise<void> = Promise.resolve();
   const run = async (ms: number, target: HTMLCanvasElement): Promise<void> => {
@@ -352,6 +462,7 @@ async function dshmlOpenAnimatedImage(file: File, isCancelled: (() => boolean) |
     width: work.width,
     height: work.height,
     frameCount: timestamps.length,
+    frameRate,
     drawFrame(ms: number, target: HTMLCanvasElement): Promise<void> {
       chain = chain.then(
         () => run(ms, target),
@@ -441,6 +552,16 @@ async function dshmlOpenVideo(file: File, isCancelled: (() => boolean) | undefin
     throw new DshmlMediaError('decode-failed', 'no metadata');
   }
   const work = dshmlWorkSize(video.videoWidth, video.videoHeight);
+  // D3: a low-frame-rate video is sampled at its own rate instead of being padded
+  // out to the 12 fps heuristic. The probe pauses again before returning; the
+  // first drawFrame below seeks from scratch because `lastSeek` starts NaN.
+  const frameRate = await dshmlProbeFrameRate(video, isCancelled);
+  if (isCancelled !== undefined && isCancelled()) {
+    video.removeAttribute('src');
+    video.load();
+    URL.revokeObjectURL(previewUrl);
+    throw new DshmlMediaError('cancelled');
+  }
   let disposed = false;
   let chain: Promise<void> = Promise.resolve();
   let lastSeek = Number.NaN;
@@ -473,6 +594,7 @@ async function dshmlOpenVideo(file: File, isCancelled: (() => boolean) | undefin
     width: work.width,
     height: work.height,
     frameCount: null,
+    frameRate,
     drawFrame(ms: number, target: HTMLCanvasElement): Promise<void> {
       chain = chain.then(
         () => run(ms, target),
@@ -481,9 +603,12 @@ async function dshmlOpenVideo(file: File, isCancelled: (() => boolean) | undefin
       return chain;
     },
     frameKeyAt(ms: number): string {
-      // A video cannot name its frames, so bucket the requested time into 10 ms
-      // windows: two samples of the same 30 fps frame then share one decode,
-      // and a different frame count still reuses what it can.
+      // A video cannot name its frames. When the probe measured the source rate,
+      // bucket the requested time onto that frame grid (D3): a low-rate video then
+      // maps several requested samples onto one seek instead of one 10 ms bucket
+      // each, which is what the sampling cache keys on. Without a measurement the
+      // old 10 ms windows still share decodes between neighbouring samples.
+      if (frameRate !== null && frameRate > 0) return 'f' + String(Math.round((ms / 1000) * frameRate));
       return 't' + String(Math.round(ms / 10));
     },
     dispose(): void {
