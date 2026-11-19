@@ -15,7 +15,7 @@
  *   decode  (source.drawFrame)  keyed by the source frame identity
  *   crop    (drawImage → 128px) keyed by the sampling window + crop rectangle
  *   compose (atlas strip)       keyed by the cropped frames + frame edge
- *   encode  (toDataURL)         keyed by the atlas + quality
+ *   encode  (async WebP)        keyed by the atlas + quality
  *
  * Dragging the crop box therefore re-runs crop → compose → encode, never a
  * decode; changing the frame edge only re-composes; changing the quality only
@@ -33,6 +33,7 @@ import {
   dshmlClampCropRect,
 } from './custom-icons';
 import type { DshmlBudgetVerdict, DshmlCropPixels } from './custom-icons';
+import { dshmlEncodeCanvasDataUrl } from './canvas-encode';
 import { DshmlMediaError } from './media-source';
 import type { DshmlMediaSource } from './media-source';
 import {
@@ -278,7 +279,10 @@ async function dshmlRenderFrames(
     const frame = document.createElement('canvas');
     frame.width = RENDER_PX;
     frame.height = RENDER_PX;
-    const context = frame.getContext('2d');
+    // D2: these 128 px frames are painted once and then only read by the
+    // distinct-frame check. A CPU-backed context avoids a GPU→CPU readback for
+    // every `getImageData` on a composited canvas.
+    const context = frame.getContext('2d', { willReadFrequently: true });
     if (context === null) throw new DshmlMediaError('decode-failed', 'canvas unavailable');
     context.imageSmoothingEnabled = true;
     context.imageSmoothingQuality = 'high';
@@ -341,33 +345,33 @@ function dshmlAtlasCanvas(
   return { atlas, key };
 }
 
-/** Encode one canvas as WebP, falling back to PNG when the quality argument is ignored. */
-function dshmlEncodeCanvas(canvas: HTMLCanvasElement, quality: number): DshmlEncodedChunk {
-  let data = canvas.toDataURL('image/webp', quality);
-  if (!data.startsWith('data:image/webp;base64,')) data = canvas.toDataURL('image/png');
-  return { data, chars: data.length };
-}
-
-/** The encoded atlas of one canvas at one quality, from the cache when possible. */
-function dshmlEncodedAtlas(
+/**
+ * The encoded atlas of one canvas at one quality, from the cache when possible.
+ *
+ * The encode itself is asynchronous (worker / `toBlob`, see
+ * `src/canvas-encode.ts`): the composed atlas and the encoded cache entry are
+ * separate, so a quality-only change still re-encodes without recomposing.
+ */
+async function dshmlEncodedAtlas(
   cache: DshmlSampleCache,
   atlasKey: string,
   atlas: HTMLCanvasElement,
   quality: number,
-): DshmlEncodedChunk {
+): Promise<DshmlEncodedChunk> {
   const key = atlasKey + '|' + quality;
   const cached = dshmlRecall(cache.encoded, key);
   if (cached !== undefined) return cached;
-  return dshmlRemember(cache.encoded, key, dshmlEncodeCanvas(atlas, quality), ENCODE_CACHE_LIMIT);
+  const encoded = await dshmlEncodeCanvasDataUrl(atlas, quality);
+  return dshmlRemember(cache.encoded, key, encoded, ENCODE_CACHE_LIMIT);
 }
 
 /** Encode the poster, lowering WebP quality until it fits the 32 KiB cap. */
-function dshmlEncodePoster(frame: HTMLCanvasElement): DshmlEncodedPoster {
-  let best = dshmlEncodeCanvas(frame, POSTER_QUALITIES[0] ?? 0.8);
+async function dshmlEncodePoster(frame: HTMLCanvasElement): Promise<DshmlEncodedPoster> {
+  let best = await dshmlEncodeCanvasDataUrl(frame, POSTER_QUALITIES[0] ?? 0.8);
   let quality = POSTER_QUALITIES[0] ?? 0.8;
   if (best.chars <= DSHML_CUSTOM_MAX_POSTER) return { ...best, quality };
   for (const candidate of POSTER_QUALITIES.slice(1)) {
-    const encoded = dshmlEncodeCanvas(frame, candidate);
+    const encoded = await dshmlEncodeCanvasDataUrl(frame, candidate);
     quality = candidate;
     best = encoded;
     if (encoded.chars <= DSHML_CUSTOM_MAX_POSTER) break;
@@ -376,38 +380,63 @@ function dshmlEncodePoster(frame: HTMLCanvasElement): DshmlEncodedPoster {
 }
 
 /** The poster of one cropped frame set, from the cache when possible. */
-function dshmlPoster(cache: DshmlSampleCache, cropKey: string, frames: DshmlFrameSet): DshmlEncodedPoster {
+async function dshmlPoster(
+  cache: DshmlSampleCache,
+  cropKey: string,
+  frames: DshmlFrameSet,
+): Promise<DshmlEncodedPoster> {
   const cached = dshmlRecall(cache.posters, cropKey);
   if (cached !== undefined) return cached;
   const first = frames.frames[0];
   if (first === undefined) throw new DshmlMediaError('no-frames');
-  return dshmlRemember(cache.posters, cropKey, dshmlEncodePoster(first), CROP_CACHE_LIMIT);
+  const encoded = await dshmlEncodePoster(first);
+  return dshmlRemember(cache.posters, cropKey, encoded, CROP_CACHE_LIMIT);
 }
 
-/** Whether two rendered frames differ (a sampled frame may repeat a source one). */
-function dshmlFramesDiffer(left: HTMLCanvasElement, right: HTMLCanvasElement): boolean {
-  const leftContext = left.getContext('2d');
-  const rightContext = right.getContext('2d');
-  if (leftContext === null || rightContext === null) return true;
-  const a = leftContext.getImageData(0, 0, left.width, left.height).data;
-  const b = rightContext.getImageData(0, 0, right.width, right.height).data;
-  if (a.length !== b.length) return true;
+/** Whether two same-length pixel buffers describe different frames. */
+function dshmlPixelsDiffer(left: Uint8ClampedArray, right: Uint8ClampedArray): boolean {
+  if (left.length !== right.length) return true;
   // Sampling every 7th pixel (4 channels each) is enough to spot a duplicated
   // source frame without scanning 24 × 128² pixels on every debounce.
-  for (let index = 0; index < a.length; index += 28) {
-    if (a[index] !== b[index] || a[index + 1] !== b[index + 1] || a[index + 2] !== b[index + 2]) return true;
+  for (let index = 0; index < left.length; index += 28) {
+    if (left[index] !== right[index] || left[index + 1] !== right[index + 1] || left[index + 2] !== right[index + 2]) {
+      return true;
+    }
   }
   return false;
 }
 
-/** Count adjacent-render differences in one sampled sequence. */
+/** One frame's pixels, or null when the canvas has no 2D context. */
+function dshmlFramePixels(frame: HTMLCanvasElement): Uint8ClampedArray | null {
+  const context = frame.getContext('2d');
+  if (context === null) return null;
+  return context.getImageData(0, 0, frame.width, frame.height).data;
+}
+
+/**
+ * Count adjacent-render differences in one sampled sequence.
+ *
+ * D1: the previous pairwise walk read both sides of every pair — 46
+ * `getImageData` calls and 46 × 64 KB allocations for 24 frames. Walking in one
+ * direction keeps the previous frame's pixels and reads each frame once (24
+ * reads, ~1.5 MB), which is half the readback cost on a GPU-composited canvas.
+ * The sampled pixel stride (every 7th pixel) and the result are unchanged.
+ */
 function dshmlDistinctFrames(frames: readonly HTMLCanvasElement[]): number {
   if (frames.length === 0) return 0;
+  const first = frames[0];
+  if (first === undefined) return 0;
+  let previous = dshmlFramePixels(first);
   let distinct = 1;
   for (let index = 1; index < frames.length; index += 1) {
-    const previous = frames[index - 1];
     const current = frames[index];
-    if (previous !== undefined && current !== undefined && dshmlFramesDiffer(previous, current)) distinct += 1;
+    if (current === undefined) continue;
+    const pixels = dshmlFramePixels(current);
+    // A canvas without a context cannot be compared: treat it as different, which
+    // is what the pairwise implementation did.
+    if (previous === null || pixels === null) distinct += 1;
+    else if (dshmlPixelsDiffer(previous, pixels)) distinct += 1;
+    previous = pixels;
   }
   return distinct;
 }
@@ -435,15 +464,15 @@ function dshmlCheckOptions(source: DshmlMediaSource, options: DshmlEncodeOptions
 }
 
 /** Encode one already-cropped frame set at one quality/frame edge. */
-function dshmlEncodeAttempt(
+async function dshmlEncodeAttempt(
   cache: DshmlSampleCache,
   options: DshmlEncodeOptions,
   frames: DshmlFrameSet,
   cropKey: string,
-): DshmlEncodedMotion {
+): Promise<DshmlEncodedMotion> {
   const { atlas, key } = dshmlAtlasCanvas(cache, cropKey, frames, options.frameWidth);
-  const encodedAtlas = dshmlEncodedAtlas(cache, key, atlas, options.quality);
-  const poster = dshmlPoster(cache, cropKey, frames);
+  const encodedAtlas = await dshmlEncodedAtlas(cache, key, atlas, options.quality);
+  const poster = await dshmlPoster(cache, cropKey, frames);
   return {
     atlas: encodedAtlas.data,
     poster: poster.data,
@@ -480,7 +509,7 @@ export async function dshmlEncodeMotionIcon(
   const store = dshmlSampleCacheFor(source, cache);
   const crop = dshmlMotionCrop(source, options.crop);
   const { frames, key } = await dshmlCroppedFrames(store, options, crop, progress, isCancelled);
-  return dshmlEncodeAttempt(store, options, frames, key);
+  return await dshmlEncodeAttempt(store, options, frames, key);
 }
 
 /**
@@ -523,7 +552,7 @@ export async function dshmlFitMotionBudget(
     : [options.quality, ...DSHML_MOTION_QUALITY_LADDER];
   let last: DshmlEncodedMotion | null = null;
   for (const quality of qualityLadder) {
-    last = dshmlEncodeAttempt(store, { ...options, quality }, first.frames, first.key);
+    last = await dshmlEncodeAttempt(store, { ...options, quality }, first.frames, first.key);
     if (last.verdict !== 'over') {
       record('quality', options.quality, quality);
       return { encoded: last, changes };
@@ -535,7 +564,7 @@ export async function dshmlFitMotionBudget(
   const currentWidth = Math.min(options.frameWidth, DSHML_MOTION_DEFAULT_FRAME_WIDTH);
   for (let frames = options.frames - 2; frames >= 4; frames -= 2) {
     const rendered = await getFrames(frames);
-    last = dshmlEncodeAttempt(
+    last = await dshmlEncodeAttempt(
       store,
       { ...options, frames, frameWidth: currentWidth, quality: DSHML_MOTION_SLIM_QUALITY },
       rendered.frames,
@@ -552,7 +581,7 @@ export async function dshmlFitMotionBudget(
   const smallest = await getFrames(4);
   for (const frameWidth of DSHML_MOTION_FRAME_PX_LADDER) {
     if (frameWidth >= currentWidth) continue;
-    last = dshmlEncodeAttempt(
+    last = await dshmlEncodeAttempt(
       store,
       { ...options, frames: 4, frameWidth, quality: DSHML_MOTION_SLIM_QUALITY },
       smallest.frames,
@@ -565,7 +594,7 @@ export async function dshmlFitMotionBudget(
   }
   record('size', currentWidth, DSHML_MOTION_FRAME_PX_LADDER[DSHML_MOTION_FRAME_PX_LADDER.length - 1] ?? 96);
   if (last === null) {
-    last = dshmlEncodeAttempt(
+    last = await dshmlEncodeAttempt(
       store,
       { ...options, frames: 4, frameWidth: 96, quality: DSHML_MOTION_SLIM_QUALITY },
       smallest.frames,

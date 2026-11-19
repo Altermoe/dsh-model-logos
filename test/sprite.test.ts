@@ -31,9 +31,10 @@ interface Counters {
   decode: number;
   draw: number;
   encode: number;
+  read: number;
 }
 
-let counters: Counters = { decode: 0, draw: 0, encode: 0 };
+let counters: Counters = { decode: 0, draw: 0, encode: 0, read: 0 };
 
 /** One 2D-context stub that records the draws it receives. */
 interface FakeContext {
@@ -80,6 +81,7 @@ function createCanvas(): FakeCanvas {
           if (image.width > 128 && canvas.width <= image.width) return;
         },
         getImageData: function getImageData(_x: number, _y: number, width: number, height: number) {
+          counters.read += 1;
           const data = new Uint8ClampedArray(width * height * 4);
           data[0] = canvas.ink & 0xff;
           data[1] = (canvas.ink >> 8) & 0xff;
@@ -121,6 +123,7 @@ function fakeSource(frames: number): DshmlMediaSource {
     width: 1024,
     height: 1024,
     frameCount: frames,
+    frameRate: frames,
     drawFrame: async function drawFrame(ms: number, target: HTMLCanvasElement) {
       counters.decode += 1;
       const canvas = target as unknown as FakeCanvas;
@@ -139,7 +142,7 @@ function options(frames: number, overrides: Partial<DshmlEncodeOptions> = {}): D
 }
 
 beforeEach(() => {
-  counters = { decode: 0, draw: 0, encode: 0 };
+  counters = { decode: 0, draw: 0, encode: 0, read: 0 };
   inkScale = 0.4;
   installCanvas();
 });
@@ -290,6 +293,14 @@ describe('decode resolution', () => {
 });
 
 describe('distinct frames', () => {
+  it('reads each rendered frame once, not twice per adjacent pair', async () => {
+    const source = fakeSource(24);
+    const cache = dshmlCreateSampleCache(source);
+    await dshmlEncodeMotionIcon(source, options(24), undefined, undefined, cache);
+    // D1: N frames = N getImageData reads (the old pairwise walk did 2(N−1)).
+    expect(counters.read).toBe(24);
+  });
+
   it('counts adjacent differences, not unique frames', async () => {
     const source = fakeSource(4);
     const cache = dshmlCreateSampleCache(source);
