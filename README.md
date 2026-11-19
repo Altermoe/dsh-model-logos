@@ -328,6 +328,11 @@ and continues once you approve), and resumes with `--from <step>` after a
 failure. Both honour `EDGE`, `DSH_WEB_URL` and the usual proxy variables from the
 environment.
 
+Both scripts are locked to `main`: the branch is a constant, not an option, and
+it is re-checked before every mutating step (commit, push, tag, publish, pack,
+GitHub release). `prepublishOnly` runs `pnpm run guard:release-branch` first, so
+even a bare `pnpm publish` from another branch is refused before the gate runs.
+
 The steps, if you prefer to run them by hand:
 
 ```sh

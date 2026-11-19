@@ -80,11 +80,12 @@ pnpm run verify:motion-perf
 pnpm exec tsx scripts/verify-motion-perf.ts --motion-gif /tmp/clip-1024.gif --json .preview/motion-perf.json
 ```
 
-Publishing is a manual step. `pnpm publish` triggers `prepublishOnly`, which runs
-the full `verify` gate before the tarball is built; `files` in `package.json`
-carries the generated `client.js` / `index.js`, so an npm install needs no local
-build. The account, 2FA and tag/release alignment are recorded in the Publishing
-section of `README.md`.
+Publishing is a manual step. `pnpm publish` triggers `prepublishOnly`, which first
+runs `scripts/publish-guard.ts` (the checkout must be `main`) and then the full
+`verify` gate before the tarball is built; `files` in `package.json` carries the
+generated `client.js` / `index.js`, so an npm install needs no local build. The
+account, 2FA and tag/release alignment are recorded in the Publishing section of
+`README.md`.
 
 `pnpm run release:dry-run` and `pnpm run release` are the interactive wrappers
 around that procedure (`scripts/release-dry-run.sh`, `scripts/release.sh`,
@@ -97,6 +98,13 @@ publish to finish and for the registry to serve the new version (npm may hold a
 moment in `Validating`). Neither script stores or reads a credential behind the
 tool's back — they use the publisher's own login, `NPM_TOKEN`, `gh`'s login,
 `GH_TOKEN`/`GITHUB_TOKEN`, or a token typed for that run only.
+
+Both wrappers are locked to `main`. The branch is a constant in
+`scripts/release-lib.sh` rather than an option, `require_release_branch`
+re-checks it before the commit, push, tag, publish, pack and GitHub release
+steps (so switching branches mid-run cannot publish the other branch), and
+`prepublishOnly` runs `scripts/publish-guard.ts` before the gate so even a bare
+`pnpm publish` off `main` fails.
 
 `client.js` and `index.js` are **generated, never committed**. They are written
 into the package root because the local DSH install loads the bundle from disk,

@@ -167,6 +167,11 @@ pnpm run release            # 门禁、发布提交、推送、tag、npm 发布�
 （脚本会打印授权链接，授权后继续），失败后可用 `--from <step>` 从指定步骤续跑。
 两者都尊重环境里的 `EDGE`、`DSH_WEB_URL` 与常规代理变量。
 
+两个脚本都锁定在 `main` 上：分支是常量而非选项，且在每个破坏性步骤（提交、推送、
+tag、发布、打包、GitHub release）前都会复查。`prepublishOnly` 会先执行
+`pnpm run guard:release-branch`，因此直接在其他分支上运行 `pnpm publish` 也会在门禁
+之前被拒绝。
+
 手动执行时等价于：
 
 ```sh

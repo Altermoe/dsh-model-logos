@@ -115,7 +115,8 @@ The declarations, for the record:
 
 Done in this tree (publication is prepared, not executed): `"private": true` is removed and
 `"publishConfig": { "access": "public" }` is declared (the name is unscoped, so that is
-optional). `"prepublishOnly": "pnpm run verify"` runs the full gate before every publish, and
+optional). `"prepublishOnly": "pnpm run guard:release-branch && pnpm run verify"` refuses any
+checkout that is not `main` and then runs the full gate before every publish, and
 the tarball carries the generated `client.js` / `index.js`, so an npm install needs no local
 build. The LICENSE file exists. Keep `pnpm-lock.yaml` untouched for these metadata-only fields:
 none of them change the dependency graph, so `pnpm install --frozen-lockfile` stays valid.
@@ -290,6 +291,9 @@ per `provider + model` override picker persisted in the DSH settings document.
   `version` field plus this record and the `docs/engineering.md` verification log; push `main`,
   tag `v<version>` on that commit, `pnpm publish --access public` (the `prepublishOnly` gate
   re-runs), then pack the same tree and attach it to the release with the SHA-256 in the notes.
+  Releases are cut from `main` only: the scripts treat the branch as a constant and re-check it
+  before every mutating step, and the `prepublishOnly` guard refuses a bare `pnpm publish`
+  elsewhere.
   The npm version, the tag and the asset must agree; a bump published from a later tree is not
   a release. A line whose version bump already sits in an earlier commit (0.7.0) still releases
   from the tagged commit: the release commit carries the record, and the tag, the npm version

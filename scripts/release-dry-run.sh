@@ -4,6 +4,7 @@
 # Runs the same preflight checks as scripts/release.sh, validates the npm and
 # GitHub credentials you choose, proves that the release asset packs, and prints
 # the exact plan. Nothing is committed, pushed, tagged, published or uploaded.
+# The release branch is locked to `main`; it is not an option.
 #
 # Credentials are never hardcoded: validation uses the tool's own login (pnpm /
 # gh), a token you export (NPM_TOKEN, GH_TOKEN or GITHUB_TOKEN), or one you type
@@ -16,7 +17,6 @@
 #                               when a GUI is reachable); off by default
 #   --live-url <url>            running DSH Web GUI for the live gate
 #   --timeout <sec>             npm visibility timeout the real run would use
-#   --branch <name>             expected branch (default main)
 #   -h, --help
 #
 # Exit codes: 0 = ready, 2 = blockers found, 1 = usage/environment error.
@@ -27,7 +27,6 @@ source "$(dirname -- "${BASH_SOURCE[0]}")/release-lib.sh"
 
 export GIT_TERMINAL_PROMPT=0
 
-EXPECTED_BRANCH=main
 GITHUB_MODE=""
 REPO_SLUG=""
 DO_NPM=1
@@ -40,7 +39,7 @@ BLOCKERS=()
 WARNINGS=()
 
 usage() {
-  sed -n '2,32p' "${BASH_SOURCE[0]}" | sed -E 's/^# ?//'
+  sed -n '/^# Usage:/,/^# Exit codes:/p' "${BASH_SOURCE[0]}" | sed -E 's/^# ?//'
 }
 
 while (($#)); do
@@ -52,7 +51,6 @@ while (($#)); do
     --gates) RUN_GATES=1; shift ;;
     --live-url) LIVE_URL=${2:-}; RUN_LIVE=1; shift 2 ;;
     --timeout) NPM_VISIBILITY_TIMEOUT=${2:-}; shift 2 ;;
-    --branch) EXPECTED_BRANCH=${2:-}; shift 2 ;;
     --) shift ;;
     -h | --help) usage; exit 0 ;;
     *) die "unknown option: $1 (use --help)" ;;
@@ -78,7 +76,7 @@ check_repository() {
 
   branch=$(git_current_branch)
   if [[ $branch != "$EXPECTED_BRANCH" ]]; then
-    blocker "on branch '$branch', expected '$EXPECTED_BRANCH'"
+    blocker "on branch '$branch'; releases are cut from '$EXPECTED_BRANCH' only"
   else
     ok "branch $branch"
   fi

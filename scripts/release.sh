@@ -25,7 +25,6 @@
 #   --live-url <url>   running DSH Web GUI for the live gate (defaults to
 #                      $DSH_WEB_URL when set)
 #   --timeout <sec>    how long to wait for npm to serve the version (default 900)
-#   --branch <name>    expected branch (default main)
 #   --message <text>   release commit subject
 #   --yes              skip confirmations (an interactive terminal is still
 #                      required for npm's 2FA authorization)
@@ -35,7 +34,6 @@
 
 source "$(dirname -- "${BASH_SOURCE[0]}")/release-lib.sh"
 
-EXPECTED_BRANCH=main
 ASSUME_YES=0
 RUN_GATES=1
 STOP_AFTER=""
@@ -67,7 +65,6 @@ Usage: bash scripts/release.sh [options]
   --notes <file>     use an existing release-notes file
   --live-url <url>   running DSH Web GUI for the live gate (defaults to $DSH_WEB_URL)
   --timeout <sec>    how long to wait for npm to serve the version (default 900)
-  --branch <name>    expected branch (default main)
   --message <text>   release commit subject
   --yes              skip confirmations (npm's 2FA authorization still needs a terminal)
   -h, --help
@@ -85,8 +82,7 @@ while (($#)); do
     --notes) NOTES_FILE=${2:-}; shift 2 ;;
     --live-url) LIVE_URL=${2:-}; shift 2 ;;
     --timeout) NPM_VISIBILITY_TIMEOUT=${2:-}; shift 2 ;;
-    --branch) EXPECTED_BRANCH=${2:-}; shift 2 ;;
-    --message) COMMIT_MESSAGE=${2:-}; shift 2 ;;
+      --message) COMMIT_MESSAGE=${2:-}; shift 2 ;;
     --yes) ASSUME_YES=1; shift ;;
     --) shift ;;
     -h | --help) usage; exit 0 ;;
@@ -154,12 +150,8 @@ need_commands() {
 }
 
 check_branch() {
-  local branch
-  branch=$(git_current_branch)
-  if [[ $branch != "$EXPECTED_BRANCH" ]]; then
-    die "on branch '$branch'; releases are cut from '$EXPECTED_BRANCH' (use --branch to override)"
-  fi
-  ok "branch $branch"
+  require_release_branch
+  ok "branch $EXPECTED_BRANCH"
 }
 
 check_remote_sync() {
@@ -270,6 +262,7 @@ check_lockfile_churn() {
 
 release_commit() {
   step "Release commit"
+  require_release_branch
   if ! git_tree_dirty; then
     ok "working tree is clean; nothing to commit"
     return 0
@@ -294,6 +287,7 @@ release_commit() {
 
 push_main() {
   step "Push $EXPECTED_BRANCH"
+  require_release_branch
   local ahead behind
   git_fetch_origin
   read -r ahead behind < <(git_sync_state)
@@ -316,6 +310,7 @@ push_main() {
 
 cut_tag() {
   step "Annotated tag $TAG"
+  require_release_branch
   [[ $(git_commit_of "origin/$EXPECTED_BRANCH") == "$(git rev-parse HEAD)" ]] ||
     die "push $EXPECTED_BRANCH before tagging (origin does not point at HEAD)"
   if git_tag_exists "$TAG"; then
@@ -341,6 +336,7 @@ cut_tag() {
 
 publish_npm() {
   step "Publish to $REGISTRY_HOST"
+  require_release_branch
   if npm_version_published; then
     ok "$PKG@$VERSION is already published"
     npm_read_dist
@@ -449,6 +445,7 @@ npm_cleanup_token() {
 # -------------------------------------------------------------------- pack --
 
 pack_asset() {
+  require_release_branch
   pack_release
   if npm_version_published; then
     compare_pack_with_registry
@@ -529,6 +526,7 @@ github_notes_file() {
 
 github_create_release() {
   step "GitHub release $TAG"
+  require_release_branch
   [[ -n $REPO_SLUG ]] || REPO_SLUG=$(github_repo_slug) || die "origin is not a GitHub remote"
   github_choose_auth
 

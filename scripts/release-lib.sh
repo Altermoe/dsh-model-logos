@@ -16,6 +16,12 @@ RELEASE_SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 REPO_ROOT=$(cd -- "$RELEASE_SCRIPT_DIR/.." && pwd -P)
 cd -- "$REPO_ROOT"
 
+# The one branch releases are cut from. Deliberately a constant and not an
+# option: a release that starts, or drifts, onto another branch must fail
+# instead of publishing that branch. scripts/publish-guard.ts mirrors this lock
+# for the npm entry point.
+EXPECTED_BRANCH=main
+
 # ------------------------------------------------------------------ output --
 
 if [[ -t 1 && -z ${NO_COLOR:-} ]]; then
@@ -123,7 +129,6 @@ init_release_context() {
   REGISTRY_HOST=${REGISTRY_URL#*://}
   REGISTRY_HOST=${REGISTRY_HOST%%/*}
 
-  EXPECTED_BRANCH=${EXPECTED_BRANCH:-main}
   RELEASE_TMPDIR=$(mktemp -d "${TMPDIR:-/tmp}/dshml-release.XXXXXX")
   TEMP_PROJECT_NPMRC=""
   GITHUB_HEADERS_FILE=""
@@ -146,6 +151,14 @@ release_cleanup() {
 # ---------------------------------------------------------------------- git --
 
 git_current_branch() { git rev-parse --abbrev-ref HEAD; }
+
+require_release_branch() {
+  local branch
+  branch=$(git_current_branch)
+  if [[ $branch != "$EXPECTED_BRANCH" ]]; then
+    die "releases are cut from '$EXPECTED_BRANCH' only, but the current branch is '$branch'; switch to '$EXPECTED_BRANCH' and re-run"
+  fi
+}
 
 git_tree_dirty() { [[ -n $(git status --porcelain --untracked-files=no) ]]; }
 
