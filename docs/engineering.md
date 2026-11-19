@@ -439,9 +439,10 @@ that recorded them, not from the current build.
 - The README preview set is generated from the current build, never hand-captured.
   `pnpm exec tsx scripts/verify-dom.ts --screenshot docs/preview-settings.png --open combobox`,
   `... --screenshot docs/preview-picker.png --open picker`,
-  `... --screenshot docs/preview-custom-icon.png --open custom`,
-  `... --screenshot docs/preview-motion-studio.png --open motion --motion-gif
-  docs/preview-motion-sample.gif` and
+  `... --screenshot docs/preview-custom-icon-demo.png --open custom --custom-image
+  docs/preview-custom-sample.webp --custom-zoom 2.57 --custom-focus 0.5185,0.5`,
+  `... --screenshot docs/preview-motion-studio-demo.png --open motion --motion-gif
+  docs/preview-motion-sample.gif --motion-pause` and
   `... --screenshot docs/preview-playback-settings.png --open playback` render the
   decorated Settings page, the icon picker, the custom-icon editor, the motion
   sampling studio and the per-surface playback group from the real generated
@@ -449,11 +450,21 @@ that recorded them, not from the current build.
   scripts/preview-logos.ts --only-set composer --scale 2 --out docs/preview-composer.png`
   renders the composer trigger and model-menu mock at the shipped 20px mark size;
   `pnpm exec tsx scripts/preview-logos.ts --out docs/preview.png` renders the artwork
-  sheet. `screenshots.json` lists the six shipped storefront screenshots;
-  `docs/preview-motion-sample.gif` is the committed studio source, not a storefront
-  shot. Motion screenshots are captured through CDP (`Page.captureScreenshot`) in
-  real time because `--screenshot` fires when its virtual-time budget expires, and
-  virtual time races ahead of the studio's asynchronous `ImageDecoder` work.
+  sheet. `screenshots.json` lists the six shipped storefront screenshots, with the
+  two artwork demos first; `docs/preview-custom-sample.webp` (a 900×900 crop of the
+  illustration) and `docs/preview-motion-sample.gif` (a 260×260 two-second crop of a
+  longer dance loop) are the committed editor sources, not storefront shots. Motion
+  screenshots are captured through CDP (`Page.captureScreenshot`) in real time
+  because `--screenshot` fires when its virtual-time budget expires, and virtual
+  time races ahead of the studio's asynchronous `ImageDecoder` work.
+- The preview commands above are deterministic, and the flags are what make them
+  so: `--custom-image` feeds real artwork through the editor's own `File` +
+  `DataTransfer` path, then `--custom-zoom` / `--custom-focus` set the zoom slider
+  and pan the crop centre with a synthetic mouse drag through react-easy-crop (a
+  failed frame discards the capture instead of shipping an empty editor);
+  `--motion-pause` parks the transport on the in point, and the screenshot driver
+  freezes every SVG SMIL loop (`pauseAnimations` + `setCurrentTime(0)`) before the
+  capture, so the same command documents the same frame of the sampled tile loop.
 - The navigation glyph is validated twice: `test/nav-icon.test.ts` pins its 16 px
   `currentColor` geometry, the percent-encoded mask URL and the row matcher
   (including the element-name case a real browser reports for SVG children), and

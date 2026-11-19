@@ -131,7 +131,7 @@ Cropping and framing use the MIT-licensed
 hand-rolled drag box. Limits: 40 custom icons, 24-character names and 12 MB source
 images; the whole custom-icon document is capped at 3 MiB.
 
-![Create a custom icon: type tabs, name, square crop and zoom](docs/preview-custom-icon.png)
+![Create a custom icon: type tabs, name, square crop and zoom](docs/preview-custom-icon-demo.png)
 
 Provider overrides live in `providerIcons`, model overrides in `modelIcons`, and
 user-created icons in `customIcons`, so none of them collide; a provider override
@@ -167,7 +167,8 @@ stores one horizontal sprite atlas next to the first-frame poster. Nothing is
 uploaded and nothing is fetched at runtime; like every other mark, the animation
 travels inside the settings document.
 
-The example below is a real nine-frame GIF. One canvas is the whole workspace: it
+The example below is a two-second crop of a longer dance GIF (20 frames at
+10 fps). One canvas is the whole workspace: it
 plays the sampled result, and **Source** swaps the same square for the crop surface
 over the playhead frame — the wheel (or a trackpad pinch) zooms the crop, and the
 gesture falls through to the dialog once the crop sits at its zoom limit. Dragging the
@@ -182,9 +183,9 @@ the sample is over budget, **Shrink automatically** walks a fixed quality →
 frame-count → frame-edge ladder, reports what it changed and offers one-click undo —
 the screenshot shows the result of that pass.
 
-![The example source: a nine-frame GIF looping inside a square tile](docs/preview-motion-sample.gif)
+![The example source: a two-second dance GIF crop looping inside a square tile](docs/preview-motion-sample.gif)
 
-![The motion sampling studio with that GIF loaded: the stage, the zoomable timeline, the sampled strip, true-size previews and the sticky size dock](docs/preview-motion-studio.png)
+![The motion sampling studio with that GIF loaded: the stage, the zoomable timeline, the sampled strip, true-size previews and the sticky size dock](docs/preview-motion-studio-demo.png)
 
 Playback is a per-surface decision, set at the bottom of the Model icons page: the
 composer label defaults to **always**, while Settings → Models, the Model icons

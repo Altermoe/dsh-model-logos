@@ -31,10 +31,15 @@
  *                                                                # decorated page screenshot
  *   pnpm exec tsx scripts/verify-dom.ts --screenshot docs/preview-settings.png --open picker
  *                                                                # ... with the picker modal open
- *   pnpm exec tsx scripts/verify-dom.ts --screenshot docs/preview-custom-icon.png --open custom
+ *   pnpm exec tsx scripts/verify-dom.ts --screenshot docs/preview-custom-icon-demo.png --open custom
  *                                                                # ... with the custom-icon editor open
- *   pnpm exec tsx scripts/verify-dom.ts --screenshot docs/preview-motion-studio.png --open motion \
+ *   pnpm exec tsx scripts/verify-dom.ts --screenshot docs/preview-custom-icon-demo.png --open custom \
+ *     --custom-image docs/preview-custom-sample.webp \
+ *     --custom-zoom 2.57 --custom-focus 0.5185,0.5              # ... with real artwork, framed
+ *   pnpm exec tsx scripts/verify-dom.ts --screenshot docs/preview-motion-studio-demo.png --open motion \
  *     --motion-gif docs/preview-motion-sample.gif                # ... sampling a committed GIF
+ *   pnpm exec tsx scripts/verify-dom.ts --screenshot docs/preview-motion-studio-demo.png --open motion \
+ *     --motion-gif docs/preview-motion-sample.gif --motion-pause # ... parked on the in point
  *   pnpm exec tsx scripts/verify-dom.ts --harness <path>         # keep the generated page
  *
  * Requires Edge (`EDGE` env var may point at msedge.exe).
@@ -42,7 +47,7 @@
 import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { basename, dirname, join, resolve } from 'node:path';
+import { basename, dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -74,6 +79,10 @@ const keptHarnessPath = valueAfter('--harness');
 const requireBuild = hasFlag('--require-build');
 const scale = Number(valueAfter('--scale') ?? 2) || 2;
 const motionGifPath = valueAfter('--motion-gif');
+const motionPause = hasFlag('--motion-pause');
+const customImagePath = valueAfter('--custom-image');
+const customZoomRaw = valueAfter('--custom-zoom');
+const customFocusRaw = valueAfter('--custom-focus');
 const perfJsonPath = valueAfter('--perf-json');
 
 /* -------------------------------------------------------------------------- */
@@ -112,6 +121,16 @@ interface DriverConfig {
   motionGifBase64?: string;
   /** File name shown by the motion studio for the injected GIF. */
   motionGifName?: string;
+  /** Park the studio on its in point before the `--open motion` capture, so the preview is reproducible. */
+  motionPauseToIn?: boolean;
+  /** Base64 of the real image `--custom-image` feeds the static editor. */
+  customImageBase64?: string;
+  /** File name and MIME type the injected custom image is decoded from. */
+  customImageName?: string;
+  customImageType?: string;
+  /** Cropper framing requested by `--custom-zoom` / `--custom-focus`, applied after the image loads. */
+  customZoom?: number;
+  customFocus?: { x: number; y: number };
 }
 
 /**
@@ -215,6 +234,15 @@ interface ScreenshotResult {
   decorated: DecoratedCounts;
   /** `--open motion` only: the studio finished sampling and produced a savable icon. */
   motionReady?: boolean;
+  /**
+   * `--open custom` only, when a real image or framing was requested: the injected
+   * image decoded and the requested zoom / pan actually landed on the cropper.
+   * A failed frame is reported so the run discards the capture instead of
+   * shipping a preview of an empty editor.
+   */
+  framingApplied?: boolean;
+  /** `--open motion` only, with `--motion-pause`: the transport really parked on the in point. */
+  motionPaused?: boolean;
   pageErrors: string[];
   consoleIssues: string[];
 }
@@ -1269,12 +1297,97 @@ async function browserDriver(config: DriverConfig): Promise<void> {
     return !!selected;
   }
 
+  /* ------------------------------ preview framing ------------------------------ */
+
+  /** A File built from the base64 a screenshot run injected for the static editor. */
+  function injectedImageFile(base64: string, name: string, type: string): File {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+    return new File([bytes], name, { type });
+  }
+
+  /** The translate() offsets react-easy-crop writes on its media element. */
+  function cropperOffset(image: HTMLImageElement | null): { x: number; y: number } | null {
+    if (image === null) return null;
+    const match = /translate\((-?[\d.]+)px, (-?[\d.]+)px\)/u.exec(image.style.transform || '');
+    if (match === null) return null;
+    const x = Number(match[1]);
+    const y = Number(match[2]);
+    return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
+  }
+
+  /**
+   * Frame the cropper on a normalized point of the image.
+   *
+   * The zoom slider is a controlled React range; `setInputValue` is the same
+   * path a keystroke takes. The pan is a real mousedown + mousemove on the
+   * `.reactEasyCrop_Container`, which is the only element the library listens
+   * on — a synthetic drag therefore runs through its own rAF, clamping and
+   * `onCropChange`, not through a state poke that the preview could not show.
+   * Returns whether the crop centre landed on the requested point.
+   */
+  async function frameCropper(
+    scope: ParentNode,
+    zoomSelector: string,
+    zoom: number,
+    focus: { x: number; y: number },
+  ): Promise<boolean> {
+    const container = q<HTMLElement>('.reactEasyCrop_Container', scope);
+    const image = q<HTMLImageElement>('.reactEasyCrop_Image', scope);
+    const area = q('.reactEasyCrop_CropArea', scope);
+    const zoomInput = q<HTMLInputElement>(zoomSelector, scope);
+    if (container === null || image === null || area === null || zoomInput === null) return false;
+    if (image.naturalWidth <= 0 || image.naturalHeight <= 0) return false;
+    setInputValue(zoomInput, String(zoom));
+    await sleep(150);
+    const rect = image.getBoundingClientRect();
+    const baseWidth = rect.width / zoom;
+    const baseHeight = rect.height / zoom;
+    if (!(baseWidth > 0) || !(baseHeight > 0)) return false;
+    const scale = baseWidth / image.naturalWidth;
+    if (!(scale > 0)) return false;
+    const target = {
+      x: (0.5 - focus.x) * image.naturalWidth * scale * zoom,
+      y: (0.5 - focus.y) * image.naturalHeight * scale * zoom,
+    };
+    const current = cropperOffset(image) ?? { x: 0, y: 0 };
+    const delta = { x: target.x - current.x, y: target.y - current.y };
+    const bounds = container.getBoundingClientRect();
+    const startX = bounds.left + bounds.width / 2;
+    const startY = bounds.top + bounds.height / 2;
+    container.dispatchEvent(
+      new MouseEvent('mousedown', { clientX: startX, clientY: startY, button: 0, bubbles: true, cancelable: true }),
+    );
+    // The library applies one drag step per animation frame; four steps keep the
+    // gesture readable in a trace and give each rAF a frame to run.
+    for (let step = 1; step <= 4; step += 1) {
+      document.dispatchEvent(
+        new MouseEvent('mousemove', {
+          clientX: startX + (delta.x * step) / 4,
+          clientY: startY + (delta.y * step) / 4,
+          bubbles: true,
+        }),
+      );
+      await sleep(40);
+    }
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    await sleep(150);
+    const landed = cropperOffset(image);
+    if (landed === null) return false;
+    return Math.abs(landed.x - target.x) <= 1.5 && Math.abs(landed.y - target.y) <= 1.5;
+  }
+
   /* -------------------------------- routing -------------------------------- */
 
   if (MODE === 'screenshot') {
     await waitFor(() => qa('[data-dshml-model-row]').length >= config.modelRows || vendorMarkers().length > 0, 6000);
     document.documentElement.setAttribute('data-dshml-screenshot', '1');
     await sleep(150);
+    /** Outcome of the injected-image framing, reported so a failed frame aborts the capture. */
+    let customFraming: boolean | undefined;
+    /** Outcome of `--motion-pause`, same reason. */
+    let motionPaused: boolean | undefined;
     if (OPEN === 'motion') {
       const style = document.createElement('style');
       style.id = 'dshml-motion-preview-style';
@@ -1335,29 +1448,55 @@ async function browserDriver(config: DriverConfig): Promise<void> {
       const fileInput = editor !== null ? q<HTMLInputElement>('.dshml-custom-file', editor) : null;
       if (nameInput) setInputValue(nameInput, '我的本地模型');
       if (fileInput) {
-        const canvas = document.createElement('canvas');
-        canvas.width = 128;
-        canvas.height = 96;
-        const context = canvas.getContext('2d');
-        if (context !== null) {
-          context.fillStyle = '#3b6ef0';
-          context.fillRect(0, 0, canvas.width, canvas.height);
-          context.fillStyle = '#ffffff';
-          context.beginPath();
-          context.arc(64, 48, 30, 0, Math.PI * 2);
-          context.fill();
-          context.fillStyle = '#3b6ef0';
-          context.beginPath();
-          context.arc(64, 48, 16, 0, Math.PI * 2);
-          context.fill();
+        let file: File | null = null;
+        if (config.customImageBase64 !== undefined) {
+          file = injectedImageFile(
+            config.customImageBase64,
+            config.customImageName ?? 'preview.png',
+            config.customImageType ?? 'image/png',
+          );
+        } else {
+          const canvas = document.createElement('canvas');
+          canvas.width = 128;
+          canvas.height = 96;
+          const context = canvas.getContext('2d');
+          if (context !== null) {
+            context.fillStyle = '#3b6ef0';
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            context.fillStyle = '#ffffff';
+            context.beginPath();
+            context.arc(64, 48, 30, 0, Math.PI * 2);
+            context.fill();
+            context.fillStyle = '#3b6ef0';
+            context.beginPath();
+            context.arc(64, 48, 16, 0, Math.PI * 2);
+            context.fill();
+          }
+          const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+          if (blob !== null) file = new File([blob], 'preview.png', { type: 'image/png' });
         }
-        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
-        if (blob !== null) {
+        if (file !== null) {
           const transfer = new DataTransfer();
-          transfer.items.add(new File([blob], 'preview.png', { type: 'image/png' }));
+          transfer.items.add(file);
           fileInput.files = transfer.files;
           fileInput.dispatchEvent(new Event('change', { bubbles: true }));
           await waitFor(() => (editor !== null ? q('.reactEasyCrop_CropArea', editor) : null), 4000);
+          if (config.customImageBase64 !== undefined && editor !== null) {
+            const decoded = await waitFor(() => {
+              const image = q<HTMLImageElement>('.dshml-custom-cropper .reactEasyCrop_Image', editor);
+              return image !== null && image.complete && image.naturalWidth > 0 ? image : null;
+            }, 4000);
+            if (decoded !== null && config.customZoom !== undefined) {
+              customFraming = await frameCropper(
+                editor,
+                '.dshml-custom-zoom-range',
+                config.customZoom,
+                config.customFocus ?? { x: 0.5, y: 0.5 },
+              );
+            } else {
+              customFraming = decoded !== null;
+            }
+          }
         }
       }
     } else if (OPEN === 'motion') {
@@ -1404,6 +1543,28 @@ async function browserDriver(config: DriverConfig): Promise<void> {
           return save !== null && save.disabled === false ? save : null;
         }, 30000);
       }
+      if (config.motionPauseToIn === true) {
+        // A live capture lands on whatever frame real time reached, so the same
+        // command could document an open-mouthed frame one run and a closed one
+        // the next. Park the transport on the in point: the screenshot then shows
+        // the first sampled frame every time, and the strip still shows the loop.
+        const transport = editor !== null ? qa<HTMLButtonElement>('.dshml-motion-transport button', editor) : [];
+        const toggle = transport[1] ?? null;
+        const pauseIcon = toggle !== null ? q<SVGPathElement>('path', toggle) : null;
+        if (toggle !== null && pauseIcon !== null && pauseIcon.getAttribute('d') === 'M8 5v14M16 5v14') {
+          toggle.click();
+          await sleep(120);
+        }
+        const toIn = transport[0] ?? null;
+        if (toIn !== null) toIn.click();
+        const parked = await waitFor(
+          () => (editor !== null && text(q('.dshml-motion-time', editor)).startsWith('0.00s') ? true : null),
+          3000,
+        );
+        motionPaused = parked === true;
+        // Let the paused draw land before the capture reads the canvas.
+        await sleep(250);
+      }
     } else if (OPEN === 'playback') {
       // The playback group lives on the plugin's own Model icons page; the
       // screenshot fixture only opens Settings → Models, so mount the real
@@ -1429,6 +1590,14 @@ async function browserDriver(config: DriverConfig): Promise<void> {
     // screenshot then shows the resting UI instead of an automation artifact.
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     await sleep(120);
+    // The true-size tiles loop through SMIL in real time (as does any playing
+    // mark on the playback preview), so the same command captured different
+    // frames from run to run. Park every SVG animation on time zero: the
+    // generated preview then documents one reproducible phase of the loop.
+    for (const svg of qa<SVGSVGElement>('svg')) {
+      svg.pauseAnimations();
+      svg.setCurrentTime(0);
+    }
     const motionEditor = OPEN === 'motion' ? q('.dshml-custom-editor') : null;
     const screenshotResult: ScreenshotResult = {
       mode: 'screenshot',
@@ -1449,6 +1618,8 @@ async function browserDriver(config: DriverConfig): Promise<void> {
               const save = q<HTMLButtonElement>('.dshml-custom-actions .dshml-custom-btn-primary', motionEditor);
               return save !== null && save.disabled === false;
             })(),
+      framingApplied: customFraming,
+      motionPaused,
       pageErrors,
       consoleIssues,
     };
@@ -5158,6 +5329,79 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  // `--custom-image` feeds real artwork into the static editor, so the storefront
+  // preview documents the cropper with a real picture instead of the synthetic
+  // tile. `--custom-zoom` / `--custom-focus` then reproduce the exact crop the
+  // preview shows — replaying the same commands regenerates the same frame.
+  let customImage: { base64: string; name: string; type: string } | null = null;
+  let customZoom: number | undefined;
+  let customFocus: { x: number; y: number } | undefined;
+  let customFrameRequested = false;
+  if (customImagePath !== null) {
+    if (screenshotPath === null || openMode !== 'custom') {
+      console.error('error: --custom-image only applies to --screenshot <path> --open custom');
+      process.exit(1);
+    }
+    const absolute = resolve(ROOT, customImagePath);
+    if (!existsSync(absolute)) {
+      console.error('error: missing custom preview image: ' + absolute);
+      process.exit(1);
+    }
+    const extension = extname(absolute).toLowerCase();
+    const type = extension === '.png' ? 'image/png' : extension === '.webp' ? 'image/webp' : null;
+    if (type === null) {
+      console.error('error: --custom-image must point at a PNG or WebP file: ' + absolute);
+      process.exit(1);
+    }
+    const bytes = readFileSync(absolute);
+    if (bytes.length > 12 * 1024 * 1024) {
+      console.error('error: --custom-image is larger than the editor accepts (12 MB): ' + absolute);
+      process.exit(1);
+    }
+    customImage = { base64: bytes.toString('base64'), name: basename(absolute), type };
+  }
+  if (customZoomRaw !== null) {
+    if (customImage === null) {
+      console.error('error: --custom-zoom requires --custom-image');
+      process.exit(1);
+    }
+    const zoomValue = Number(customZoomRaw);
+    if (!Number.isFinite(zoomValue) || zoomValue < 1 || zoomValue > 5) {
+      console.error('error: --custom-zoom must be between 1 and 5');
+      process.exit(1);
+    }
+    customZoom = zoomValue;
+    customFrameRequested = true;
+  }
+  if (customFocusRaw !== null) {
+    if (customImage === null) {
+      console.error('error: --custom-focus requires --custom-image');
+      process.exit(1);
+    }
+    const parts = customFocusRaw.split(',').map((part) => Number(part.trim()));
+    const [x, y] = parts;
+    if (
+      parts.length !== 2 ||
+      x === undefined ||
+      y === undefined ||
+      !Number.isFinite(x) ||
+      !Number.isFinite(y) ||
+      x < 0 ||
+      x > 1 ||
+      y < 0 ||
+      y > 1
+    ) {
+      console.error('error: --custom-focus must be two normalized coordinates, e.g. 0.52,0.34');
+      process.exit(1);
+    }
+    customFocus = { x, y };
+    customFrameRequested = true;
+  }
+  if (motionPause && (screenshotPath === null || openMode !== 'motion')) {
+    console.error('error: --motion-pause only applies to --screenshot <path> --open motion');
+    process.exit(1);
+  }
+
   const tmpDir = mkdtempSync(join(tmpdir(), 'dshml-verify-'));
   const edge = findEdge();
   const edgeArgsBase = [
@@ -5178,20 +5422,27 @@ async function main(): Promise<void> {
       const pngPath = resolve(ROOT, screenshotPath);
       mkdirSync(dirname(pngPath), { recursive: true });
       const query = '?mode=screenshot&open=' + encodeURIComponent(openMode);
+      const driverConfig: DriverConfig = { ...DRIVER_CONFIG };
+      if (motionSample !== null) {
+        driverConfig.motionGifBase64 = motionSample.base64;
+        driverConfig.motionGifName = motionSample.name;
+      }
+      if (motionPause) driverConfig.motionPauseToIn = true;
+      if (customImage !== null) {
+        driverConfig.customImageBase64 = customImage.base64;
+        driverConfig.customImageName = customImage.name;
+        driverConfig.customImageType = customImage.type;
+        if (customZoom !== undefined) driverConfig.customZoom = customZoom;
+        if (customFocus !== undefined) driverConfig.customFocus = customFocus;
+      }
       const driver =
-        motionSample !== null
-          ? driverSource({
-              ...DRIVER_CONFIG,
-              motionGifBase64: motionSample.base64,
-              motionGifName: motionSample.name,
-            })
-          : DRIVER_SOURCE;
+        motionSample !== null || motionPause || customImage !== null ? driverSource(driverConfig) : DRIVER_SOURCE;
       const harness = buildHarness(fixtureHtml, clientJs, extraStyle, driver);
       const harnessPath = join(tmpDir, 'settings-models-screenshot.html');
       writeFileSync(harnessPath, harness);
       const url = pathToFileURL(harnessPath).href + query;
       rmSync(pngPath, { force: true });
-      const width = openMode === 'motion' ? 960 : 1280;
+      const width = openMode === 'motion' || openMode === 'custom' ? 960 : 1280;
       // The viewports are sized so the dialog owns the frame: the motion studio
       // and the custom-icon editor shrank when the panels were merged, and a
       // needlessly tall window only added dimmed Settings page around them.
@@ -5203,7 +5454,7 @@ async function main(): Promise<void> {
             : openMode === 'picker'
               ? 1100
               : openMode === 'custom'
-                ? 820
+                ? 740
                 : 1500;
       const perfSink: { report?: Record<string, unknown> } | null = perfJsonPath !== null ? {} : null;
       let result: DriverResult | null = null;
@@ -5235,6 +5486,18 @@ async function main(): Promise<void> {
         if (openMode === 'motion' && result.motionReady !== true) {
           rmSync(pngPath, { force: true });
           console.error('error: the motion studio had not finished sampling; discarded the screenshot');
+          process.exit(1);
+        }
+        if (customFrameRequested && result.framingApplied !== true) {
+          rmSync(pngPath, { force: true });
+          console.error(
+            'error: the injected artwork was not decoded or did not reach its framing; discarded the screenshot',
+          );
+          process.exit(1);
+        }
+        if (motionPause && result.motionPaused !== true) {
+          rmSync(pngPath, { force: true });
+          console.error('error: the motion studio did not park on its in point; discarded the screenshot');
           process.exit(1);
         }
       }
