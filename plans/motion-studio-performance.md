@@ -35,7 +35,7 @@
 3. **采样防抖**：`sample` effect 在 `currentKey`（含 range）变化时立即 `setSampling(true)` 并挂 150ms 定时器（[`src/motion-studio.ts:1386`](../src/motion-studio.ts#L1386-L1433)、[`src/motion-studio.ts:1427`](../src/motion-studio.ts#L1427)），到点后 `dshmlEncodeMotionIcon`：
    - `range` 一变，crop 缓存键就变（[`src/sprite.ts:244`](../src/sprite.ts#L244-L246)），compose → encode 两层必然 miss；
    - 最后一个帧 `await` 之后，**同一个 continuation** 里同步执行：相邻帧去重（24 帧 = 46 次 `getImageData`，[`src/sprite.ts:388`](../src/sprite.ts#L388-L413)）→ 合成 atlas（[`src/sprite.ts:312`](../src/sprite.ts#L312-L327)）→ `canvas.toDataURL('image/webp')`（[`src/sprite.ts:344`](../src/sprite.ts#L344-L349)）→ poster 编码（[`src/sprite.ts:364`](../src/sprite.ts#L364-L376)）；
-   - 返回后 `setEncoded` 触发重渲染：真尺寸 tiles 每次 render 重拼内嵌 ~100KB atlas 的 SVG（`escapeXml` 扫整条 data URL，[`src/motion.ts:365`](../src/motion.ts#L365-L388)、[`src/artwork.ts:83`](../src/artwork.ts#L83-L88)、[`src/motion-studio.ts:922`](../src/motion-studio.ts#L922-L957)）；最多 24 个采样格各拼一份 `url(<atlas>)`（[`src/motion-studio.ts:865`](../src/motion-studio.ts#L865)）；舞台还要 `new Image()` 解码整条 atlas（[`src/motion-studio.ts:1473`](../src/motion-studio.ts#L1473-L1493)）；采样中每帧 `setProgress` 让整个 studio 再渲染一次（[`src/motion-studio.ts:1406`](../src/motion-studio.ts#L1406-L1408)）。
+   - 返回后 `setEncoded` 触发重渲染：真尺寸 tiles 每次 render 重拼内嵌 \~100KB atlas 的 SVG（`escapeXml` 扫整条 data URL，[`src/motion.ts:365`](../src/motion.ts#L365-L388)、[`src/artwork.ts:83`](../src/artwork.ts#L83-L88)、[`src/motion-studio.ts:922`](../src/motion-studio.ts#L922-L957)）；最多 24 个采样格各拼一份 `url(<atlas>)`（[`src/motion-studio.ts:865`](../src/motion-studio.ts#L865)）；舞台还要 `new Image()` 解码整条 atlas（[`src/motion-studio.ts:1473`](../src/motion-studio.ts#L1473-L1493)）；采样中每帧 `setProgress` 让整个 studio 再渲染一次（[`src/motion-studio.ts:1406`](../src/motion-studio.ts#L1406-L1408)）。
 4. 默认 2s 素材初始化就是 24 帧（`round(秒 × 12)`，[`src/motion.ts:302`](../src/motion.ts#L302-L307)、[`src/motion.ts:51`](../src/motion.ts#L51)、[`src/motion.ts:24`](../src/motion.ts#L24)），而拖 range 不会自动降帧数——所以每次拖动都在编码最大宽度的 atlas。
 5. 视频路径还有一层：`frameKeyAt` 按 10ms 桶（[`src/media-source.ts:483`](../src/media-source.ts#L483-L488)），时间窗一挪几乎全 miss，`drawFrame` 是单链串行 seek（[`src/media-source.ts:447`](../src/media-source.ts#L447-L469)、[`src/media-source.ts:476`](../src/media-source.ts#L476-L482)），每次拖动最多 24 次 seek；still 再 seek 一次。
 
@@ -61,7 +61,7 @@
 
 - Canvas2D 在 Windows/Edge 上通常由 GPU 合成；`toDataURL` / `getImageData` 需要 GPU→CPU 回读，代码里没有任何 `willReadFrequently`。本机是软件光栅，46 次 read 只要 3–9ms，真机可能贵一个数量级。
 - WebP 编码本身是 CPU 工作，1MP 的 still 与 `3072×128` 的 atlas 在慢一些的机器上会明显超过本机数字。
-- 拖动/采样期间大量 ~100KB 的 data URL 字符串参与构建、比较与 GC，机器越慢越容易被放大。
+- 拖动/采样期间大量 \~100KB 的 data URL 字符串参与构建、比较与 GC，机器越慢越容易被放大。
 - 视频素材的"卡"更多来自 async seek 排队（墙钟拉长），不是单个主线程长任务；两者在体感上混在一起。
 
 ---
@@ -150,7 +150,7 @@
 
 #### C2（P1）strip：一份 atlas URL 走 CSS 变量
 
-- **现状**：最多 24 个格子各自 `backgroundImage: 'url(' + atlas + ')'`（[`src/motion-studio.ts:865`](../src/motion-studio.ts#L865)），每次 render 拼 24 份 ~100KB 字符串并参与 style 比较。
+- **现状**：最多 24 个格子各自 `backgroundImage: 'url(' + atlas + ')'`（[`src/motion-studio.ts:865`](../src/motion-studio.ts#L865)），每次 render 拼 24 份 \~100KB 字符串并参与 style 比较。
 - **改法**：在 `.dshml-motion-strip` 容器上设一次自定义属性（`--dshml-atlas: url(...)`、`--dshml-atlas-size: <frames×44 px> 44px`），格子只保留 `background-position`；CSS 在 [`src/ui-css.ts:1844`](../src/ui-css.ts#L1844-L1856) 用 `background-image: var(--dshml-atlas)` / `background-size: var(--dshml-atlas-size)`。
 - **注意**：改了 CSS 触 Artwork/preview 门禁，视觉应像素级不变；若 `pnpm run preview` 刷新出差异，一并提交预览图。
 - **风险**：低（CSS 兼容性由 Chromium 保证）。
@@ -168,7 +168,7 @@
 - **现状**：`onProgress` 每帧 `setProgress`（[`src/motion-studio.ts:1406`](../src/motion-studio.ts#L1406-L1408)），24 帧 = 整套 studio 重渲染 24 次。
 - **改法**：用 ref 记录上次更新时间，只在"首帧 / 每 100ms / 末帧"时 `setProgress`；文本仍连续可读。
 - **风险**：低。
-- **验收**：同一次 24 帧采样中 studio render 次数从 ~24 降到 ≤4（手工 Profiler 计数）。
+- **验收**：同一次 24 帧采样中 studio render 次数从 \~24 降到 ≤4（手工 Profiler 计数）。
 
 ### D. 微优化
 
@@ -271,16 +271,16 @@
 
 ---
 
-## 7. 开放问题（请评审）
+## 7. 开放问题（已评审，见【】内表述）
 
-1. **Q1 版本号**：这批改动算纯内部优化，还是也会包含 A3 的行为变化？决定走 `0.7.1` 还是 `0.8.0`。
-2. **Q2 A3**：拖动时间轴时自动暂停播放是否接受？松手后保持暂停，还是恢复播放？
-3. **Q3 拖动中的进度反馈**：A1 后拖动期间状态行不再显示"正在采样"、体积条也不更新，松手后一次到位——可以接受吗？
-4. **Q4 still 分辨率**：A2 先保持工作画布分辨率（只换异步编码，零几何风险）；是否后续再降到舞台/裁剪器显示尺寸（省带宽与编码，但要改 crop 像素换算，风险中）？
-5. **Q5 B2 Worker**：是否本版就做 Worker + OffscreenCanvas，还是等你在 Windows/Edge 真机按 4.4 复测后再决定？
-6. **Q6 D3 视频 seek**：视频素材的 24 次串行 seek 本版是否要处理，还是接受"松手后跑一轮、async 不挡主线程"？
-7. **Q7 顺带修复**：调研中发现 ≤2s 片段拖 range 条时 `updateRange` 收到相同值仍会 `setChanges([])` + `setUserSettings(null)`（清掉自动瘦身的"恢复我的设置"），见 [`src/motion-studio.ts:1672`](../src/motion-studio.ts#L1672-L1679) 与 `'range'` 分支 [`src/motion-studio.ts:1546`](../src/motion-studio.ts#L1546-L1555)。是否作为一个独立小修复一起排队？
-8. **Q8 测量探针**：本次调研用的 CDP 探针是临时脚本（未入库）。要不要固化成 `scripts/verify-motion-perf.ts`（增加维护面），还是只把手工方法写进 `docs/engineering.md`？
+1. **Q1 版本号**：这批改动算纯内部优化，还是也会包含 A3 的行为变化？决定走 `0.7.1` 还是 `0.8.0`。【0.7.1】
+2. **Q2 A3**：拖动时间轴时自动暂停播放是否接受？松手后保持暂停，还是恢复播放？【接受自动暂停，恢复播放】
+3. **Q3 拖动中的进度反馈**：A1 后拖动期间状态行不再显示"正在采样"、体积条也不更新，松手后一次到位——可以接受吗？【接受】
+4. **Q4 still 分辨率**：A2 先保持工作画布分辨率（只换异步编码，零几何风险）；是否后续再降到舞台/裁剪器显示尺寸（省带宽与编码，但要改 crop 像素换算，风险中）？【建议工作台中的改动保持内存化，只在提交/保存时斤进行持久化编码】
+5. **Q5 B2 Worker**：是否本版就做 Worker + OffscreenCanvas，还是等你在 Windows/Edge 真机按 4.4 复测后再决定？【是】
+6. **Q6 D3 视频 seek**：视频素材的 24 次串行 seek 本版是否要处理，还是接受"松手后跑一轮、async 不挡主线程"？【处理，按实际帧率 clip，不强制用满 24 帧】
+7. **Q7 顺带修复**：调研中发现 ≤2s 片段拖 range 条时 `updateRange` 收到相同值仍会 `setChanges([])` + `setUserSettings(null)`（清掉自动瘦身的"恢复我的设置"），见 [`src/motion-studio.ts:1672`](../src/motion-studio.ts#L1672-L1679) 与 `'range'` 分支 [`src/motion-studio.ts:1546`](../src/motion-studio.ts#L1546-L1555)。是否作为一个独立小修复一起排队？【是】
+8. **Q8 测量探针**：本次调研用的 CDP 探针是临时脚本（未入库）。要不要固化成 `scripts/verify-motion-perf.ts`（增加维护面），还是只把手工方法写进 `docs/engineering.md`？【固化为可复用脚本】
 
 ---
 
