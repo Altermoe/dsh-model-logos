@@ -1849,7 +1849,11 @@ export const DSHML_UI_CSS: string = `
   padding: 0;
   border: 1px solid transparent;
   border-radius: 5px;
+  /* The atlas data URL is set once on .dshml-motion-strip as a custom property:
+     a ~100 KB string must not appear in 24 per-cell style objects. */
   background-color: #11151d;
+  background-image: var(--dshml-atlas);
+  background-size: var(--dshml-atlas-size);
   background-repeat: no-repeat;
   cursor: pointer;
 }

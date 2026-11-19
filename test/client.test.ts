@@ -70,6 +70,8 @@ const fakeReact = {
   useCallback: <T>(callback: T): T => callback,
   useRef: <T>(value: T): { current: T } => ({ current: value }),
   Fragment: 'Fragment',
+  // `DshmlMotionTiles` is wrapped in `React.memo` at module scope.
+  memo: <T>(component: T): T => component,
 };
 
 /** One stylesheet tag the fake document mounted. */

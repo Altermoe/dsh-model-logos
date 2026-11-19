@@ -29,6 +29,7 @@
  */
 import type {
   ChangeEvent,
+  CSSProperties,
   DragEvent,
   KeyboardEvent as ReactKeyboardEvent,
   PointerEvent as ReactPointerEvent,
@@ -37,6 +38,7 @@ import type {
 } from 'react';
 import Cropper from 'react-easy-crop';
 import type { Area, Point } from 'react-easy-crop';
+import { dshmlCanvasObjectUrl } from './canvas-encode';
 import { h, React } from './runtime';
 import { dshmlT } from './i18n';
 import type { CustomIconMotion } from './types';
@@ -238,11 +240,6 @@ function dshmlThumbFrom(work: HTMLCanvasElement, size: number): string {
   context.imageSmoothingQuality = 'high';
   context.drawImage(work, Math.round((size - width) / 2), Math.round((size - height) / 2), width, height);
   return thumb.toDataURL('image/webp', 0.7);
-}
-
-/** One source frame as a still data URL (the cropper's image). */
-function dshmlStillFrom(work: HTMLCanvasElement): string {
-  return work.toDataURL('image/webp', 0.84);
 }
 
 /** Shared props of the small transport / panel buttons. */
@@ -849,6 +846,19 @@ function DshmlMotionSamples(props: DshmlSamplesProps): ReactElement {
     fps: fps,
   });
   const cells: ReactElement[] = [];
+  // C2: the atlas is ~100 KB of data URL; hanging it once on the strip container
+  // as a custom property keeps it out of 24 per-cell style objects (and out of 24
+  // string concatenations per render). Each cell only carries its offset.
+  const stripStyle = React.useMemo(
+    function stripAtlasVars(): CSSProperties | undefined {
+      if (props.encoded === null) return undefined;
+      return {
+        '--dshml-atlas': 'url(' + props.encoded.atlas + ')',
+        '--dshml-atlas-size': props.encoded.frames * 44 + 'px 44px',
+      } as unknown as CSSProperties;
+    },
+    [props.encoded],
+  );
   if (props.encoded !== null) {
     const span = Math.max(1, props.range.outMs - props.range.inMs);
     for (let index = 0; index < props.encoded.frames; index += 1) {
@@ -861,11 +871,7 @@ function DshmlMotionSamples(props: DshmlSamplesProps): ReactElement {
           className: 'dshml-motion-sample' + (active ? ' dshml-motion-sample-active' : ''),
           'aria-label': dshmlClock(time),
           title: dshmlClock(time),
-          style: {
-            backgroundImage: 'url(' + props.encoded.atlas + ')',
-            backgroundSize: props.encoded.frames * 44 + 'px 44px',
-            backgroundPosition: -index * 44 + 'px 0',
-          },
+          style: { backgroundPosition: -index * 44 + 'px 0' },
           onClick: function onSeekSample() {
             props.onSeek(time);
           },
@@ -904,6 +910,7 @@ function DshmlMotionSamples(props: DshmlSamplesProps): ReactElement {
           ref: props.stripRef,
           className: 'dshml-motion-strip',
           role: 'group',
+          style: stripStyle,
           onScroll: props.onScroll,
         },
         cells,
@@ -918,24 +925,34 @@ interface DshmlTilesProps {
   reducedMotion: boolean;
 }
 
-/** The 20 / 22 / 36 / 64 px tiles rendered from the real mark strings. */
-function DshmlMotionTiles(props: DshmlTilesProps): ReactElement {
+/**
+ * The 20 / 22 / 36 / 64 px tiles rendered from the real mark strings.
+ *
+ * C1: the mark string is built once per sampled result instead of once per
+ * render. It embeds the whole atlas data URL, so `escapeXml` walked ~100 KB on
+ * every playhead tick (and `React.memo` skips the row entirely while an
+ * unrelated sibling state — range, playhead, drag, progress — changes).
+ */
+const DshmlMotionTiles = React.memo(function DshmlMotionTiles(props: DshmlTilesProps): ReactElement {
   const sizes = [20, 22, 36, 64];
-  let html = '';
-  if (props.encoded !== null) {
-    const animated =
-      props.reducedMotion === false
-        ? dshmlAtlasSvg({
-            motion: {
-              atlas: props.encoded.atlas,
-              frames: props.encoded.frames,
-              fps: props.encoded.fps,
-              frameWidth: props.encoded.frameWidth,
-            },
-          })
-        : '';
-    html = animated !== '' ? animated : dshmlPosterSvg({ image: props.encoded.poster });
-  }
+  const html = React.useMemo(
+    function atlasMarkup(): string {
+      if (props.encoded === null) return '';
+      const animated =
+        props.reducedMotion === false
+          ? dshmlAtlasSvg({
+              motion: {
+                atlas: props.encoded.atlas,
+                frames: props.encoded.frames,
+                fps: props.encoded.fps,
+                frameWidth: props.encoded.frameWidth,
+              },
+            })
+          : '';
+      return animated !== '' ? animated : dshmlPosterSvg({ image: props.encoded.poster });
+    },
+    [props.encoded, props.reducedMotion],
+  );
   const tiles = sizes.map(function toTile(size) {
     return h('span', { key: 'size-' + size, className: 'dshml-motion-tile dshml-motion-tile-' + size }, [
       h('span', {
@@ -959,7 +976,7 @@ function DshmlMotionTiles(props: DshmlTilesProps): ReactElement {
     ),
     h('div', { key: 'tiles', className: 'dshml-motion-tiles' }, tiles),
   ]);
-}
+});
 
 /** Props of the sticky size dock. */
 interface DshmlDockProps {
@@ -1121,6 +1138,12 @@ export function DshmlMotionStudio(props: DshmlMotionStudioProps): ReactElement {
   const scrollerRef = React.useRef<HTMLDivElement>(null);
   const stripRef = React.useRef<HTMLDivElement>(null);
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
+  /**
+   * The work canvas the source-view still is decoded into. Reused across
+   * playhead changes instead of allocating a 1 MP canvas per scrub tick; the
+   * canvas is only read (never repainted) while its encode is in flight.
+   */
+  const stillWorkRef = React.useRef<HTMLCanvasElement | null>(null);
   const cacheRef = React.useRef<DshmlSampleCache | null>(null);
   const importGeneration = React.useRef(0);
   const encodeGeneration = React.useRef(0);
@@ -1136,16 +1159,38 @@ export function DshmlMotionStudio(props: DshmlMotionStudioProps): ReactElement {
   const autoPlayed = React.useRef(false);
   const reducedMotion = React.useRef(dshmlReducedMotion());
   const playheadRef = React.useRef(0);
+  /**
+   * Whether the studio was playing when the current timeline drag started.
+   *
+   * A drag is a scrub: `startDrag` pauses the baked playback so the drag owns the
+   * playhead, and release resumes it only when this says it was running before
+   * (plan A3). Reading the state through a ref keeps the `pointerup` listener
+   * independent of the render that created it.
+   */
+  const wasPlayingRef = React.useRef(false);
+  /** The last encoded result, readable from effects without widening their deps. */
+  const encodedRef = React.useRef<DshmlEncodedMotion | null>(null);
+  /** The sample key that result belongs to (paired with {@link encodedRef}). */
+  const sampledKeyRef = React.useRef('');
   const acceptRef = React.useRef<(file: File | null) => void>(function noop() {});
   const onReadyRef = React.useRef(props.onReady);
   const dragStartRef = React.useRef<{ time: number; range: DshmlMotionRange } | null>(null);
   const cropAreaRef = React.useRef<DshmlCropPixels | null>(null);
   const liveTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  /**
+   * C4: when the sampling progress row last updated. `onProgress` fires once per
+   * decoded frame, and every write re-renders the whole studio; the row only has
+   * to keep a human-readable pace, so it updates on the first frame, the last
+   * frame and at most every 100 ms in between.
+   */
+  const progressAtRef = React.useRef(0);
   playheadRef.current = playhead;
   cropAreaRef.current = cropArea;
 
   const currentKey = dshmlSampleKey(range, frames, frameWidth, quality, cropArea);
   const matched = encoded !== null && sampledKey === currentKey;
+  encodedRef.current = encoded;
+  sampledKeyRef.current = sampledKey;
   const overBudget = matched && encoded !== null && encoded.verdict === 'over';
   const busy = sampling || slimming || status === 'reading' || (encoded !== null && !matched);
 
@@ -1229,6 +1274,16 @@ export function DshmlMotionStudio(props: DshmlMotionStudioProps): ReactElement {
     }, 2000);
   }
 
+  /** Publish one sampling-progress tick, throttled to a readable pace (C4). */
+  function reportProgress(generation: number, done: number, total: number): void {
+    if (generation !== encodeGeneration.current) return;
+    const now = Date.now();
+    if (done <= 1 || done >= total || now - progressAtRef.current >= 100) {
+      progressAtRef.current = now;
+      setProgress({ done, total });
+    }
+  }
+
   function pickFile(): void {
     const input = fileRef.current;
     if (input === null) return;
@@ -1267,17 +1322,46 @@ export function DshmlMotionStudio(props: DshmlMotionStudioProps): ReactElement {
     setThumbs(loaded);
   }
 
-  async function refreshStill(next: DshmlMediaSource, time: number, generation: number): Promise<void> {
+  /** The still work canvas for this source, (re)allocated only when the size changes. */
+  function stillWorkCanvas(next: DshmlMediaSource): HTMLCanvasElement {
+    const existing = stillWorkRef.current;
+    if (existing !== null && existing.width === next.width && existing.height === next.height) return existing;
     const work = document.createElement('canvas');
     work.width = next.width;
     work.height = next.height;
+    stillWorkRef.current = work;
+    return work;
+  }
+
+  /**
+   * Decode one frame and hand the cropper a still for it (A2).
+   *
+   * Only the original view needs this image, and it must never block a paint: the
+   * encode is asynchronous (`toBlob` → object URL, see `canvas-encode.ts`), the
+   * generation guard drops a result the user has already scrubbed past, and the
+   * object URL is revoked by the `stillUrl` effect when it is replaced. The
+   * synchronous data URL stays as the fallback for an engine without `toBlob`.
+   */
+  async function refreshStill(next: DshmlMediaSource, time: number, generation: number): Promise<void> {
+    const work = stillWorkCanvas(next);
     try {
       await next.drawFrame(time, work);
     } catch {
       return;
     }
     if (generation !== stillGeneration.current) return;
-    setStillUrl(dshmlStillFrom(work));
+    const url = await dshmlCanvasObjectUrl(work, 0.84);
+    if (generation !== stillGeneration.current) {
+      if (url !== null) {
+        try {
+          URL.revokeObjectURL(url);
+        } catch {
+          /* already revoked */
+        }
+      }
+      return;
+    }
+    setStillUrl(url !== null ? url : work.toDataURL('image/webp', 0.84));
   }
 
   function resetForSource(next: DshmlMediaSource): void {
@@ -1286,13 +1370,17 @@ export function DshmlMotionStudio(props: DshmlMotionStudioProps): ReactElement {
     cacheRef.current = dshmlCreateSampleCache(next);
     setSource(next);
     setRange(initial);
-    setFrames(dshmlInitialFrameCount(initial));
+    // D3: a video that measured its own frame rate starts on the frames its clip
+    // actually holds instead of the 12 fps heuristic; animated images keep the
+    // heuristic because their stored frame rate is a playback choice, not a cap.
+    setFrames(dshmlInitialFrameCount(initial, next.kind === 'video' ? next.frameRate : null));
     setFrameWidth(DSHML_SPRITE_DEFAULT_OPTIONS.frameWidth);
     setQuality(DSHML_SPRITE_DEFAULT_OPTIONS.quality);
     setCropArea(null);
     setCrop({ x: 0, y: 0 });
     setZoom(1);
     setZoomIndex(0);
+    stillGeneration.current += 1;
     setStillUrl('');
     setThumbs([]);
     setEncoded(null);
@@ -1308,7 +1396,6 @@ export function DshmlMotionStudio(props: DshmlMotionStudioProps): ReactElement {
     setSingleFrame(null);
     setReadingVisible(false);
     void loadThumbs(next, importGeneration.current);
-    void refreshStill(next, initial.inMs, ++stillGeneration.current);
   }
 
   async function acceptFile(file: File | null): Promise<void> {
@@ -1370,7 +1457,11 @@ export function DshmlMotionStudio(props: DshmlMotionStudioProps): ReactElement {
 
   React.useEffect(
     function refreshStillOnPlayhead() {
-      if (source === null || status !== 'ready' || playing) return;
+      // A2: the still only exists for the original view's cropper. The result
+      // stage draws the sampled atlas, so encoding a full work-canvas frame for it
+      // was pure main-thread cost the user never saw. Switching views re-runs this
+      // effect, so the cropper still gets its frame as soon as it mounts.
+      if (source === null || status !== 'ready' || playing || view !== 'source') return;
       const generation = ++stillGeneration.current;
       const timer = setTimeout(function refresh() {
         void refreshStill(source, playhead, generation);
@@ -1379,12 +1470,38 @@ export function DshmlMotionStudio(props: DshmlMotionStudioProps): ReactElement {
         clearTimeout(timer);
       };
     },
-    [source, status, playhead, playing],
+    [source, status, playhead, playing, view],
+  );
+
+  // Revoke the still's object URL when it is replaced or the studio unmounts; an
+  // in-memory blob must not outlive the image it was handed to.
+  React.useEffect(
+    function revokeStillUrl() {
+      const url = stillUrl;
+      return function revoke() {
+        if (url.startsWith('blob:')) {
+          try {
+            URL.revokeObjectURL(url);
+          } catch {
+            /* already revoked */
+          }
+        }
+      };
+    },
+    [stillUrl],
   );
 
   React.useEffect(
     function sample() {
       if (source === null || status !== 'ready') return;
+      // A1: a timeline drag must not start sampling. `pointermove` only writes the
+      // range / playhead; the drag effect bumps the encode generation so an
+      // already-running run cannot land mid-drag, and release (drag back to null)
+      // re-runs this effect and restores the 150 ms debounce. The matched guard
+      // keeps a release that did not move the sampling key from re-sampling the
+      // result the stage already shows.
+      if (drag !== null) return;
+      if (encodedRef.current !== null && sampledKeyRef.current === currentKey) return;
       if (skipEncodeKey.current === currentKey) {
         skipEncodeKey.current = null;
         return;
@@ -1393,6 +1510,7 @@ export function DshmlMotionStudio(props: DshmlMotionStudioProps): ReactElement {
       const generation = ++encodeGeneration.current;
       setSampling(true);
       setProgress(null);
+      progressAtRef.current = 0;
       // `cropArea` is null until the Source stage mounts the cropper; the
       // sampler reads that as the centred maximal square, so the first sample
       // does not wait for the user to open the framing surface.
@@ -1404,7 +1522,7 @@ export function DshmlMotionStudio(props: DshmlMotionStudioProps): ReactElement {
               source,
               { range, frames, frameWidth, quality, crop },
               function onProgress(done, total) {
-                if (generation === encodeGeneration.current) setProgress({ done, total });
+                reportProgress(generation, done, total);
               },
               function cancelled() {
                 return generation !== encodeGeneration.current;
@@ -1429,7 +1547,7 @@ export function DshmlMotionStudio(props: DshmlMotionStudioProps): ReactElement {
         clearTimeout(timer);
       };
     },
-    [source, status, currentKey],
+    [source, status, currentKey, drag],
   );
 
   React.useEffect(
@@ -1470,32 +1588,50 @@ export function DshmlMotionStudio(props: DshmlMotionStudioProps): ReactElement {
     [encoded],
   );
 
+  /**
+   * The decoded atlas bitmap, shared by the paused draw and the playback loop.
+   *
+   * C3: the previous code created and decoded one `Image` per effect run, which
+   * during a scrub meant a fresh ~1 MP decode on every playhead tick. The atlas
+   * only changes when a new sample lands, so it is decoded exactly once per
+   * encoded result and both draws reuse the same bitmap.
+   */
+  const [bakedImage, setBakedImage] = React.useState<HTMLImageElement | null>(null);
+
   React.useEffect(
-    function drawPausedFrame() {
-      if (view !== 'result' || encoded === null || playing) return;
-      const span = Math.max(1, range.outMs - range.inMs);
-      const index = Math.min(
-        encoded.frames - 1,
-        Math.max(0, Math.floor(((playhead - range.inMs) / span) * encoded.frames)),
-      );
+    function loadBakedAtlas() {
+      setBakedImage(null);
+      if (encoded === null) return;
       const image = new Image();
       let disposed = false;
       image.addEventListener('load', function onLoad() {
         if (disposed) return;
-        drawBaked(image, index);
+        setBakedImage(image);
       });
       image.src = encoded.atlas;
       return function stop() {
         disposed = true;
       };
     },
-    [view, encoded, playing, playhead, range.inMs, range.outMs, drawBaked],
+    [encoded],
+  );
+
+  React.useEffect(
+    function drawPausedFrame() {
+      if (view !== 'result' || encoded === null || playing || bakedImage === null) return;
+      const span = Math.max(1, range.outMs - range.inMs);
+      const index = Math.min(
+        encoded.frames - 1,
+        Math.max(0, Math.floor(((playhead - range.inMs) / span) * encoded.frames)),
+      );
+      drawBaked(bakedImage, index);
+    },
+    [view, encoded, playing, playhead, range.inMs, range.outMs, drawBaked, bakedImage],
   );
 
   React.useEffect(
     function loopBaked() {
-      if (view !== 'result' || encoded === null || !playing) return;
-      const image = new Image();
+      if (view !== 'result' || encoded === null || !playing || bakedImage === null) return;
       let disposed = false;
       let raf = 0;
       const span = Math.max(1, range.outMs - range.inMs);
@@ -1503,30 +1639,26 @@ export function DshmlMotionStudio(props: DshmlMotionStudioProps): ReactElement {
         encoded.frames - 1,
         Math.max(0, Math.floor(((playheadRef.current - range.inMs) / span) * encoded.frames)),
       );
-      image.addEventListener('load', function onLoad() {
+      const started = performance.now();
+      let lastPaint = 0;
+      const step = function step(now: number): void {
         if (disposed) return;
-        const started = performance.now();
-        let lastPaint = 0;
-        const step = function step(now: number): void {
-          if (disposed) return;
-          const elapsed = (now - started) / 1000;
-          const index = Math.floor((elapsed * encoded.fps + startIndex) % encoded.frames);
-          drawBaked(image, index);
-          if (now - lastPaint > 80) {
-            lastPaint = now;
-            setPlayhead(range.inMs + (index / encoded.frames) * span);
-          }
-          raf = requestAnimationFrame(step);
-        };
+        const elapsed = (now - started) / 1000;
+        const index = Math.floor((elapsed * encoded.fps + startIndex) % encoded.frames);
+        drawBaked(bakedImage, index);
+        if (now - lastPaint > 80) {
+          lastPaint = now;
+          setPlayhead(range.inMs + (index / encoded.frames) * span);
+        }
         raf = requestAnimationFrame(step);
-      });
-      image.src = encoded.atlas;
+      };
+      raf = requestAnimationFrame(step);
       return function stop() {
         disposed = true;
         if (raf !== 0) cancelAnimationFrame(raf);
       };
     },
-    [view, encoded, playing, range.inMs, range.outMs, drawBaked],
+    [view, encoded, playing, range.inMs, range.outMs, drawBaked, bakedImage],
   );
 
   React.useEffect(
@@ -1564,6 +1696,12 @@ export function DshmlMotionStudio(props: DshmlMotionStudioProps): ReactElement {
       };
       const up = function up(): void {
         setDrag(null);
+        // A3: a drag only paused the transport; release hands the result back to
+        // the user's previous state. A studio that was paused stays paused.
+        if (wasPlayingRef.current) {
+          wasPlayingRef.current = false;
+          setPlaying(true);
+        }
       };
       window.addEventListener('pointermove', move);
       window.addEventListener('pointerup', up, { once: true });
@@ -1670,10 +1808,15 @@ export function DshmlMotionStudio(props: DshmlMotionStudioProps): ReactElement {
   }
 
   function updateRange(next: DshmlMotionRange): void {
-    setRange(next);
     setPlayhead(function keepInside(value) {
       return Math.min(Math.max(value, next.inMs), next.outMs);
     });
+    // Q7: a handle drag on a clip that already fills the 2 s budget maps every
+    // pointer position to the same range. That is not a user edit, so it must not
+    // throw away the automatic-slimming history (`changes` / `userSettings`); the
+    // sampling effect would otherwise also skip a run the key did not need.
+    if (next.inMs === range.inMs && next.outMs === range.outMs) return;
+    setRange(next);
     setChanges([]);
     setUserSettings(null);
   }
@@ -1695,6 +1838,18 @@ export function DshmlMotionStudio(props: DshmlMotionStudioProps): ReactElement {
 
   function startDrag(target: DshmlDragTarget, event: ReactPointerEvent<HTMLElement>): void {
     if (source === null) return;
+    // A1: a run that was already scheduled or in flight must not finish into the
+    // middle of this drag and paint a result the user is still scrubbing past.
+    // Bumping the generation cancels it (the sampler polls it between frames) and
+    // clears the "sampling" row the drag then owns.
+    encodeGeneration.current += 1;
+    setSampling(false);
+    setSlimming(false);
+    setProgress(null);
+    // A3: a timeline drag is a scrub; the transport pauses for its duration and
+    // `up` resumes it when it was running.
+    wasPlayingRef.current = playing;
+    if (playing) setPlaying(false);
     dragStartRef.current = { time: timeAtPointer(event), range };
     setDrag(target);
     if (target === 'playhead') setPlayhead(timeAtPointer(event));
@@ -1720,6 +1875,8 @@ export function DshmlMotionStudio(props: DshmlMotionStudioProps): ReactElement {
     const generation = ++encodeGeneration.current;
     setSlimming(true);
     setSampling(false);
+    setProgress(null);
+    progressAtRef.current = 0;
     setErrorText('');
     setUserSettings({ frames, frameWidth });
     try {
@@ -1727,7 +1884,7 @@ export function DshmlMotionStudio(props: DshmlMotionStudioProps): ReactElement {
         source,
         { range, frames, frameWidth, quality, crop: cropArea },
         function onProgress(done, total) {
-          if (generation === encodeGeneration.current) setProgress({ done, total });
+          reportProgress(generation, done, total);
         },
         function cancelled() {
           return generation !== encodeGeneration.current;
