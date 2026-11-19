@@ -272,6 +272,20 @@ per `provider + model` override picker persisted in the DSH settings document.
   verify:dom` (141/141 assertions), `pnpm run verify:live` (the running GUI served
   `rev=59019b6cbe2c`) and the `CI` workflow on the pushed `main` commit. No listing re-push: the
   merged entry carries no version and the catalog follows npm on its daily refresh.
+- **v0.8.0** (2026-11-19) — the single-stage motion studio. `package.json` `0.8.0`, the
+  annotated tag `v0.8.0`, the npm tarball and the release asset all name the tagged commit.
+  npm: <https://www.npmjs.com/package/dsh-model-logos/v/0.8.0>; GitHub:
+  <https://github.com/Altermoe/dsh-model-logos/releases/tag/v0.8.0>. This line also ships the
+  interactive release scripts (`pnpm run release` / `release:dry-run`), which perform the
+  procedure below; the version bump sits in this release commit as the procedure requires. The
+  release carries the version-free `dsh-model-logos.tgz`, packed with `pnpm pack` from the tagged
+  commit (same asset name as v0.5.0–v0.7.0, so
+  `releases/latest/download/dsh-model-logos.tgz` cannot rot), and the notes record its SHA-256
+  next to the npm integrity. Gates on that commit: `pnpm run verify` (188/188 tests, lint 0
+  errors, 59 artwork keys, build + artifact freshness), `pnpm run verify:dom` (156/156
+  assertions), `pnpm run verify:live` (the running GUI served `rev=38380650d84d`) and the `CI`
+  workflow on the pushed `main` commit. No listing re-push: the merged entry carries no version
+  and the catalog follows npm on its daily refresh.
 - **Release procedure from v0.6.0 on** — one commit per release that changes only the
   `version` field plus this record and the `docs/engineering.md` verification log; push `main`,
   tag `v<version>` on that commit, `pnpm publish --access public` (the `prepublishOnly` gate

@@ -730,3 +730,16 @@ that recorded them, not from the current build.
   `docs/awesome-plugin.md` §8; the annotated tag `v0.7.0`, the npm tarball
   (`prepublishOnly` re-ran `verify`) and the release asset packed with `pnpm pack`
   all name that commit.
+
+- **The 0.8.0 release run.** `pnpm run verify` on the release tree: typecheck, lint
+  (0 errors; the 105 warnings are the pre-existing `verify-dom.ts` style notes),
+  fmt:check, **188/188 unit/bundle tests** across 12 files, `logo:check` (45 upstream
+  files + 5 aliases → 50 generated marks, 9 manual marks, 59 keys), `derive-marks
+  --check` (2 pinned sources → 3 marks), `rank:check` (59 keys over 5 sources),
+  build (`client.js` 490,862 bytes, `index.js` 2,025 bytes) and artifact freshness.
+  `pnpm run verify:dom` **156/156 assertions** in headless Chrome; `pnpm run
+  verify:live` against the running Web GUI served `rev=38380650d84d` (the 490,934-byte
+  served bundle, 59 artwork entries). `package.json` `0.8.0`, the annotated tag
+  `v0.8.0`, the npm tarball (`prepublishOnly` re-ran `verify`) and the release asset
+  packed with `pnpm pack` all name the release commit, which changes only
+  `package.json`, this record and `docs/awesome-plugin.md` §8.
