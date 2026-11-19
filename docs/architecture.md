@@ -364,7 +364,34 @@ private primitives internals.
     held at ≤ 512 px — four times the largest stored frame edge — so the cache stays
     around 25 MB for a full 24-frame clip instead of the ~96 MB full-resolution
     frames would need. The studio owns one cache per imported file; a cache handle
-    from another source is never reused.
+    from another source is never reused. The stored result is unchanged — a data URL
+    in the same `motion` record — but encoding is asynchronous: the atlas and poster
+    are WebP-encoded in a dedicated worker (created from an inlined Blob, so
+    `client.js` stays one self-contained script) on an `OffscreenCanvas`, with a
+    main-thread `canvas.toBlob` → `FileReader` fallback and a synchronous
+    `toDataURL` only as the last resort. No WebP encoding runs on the render step.
+  - **A timeline drag is a scrub, not a resample.** `pointermove` only writes the
+    range and the playhead: sampling is skipped while a drag is active and restarts
+    on release with the same 150 ms debounce, so one gesture runs at most one sampling
+    pass and the sample plus the size meter settle once, after the gesture. The drag
+    pauses the baked playback and resumes it on release only if it was playing
+    before; a paused studio stays paused. A range update that changes no value is a
+    no-op — on a clip that already fills the 2 s budget every drag position maps to
+    the same range — so it neither restarts sampling nor clears the auto-shrink undo
+    offer. The cropper's still exists only in `原片`: the `成品` stage draws the
+    sampled atlas and never encodes an invisible full-work-canvas frame. That still
+    is encoded through `canvas.toBlob` into an object URL (revoked when replaced and
+    on unmount, with a generation guard that drops a late result), so scrubbing
+    cannot block a paint; the studio keeps it in memory and only the saved icon's
+    poster is persisted.
+  - **Frame count follows the source when it is known.** Animated images report
+    their exact frame timestamps and videos are briefly played muted to measure
+    their rate through `requestVideoFrameCallback`, so the initial frame count for a
+    window is clipped to what the clip actually holds instead of being padded to the
+    12 fps starting heuristic — a 6 fps video starts on 12 frames for two seconds,
+    not 24. Video samples are keyed to the measured frame grid, so several requested
+    times map onto one seek; without a measurement the previous heuristic path is
+    unchanged. The 2 s / 24 frame / 128 px caps still bound the top end.
   - **Playback is a surface decision.** `src/motion.ts` owns the pure policy and
     markup resolver; `DshmlPlayableMark` (React) and `dshmlAttachPlayableMark` (plain
     DOM) share it. The composer defaults to always, Settings → Models / Model icons
@@ -662,6 +689,11 @@ above.
   `docs/preview-settings.png`.
 - Gates: `pnpm run verify` (typecheck + lint + fmt:check + test + check),
   `pnpm run verify:dom`, `pnpm run preview`, `pnpm run verify:live`.
+- Drag-performance probe (`pnpm run verify:motion-perf`): replays one synthesized
+  timeline drag through the same headless-Edge harness and prints the encode counts,
+  long tasks and animation-frame gaps (`--perf-json` report). It is manual telemetry,
+  not a gate: the structural contract is enforced by `verify:dom`, and absolute
+  milliseconds would make CI machine-dependent.
 - Live GUI visual check by the user after the Host plugin reloads (the host half
   changed).
 

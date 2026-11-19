@@ -39,6 +39,7 @@ pnpm run rank         # refresh the visibility snapshot (network; optional proxy
 pnpm run rank:check   # offline: recompute the snapshot and compare the ranks
 pnpm run verify:dom   # headless-Edge DOM fixture harness (needs Edge)
 pnpm run verify:live  # assert the running GUI serves this exact client.js
+pnpm run verify:motion-perf  # manual CDP probe: motion-studio drag encodes / long tasks (needs Edge)
 pnpm run verify       # typecheck + lint + fmt:check + test + logo:check + rank:check + build + check
 pnpm run release:dry-run  # rehearse a release: state + credentials + pack, publishes nothing
 pnpm run release      # interactive release: gates, commit, push, tag, publish, asset, GitHub release
@@ -61,10 +62,23 @@ node --experimental-strip-types scripts/verify-dom.ts
 # Windows cannot follow pnpm's symlinks over the WSL network share.
 ```
 
-Newer Edge builds detach the one-shot launcher, so `--dump-dom` can return an empty
-document even though the page ran: the script falls back to opening the same page
-over CDP (`--remote-debugging-port=0`) and reading the driver's result block, and
-calls `Page.bringToFront` so `:focus` matches for the focus-ring assertions.
+The verify path reads the driver's result block over CDP (`--remote-debugging-port=0`,
+`Page.bringToFront` so `:focus` matches for the focus-ring assertions) in real time.
+The old one-shot `--dump-dom` + `--virtual-time-budget` launcher fast-forwarded the
+driver's own waits: once the motion sampler moved its encodes off the synchronous
+path, the virtual clock could reach a "sampling finished?" poll before the real
+encode did. If the CDP reader cannot attach, the script retries with that dump as a
+diagnostic fallback.
+
+The manual drag probe reuses the same harness through the screenshot driver: it
+synthesizes one timeline drag with real-time waits and reports encode counts, long
+tasks and animation-frame gaps. It is not part of `verify` (absolute milliseconds
+are machine-specific) — the structural contract is enforced by `verify:dom`.
+
+```bash
+pnpm run verify:motion-perf
+pnpm exec tsx scripts/verify-motion-perf.ts --motion-gif /tmp/clip-1024.gif --json .preview/motion-perf.json
+```
 
 Publishing is a manual step. `pnpm publish` triggers `prepublishOnly`, which runs
 the full `verify` gate before the tarball is built; `files` in `package.json`
@@ -108,6 +122,13 @@ window.__ModuleLoader__.load({
 `require` inside the bundle is the loader's platform-module resolver. `react`,
 `react-dom` and `react-dom/client` stay external; everything else is inlined.
 `src/runtime.ts` is the only module that touches that `require`.
+
+The motion studio's encoder worker is created from an inlined Blob source
+(`Function.prototype.toString` of the worker body in `src/canvas-encode.ts`), so
+`client.js` stays one self-contained IIFE and no extra worker asset is fetched at
+runtime. An engine without blob workers, `OffscreenCanvas` or `createImageBitmap`
+falls back to `canvas.toBlob` on the main thread and then to the synchronous
+`toDataURL`.
 
 `index.js` is an ES module with `@deepseek-ai/schemastery` external; the Host
 resolves it from this package's dependencies.
@@ -191,22 +212,32 @@ src/custom-icon-editor.ts
                     image upload + react-easy-crop viewport + zoom + canvas encode,
                     the motion studio mount, rename and confirm-then-delete;
                     rendered inside the picker's modal shell
+src/canvas-encode.ts
+                    dshmlEncodeCanvasDataUrl, dshmlCanvasObjectUrl,
+                    dshmlEncodeWorkerBody — asynchronous WebP/PNG encoding through
+                    the inlined worker, then `toBlob` + `FileReader`, then the
+                    synchronous `toDataURL`; exports the cropper's object-URL
+                    encoder too
 src/media-source.ts DshmlMediaSource (drawFrame(ms, canvas) filling the target +
-                    frameKeyAt + duration × frame count), dshmlOpenMediaSource,
-                    dshmlMediaKindOf, dshmlMediaFormatLabel, DshmlMediaError — the
-                    ImageDecoder path for animated images and the detached
-                    `<video>` seek path for videos; the caller chooses the target
-                    size so the sampler decodes straight into its cache
+                    frameKeyAt + duration × frame count + a measured frameRate),
+                    dshmlOpenMediaSource, dshmlMediaKindOf, dshmlMediaFormatLabel,
+                    dshmlFrameRateFromTimes, DshmlMediaError — the ImageDecoder
+                    path for animated images and the detached `<video>` seek path
+                    for videos; the caller chooses the target size so the sampler
+                    decodes straight into its cache
 src/sprite.ts       dshmlEncodeMotionIcon, dshmlFitMotionBudget,
                     dshmlCreateSampleCache, dshmlSampleCacheFor,
                     dshmlMotionCrop — the four-stage sampling cache (decode →
-                    crop → compose → encode), the atlas + poster encoders and the
-                    fixed quality → frame-count → frame-edge slimming ladder
+                    crop → compose → encode), the asynchronous atlas + poster
+                    encoders and the fixed quality → frame-count → frame-edge
+                    slimming ladder
 src/motion-studio.ts
                     DshmlMotionStudio — import plus the merged canvas (stage,
                     transport, framing overlay), the zoomable source timeline,
                     the frame slider with its sampled strip, the true-size tiles
-                    and the sticky size dock
+                    and the sticky size dock; owns the drag-versus-sample gate,
+                    the source-view-only asynchronous still and the
+                    pause/resume-on-drag transport state
 src/playable-mark.ts
                     DshmlPlayableMark, dshmlAttachPlayableMark — the React and
                     plain-DOM playback surfaces (always / hover / never, reduced
@@ -229,7 +260,8 @@ Dependency direction (no cycles): `types` ← `runtime` ← everything;
 `match` ← `resolve` ← `overrides` ← `picker` ← `section` / `decorate` ← `client`;
 `logos` ← `overrides`/`picker`/`section`; `custom-icons` ← `resolve`/`overrides`/`picker`/`section`;
 `motion` ← `custom-icons`/`overrides`/`playable-mark`/`sprite`/`motion-studio`;
-`media-source` ← `sprite`/`motion-studio`; `sprite` ← `motion-studio`;
+`media-source` ← `sprite`/`motion-studio`; `canvas-encode` ← `sprite`/`motion-studio`;
+`sprite` ← `motion-studio`;
 `overrides` ← `custom-icon-editor` ← `picker`; `overrides` ← `playable-mark`
 ← `client`/`picker`/`section`/`decorate`;
 `i18n` ← `overrides`/`picker`/`custom-icon-editor`/`motion-studio`/`decorate`/`nav-icon`/`client`;
@@ -574,7 +606,46 @@ that recorded them, not from the current build.
   7.5 fps), the picker's poster → hover → poster sequence, the four-surface playback
   group, the Settings row playing under `always`, staying still under `never` even
   on hover, and the composer playing under its default policy.
-  `pnpm run verify:dom` passes **144 assertions** on the final tree.
+- **The drag path is a scrub, not a resample.** `pointermove` only writes the range
+  and the playhead: sampling is skipped while `drag` is set and restarts with the
+  same 150 ms debounce on release, so one gesture runs at most one sampling pass.
+  The same drag bumps the encode generation (a run that was already scheduled cannot
+  land mid-gesture), pauses the baked playback and resumes it on release only if it
+  was playing before, and a range update whose values did not change no longer
+  clears the auto-shrink undo offer (a clip already at the 2 s budget maps every
+  drag position to the same range). The still is generated only in `原片`, encoded
+  through `canvas.toBlob` into an object URL that is revoked when replaced and on
+  unmount, and a generation guard drops a late result. Atlas and poster encoding is
+  asynchronous — a dedicated inline worker on `OffscreenCanvas`, then `toBlob` +
+  `FileReader`, then `toDataURL` — so the sampler's last step never runs a
+  synchronous WebP encode on the main thread. Frame counts start from the source's
+  own rate when it has one (animated timestamps, or a muted
+  `requestVideoFrameCallback` probe for video) instead of always the 12 fps
+  heuristic, and video samples are keyed to the measured frame grid so duplicate
+  requested times share a seek. Re-renders during the gesture are kept cheap: the
+  atlas is decoded once per sampled result, the strip's atlas URL lives once on the
+  container as a CSS custom property, the true-size mark string is memoized, and
+  the progress row updates at most every 100 ms.
+  `test/sprite.test.ts` keeps the cache contract and pins the single-pass
+  distinct-frame read (24 frames = 24 `getImageData` reads, not 46);
+  `test/canvas-encode.test.ts` pins the worker protocol and the
+  worker → toBlob → toDataURL fallback ladder; `test/media-source.test.ts` pins the
+  frame-rate estimate and `test/motion.test.ts` the source-rate frame-count clip.
+  `verify:dom` synthesizes the drag itself and counts encodes by canvas size — no
+  atlas/poster/still encode inside the drag window, exactly one asynchronous
+  sampling round (atlas + poster) after release, one `toBlob` still at the
+  work-canvas size for a Source-view playhead change, no sampling for that playhead
+  change (a playhead-only drag is a re-render, not a resample), a paused transport during the drag, resumed after it, and every still
+  object URL revoked once the editor closes. It also asserts a release that moved
+  no sampling key does not resample. `pnpm run verify:dom` passes **156 assertions**
+  on the final tree; `pnpm run verify` passes **188 unit/bundle tests** across 12
+  files. The manual `pnpm run verify:motion-perf` probe replays the same gesture on
+  the plan's 1024×1024 / 24-frame clip and reports the target numbers: **0 encodes
+  and 0 long tasks ≥ 50 ms inside the drag window, exactly one sampling round after
+  release** — typical 0 long tasks in the release window too (three of four local
+  runs; the fourth had one 57 ms GIF-decode task), against the baseline's two tasks
+  on every run (63 ms + 53 ms) — and a worst drag frame gap of ~17 ms. Absolute
+  milliseconds stay out of the gates.
 - The provider-icon contract is pinned from four sides. `test/resolve.test.ts` pins
   the precedence matrix (override → official channel → letter tile, and a declared
   provider resolving to nothing), the flat document's immutable edits and its

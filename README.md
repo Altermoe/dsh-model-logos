@@ -170,8 +170,10 @@ travels inside the settings document.
 The example below is a real nine-frame GIF. One canvas is the whole workspace: it
 plays the sampled result, and **Source** swaps the same square for the crop surface
 over the playhead frame — the wheel (or a trackpad pinch) zooms the crop, and the
-gesture falls through to the dialog once the crop sits at its zoom limit. The
-timeline carries the clip's total length
+gesture falls through to the dialog once the crop sits at its zoom limit. Dragging the
+timeline or the playhead pauses playback for the gesture and resumes it when you let
+go, and the sample and size meter settle once, after the drag — scrubbing never
+re-encodes while the pointer is down. The timeline carries the clip's total length
 and its own zoom, the strip under the frame slider jumps between sampled frames, and
 the four shipped mark sizes (20 / 22 / 36 / 64 px) render at true size. The size
 meter sits in a dock that stays in view next to Save: dragging the crop box only
