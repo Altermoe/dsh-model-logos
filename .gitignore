@@ -20,6 +20,10 @@ junit.xml
 # Logs
 *.log
 
+# A one-run npm credential file written by scripts/release.sh; never a source
+# file, and never commit it (pnpm's publish git check would also trip on it)
+.npmrc
+
 # OS cruft
 .DS_Store
 Thumbs.db
