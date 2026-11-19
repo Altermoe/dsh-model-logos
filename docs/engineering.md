@@ -104,7 +104,10 @@ Both wrappers are locked to `main`. The branch is a constant in
 re-checks it before the commit, push, tag, publish, pack and GitHub release
 steps (so switching branches mid-run cannot publish the other branch), and
 `prepublishOnly` runs `scripts/publish-guard.ts` before the gate so even a bare
-`pnpm publish` off `main` fails.
+`pnpm publish` off `main` fails. That guard is deliberately a second layer:
+pnpm's own publish check also refuses a branch that is not `main`/`master`, but
+it yields to `--no-git-checks`, does not run for `npm publish`, and would accept
+`master`; the guard holds in all three cases and requires exactly `main`.
 
 `client.js` and `index.js` are **generated, never committed**. They are written
 into the package root because the local DSH install loads the bundle from disk,
