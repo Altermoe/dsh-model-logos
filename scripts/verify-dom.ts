@@ -74,6 +74,7 @@ const keptHarnessPath = valueAfter('--harness');
 const requireBuild = hasFlag('--require-build');
 const scale = Number(valueAfter('--scale') ?? 2) || 2;
 const motionGifPath = valueAfter('--motion-gif');
+const perfJsonPath = valueAfter('--perf-json');
 
 /* -------------------------------------------------------------------------- */
 /* Harness data                                                               */
@@ -1487,6 +1488,105 @@ async function browserDriver(config: DriverConfig): Promise<void> {
       pre.style.display = 'none';
       document.body.appendChild(pre);
     }, 25000);
+
+    /* ------------- motion-studio paint/encode probe (structural) ------------ */
+    // These counters are what turn the plan's "no encoding inside the drag
+    // window" promise into a gate: the sampler moved its WebP encoding to
+    // `toBlob` and then to an inline worker, so the probe counts all three ways
+    // a painted canvas can leave the page (synchronous data URL, async blob, and
+    // the worker's ImageBitmap message) plus the still object URLs the cropper
+    // receives. They are call counters, not timings: absolute milliseconds are
+    // tracked by the manual `verify:motion-perf` probe instead.
+    const canvasPrototype = HTMLCanvasElement.prototype;
+    const nativeCanvasDataUrl = canvasPrototype.toDataURL;
+    const nativeCanvasToBlob = canvasPrototype.toBlob;
+    const nativeWorkerPostMessage = Worker.prototype.postMessage;
+    const nativeCreateObjectUrl = URL.createObjectURL;
+    const nativeRevokeObjectUrl = URL.revokeObjectURL;
+    const canvasEncodes: Array<{ api: 'toDataURL' | 'toBlob' | 'worker'; width: number; height: number }> = [];
+    const liveStillUrls = new Set<string>();
+    canvasPrototype.toDataURL = function patchedToDataUrl(type?: string, quality?: number): string {
+      canvasEncodes.push({ api: 'toDataURL', width: this.width, height: this.height });
+      return nativeCanvasDataUrl.call(this, type, quality);
+    };
+    canvasPrototype.toBlob = function patchedToBlob(callback: BlobCallback, type?: string, quality?: number): void {
+      canvasEncodes.push({ api: 'toBlob', width: this.width, height: this.height });
+      nativeCanvasToBlob.call(this, callback, type, quality);
+    };
+    Worker.prototype.postMessage = function patchedPostMessage(
+      this: Worker,
+      message: unknown,
+      transfer?: Transferable[],
+    ): void {
+      const bitmap = (message as { bitmap?: { width?: unknown; height?: unknown } } | null | undefined)?.bitmap;
+      if (
+        bitmap !== undefined &&
+        bitmap !== null &&
+        typeof bitmap.width === 'number' &&
+        typeof bitmap.height === 'number'
+      ) {
+        canvasEncodes.push({ api: 'worker', width: bitmap.width, height: bitmap.height });
+      }
+      if (transfer === undefined) (nativeWorkerPostMessage as (value: unknown) => void).call(this, message);
+      else (nativeWorkerPostMessage as (value: unknown, list: Transferable[]) => void).call(this, message, transfer);
+    } as Worker['postMessage'];
+    URL.createObjectURL = function patchedCreateObjectUrl(blob: Blob): string {
+      const url = nativeCreateObjectUrl.call(URL, blob);
+      if (typeof blob.type === 'string' && blob.type.startsWith('image/')) liveStillUrls.add(url);
+      return url;
+    };
+    URL.revokeObjectURL = function patchedRevokeObjectUrl(url: string): void {
+      nativeRevokeObjectUrl.call(URL, url);
+      liveStillUrls.delete(url);
+    };
+
+    /** The fixture's source is 32×32, so the still work canvas is exactly that. */
+    const stillEncodes = (): Array<{ api: string; width: number; height: number }> =>
+      canvasEncodes.filter((record) => record.width === 32 && record.height === 32);
+    /**
+     * Classify one encode by canvas size: the atlas is `frames × edge` wide and
+     * `edge` high (128 in the fixture), the poster is one edge square, and the 48
+     * px timeline thumbnails or the 32 px still fall outside both.
+     */
+    const encodeSnapshot = (): {
+      atlas: number;
+      atlasSync: number;
+      poster: number;
+      still: number;
+      stillSync: number;
+      stillWidth: number;
+      stillHeight: number;
+    } => {
+      const atlas = canvasEncodes.filter((record) => record.height === 128 && record.width > 128);
+      const poster = canvasEncodes.filter((record) => record.width === 128 && record.height === 128);
+      const still = stillEncodes();
+      const lastStill = still[still.length - 1];
+      return {
+        atlas: atlas.length,
+        atlasSync: atlas.filter((record) => record.api === 'toDataURL').length,
+        poster: poster.length,
+        still: still.length,
+        stillSync: still.filter((record) => record.api === 'toDataURL').length,
+        stillWidth: lastStill === undefined ? 0 : lastStill.width,
+        stillHeight: lastStill === undefined ? 0 : lastStill.height,
+      };
+    };
+    const resetEncodeProbe = (): void => {
+      canvasEncodes.length = 0;
+    };
+    /** One pointer event placed at `fraction` of the timeline track. */
+    const pointerAt = (track: HTMLElement, fraction: number): PointerEventInit => {
+      const rect = track.getBoundingClientRect();
+      return {
+        clientX: rect.left + rect.width * fraction,
+        clientY: rect.top + rect.height / 2,
+        pointerId: 1,
+        isPrimary: true,
+        pointerType: 'mouse',
+        bubbles: true,
+        cancelable: true,
+      };
+    };
 
     add(
       'fixture: settings dialog root present',
@@ -3170,6 +3270,159 @@ async function browserDriver(config: DriverConfig): Promise<void> {
         firstSample !== null && Number(firstSample.slider.value) === 10,
         firstSample !== null ? 'frames=' + firstSample.slider.value : 'no slider',
       );
+      /* ---- drag window: no sampling, no still, playback paused ------------ */
+      const transport =
+        studio !== null ? qa<HTMLButtonElement>('.dshml-motion-transport .dshml-motion-icon-btn', studio) : [];
+      const playButton = transport.length > 1 ? (transport[1] ?? null) : null;
+      const motionTrack = studio !== null ? q<HTMLElement>('.dshml-motion-track', studio) : null;
+      const inHandle = studio !== null ? q<HTMLButtonElement>('.dshml-motion-handle-in', studio) : null;
+      if (firstSample !== null && playButton !== null && motionTrack !== null && inHandle !== null) {
+        // Start from playing so the same gesture proves both the pause and the
+        // resume half of the transport rule (the fixture's locale is zh).
+        if (playButton.getAttribute('aria-label') === '播放') clickable(playButton).click();
+        await waitFor(() => playButton.getAttribute('aria-label') === '暂停', 2000);
+        resetEncodeProbe();
+        inHandle.dispatchEvent(new PointerEvent('pointerdown', { ...pointerAt(motionTrack, 0.02), buttons: 1 }));
+        await sleep(50);
+        const pausedDuringDrag = playButton.getAttribute('aria-label') === '播放';
+        for (const fraction of [0.05, 0.09, 0.14, 0.2]) {
+          window.dispatchEvent(new PointerEvent('pointermove', { ...pointerAt(motionTrack, fraction), buttons: 1 }));
+          await sleep(20);
+        }
+        // Hold longer than the 150 ms sample debounce: before A1 this alone ran a
+        // full encode round while the pointer was still down.
+        await sleep(300);
+        const duringDrag = encodeSnapshot();
+        add(
+          'a timeline drag starts no sampling and encodes no still for the Result stage',
+          true,
+          duringDrag.atlas === 0 && duringDrag.poster === 0 && duringDrag.still === 0,
+          JSON.stringify(duringDrag),
+        );
+        add(
+          'a timeline drag pauses the playing transport',
+          true,
+          pausedDuringDrag,
+          'transport=' + String(playButton.getAttribute('aria-label')),
+        );
+        window.dispatchEvent(new PointerEvent('pointerup', pointerAt(motionTrack, 0.2)));
+        const afterRelease = await waitFor(() => {
+          const snapshot = encodeSnapshot();
+          return snapshot.atlas > 0 && snapshot.poster > 0 ? snapshot : null;
+        }, 12000);
+        // A second round would land around the same 150 ms debounce; this beat
+        // gives it time to show up before the counts are frozen.
+        await sleep(500);
+        const settled = encodeSnapshot();
+        add(
+          'release runs exactly one sampling round and encodes asynchronously',
+          true,
+          afterRelease !== null && settled.atlas === 1 && settled.poster === 1 && settled.atlasSync === 0,
+          JSON.stringify(settled),
+        );
+        add(
+          'release resumes the transport that was playing before the drag',
+          true,
+          playButton.getAttribute('aria-label') === '暂停',
+          'transport=' + String(playButton.getAttribute('aria-label')),
+        );
+        // Leave the studio paused and on the original range so the saved-geometry
+        // assertion below still sees the 0.8 s window (a double-click resets the
+        // handle; the restored sample is a full cache hit, so it encodes nothing).
+        if (playButton.getAttribute('aria-label') === '暂停') clickable(playButton).click();
+        inHandle.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+        // The restore is a cache hit, but wait for it to land: the save button is
+        // still enabled by the dragged result until the reset render commits, so
+        // probing only `disabled` here would race the restored sample into the
+        // next assertion window.
+        await waitFor(() => {
+          const handle = studio !== null ? q('.dshml-motion-handle-in', studio) : null;
+          const save = motionEditor !== null ? q<HTMLButtonElement>('.dshml-custom-btn-primary', motionEditor) : null;
+          return (
+            handle !== null && handle.getAttribute('aria-valuenow') === '0' && save !== null && save.disabled === false
+          );
+        }, 12000);
+        await sleep(200);
+      } else {
+        add('a timeline drag starts no sampling and encodes no still for the Result stage', true, false, 'no track');
+        add('a timeline drag pauses the playing transport', true, false, 'no transport');
+        add('release runs exactly one sampling round and encodes asynchronously', true, false, 'no track');
+        add('release resumes the transport that was playing before the drag', true, false, 'no transport');
+      }
+      /* ---- a playhead-only drag re-renders, it does not resample ---------- */
+      if (firstSample !== null && motionTrack !== null) {
+        resetEncodeProbe();
+        motionTrack.dispatchEvent(new PointerEvent('pointerdown', { ...pointerAt(motionTrack, 0.4), buttons: 1 }));
+        await sleep(60);
+        window.dispatchEvent(new PointerEvent('pointerup', pointerAt(motionTrack, 0.4)));
+        await sleep(500);
+        const playheadOnly = encodeSnapshot();
+        add(
+          'a playhead-only drag re-renders the stage without resampling',
+          true,
+          playheadOnly.atlas === 0 && playheadOnly.poster === 0 && playheadOnly.still === 0,
+          JSON.stringify(playheadOnly),
+        );
+      } else {
+        add('a playhead-only drag re-renders the stage without resampling', true, false, 'no track');
+      }
+      /* ---- source view: one asynchronous still for the cropper ------------ */
+      if (firstSample !== null && sourceButton && stage !== null && motionTrack !== null) {
+        if (playButton !== null && playButton.getAttribute('aria-label') === '暂停') clickable(playButton).click();
+        clickable(sourceButton).click();
+        const stillCropped = await waitFor(() => q('.reactEasyCrop_Container', stage), 4000);
+        if (stillCropped !== null) {
+          // The view switch itself produces the first still; let it settle, then
+          // reset so the playhead move below is the only encode in the window.
+          await waitFor(() => stillEncodes().length > 0, 4000);
+          await sleep(200);
+          resetEncodeProbe();
+        }
+        motionTrack.dispatchEvent(new PointerEvent('pointerdown', { ...pointerAt(motionTrack, 0.65), buttons: 1 }));
+        await sleep(50);
+        window.dispatchEvent(new PointerEvent('pointerup', pointerAt(motionTrack, 0.65)));
+        const stillAfterSeek = await waitFor(() => {
+          const snapshot = encodeSnapshot();
+          return snapshot.still > 0 ? snapshot : null;
+        }, 4000);
+        await sleep(200);
+        const stillSnapshot = encodeSnapshot();
+        const cropperImage = q<HTMLImageElement>('img', stillCropped);
+        const cropperSrc = cropperImage !== null ? String(cropperImage.getAttribute('src') ?? '') : '';
+        add(
+          'a Source-view playhead change encodes one still through toBlob at the work-canvas size',
+          true,
+          stillAfterSeek !== null &&
+            stillSnapshot.still === 1 &&
+            stillSnapshot.stillSync === 0 &&
+            stillSnapshot.stillWidth === 32 &&
+            stillSnapshot.stillHeight === 32,
+          JSON.stringify(stillSnapshot),
+        );
+        add(
+          'the cropper receives the still as an in-memory object URL',
+          true,
+          cropperSrc.startsWith('blob:'),
+          'src=' + cropperSrc.slice(0, 24),
+        );
+        add(
+          'a playhead-only change in the Source view does not restart sampling',
+          true,
+          stillSnapshot.atlas === 0 && stillSnapshot.poster === 0,
+          JSON.stringify(stillSnapshot),
+        );
+        if (resultButton) clickable(resultButton).click();
+        await waitFor(() => q('canvas.dshml-motion-canvas', stage), 4000);
+      } else {
+        add(
+          'a Source-view playhead change encodes one still through toBlob at the work-canvas size',
+          true,
+          false,
+          'no source button',
+        );
+        add('the cropper receives the still as an in-memory object URL', true, false, 'no cropper');
+        add('a playhead-only change in the Source view does not restart sampling', true, false, 'no source button');
+      }
       if (firstSample !== null) {
         setInputValue(firstSample.slider, '6');
         const resampled = await waitFor(() => {
@@ -3187,6 +3440,13 @@ async function browserDriver(config: DriverConfig): Promise<void> {
       const save = motionEditor !== null ? q<HTMLButtonElement>('.dshml-custom-btn-primary', motionEditor) : null;
       if (save) clickable(save).click();
       const closed = await waitFor(() => !motionPicker.isConnected || !visible(motionPicker), 12000);
+      await sleep(150);
+      add(
+        'closing the editor revokes the still object URLs it created',
+        true,
+        liveStillUrls.size === 0,
+        'live object URLs=' + String(liveStillUrls.size),
+      );
       const motionCall = H.mutateCalls
         .slice(motionFlowStart)
         .find((call) => JSON.stringify(call).indexOf('customIcons') >= 0);
@@ -4385,6 +4645,8 @@ interface DshmlCdpPage {
   session: CdpSession;
   /** Evaluate an expression in the page and return its value. */
   evaluate(expression: string): Promise<unknown>;
+  /** Evaluate one self-contained async IIFE and await its result (perf probe). */
+  evaluateAsync(expression: string): Promise<unknown>;
   /** Release the page and wait for the browser process to exit. */
   close(): Promise<void>;
 }
@@ -4465,6 +4727,14 @@ async function openCdpPage(edge: string, edgeArgs: string[], profileDir: string,
         });
         return reply.result?.value;
       },
+      async evaluateAsync(expression: string): Promise<unknown> {
+        const reply = await live.call<{ result?: { value?: unknown } }>('Runtime.evaluate', {
+          expression,
+          returnByValue: true,
+          awaitPromise: true,
+        });
+        return reply.result?.value;
+      },
       async close(): Promise<void> {
         live.close();
         await stop();
@@ -4518,6 +4788,225 @@ async function readResultViaCdp(
 }
 
 /**
+ * The in-page motion-studio drag/encode probe used by `--perf-json`.
+ *
+ * Runs after the screenshot driver has left the sampled studio open. It records
+ * call counts (not timings) for the encode window around one synthesized drag,
+ * plus the long-task and animation-frame gaps as *reported* numbers — the manual
+ * perf command prints them, but no gate asserts a millisecond value. Serialized
+ * with `toString()` like the main driver, so it must stay self-contained.
+ */
+async function motionPerfScript(): Promise<Record<string, unknown>> {
+  const sleep = (ms: number): Promise<void> =>
+    new Promise<void>((resolve) => {
+      setTimeout(resolve, ms);
+    });
+  const studio = document.querySelector('.dshml-motion-ready');
+  if (!(studio instanceof HTMLElement)) return { error: 'the motion studio is not open' };
+  const transport = Array.from(
+    studio.querySelectorAll<HTMLButtonElement>('.dshml-motion-transport .dshml-motion-icon-btn'),
+  );
+  const play = transport.length > 1 ? (transport[1] ?? null) : null;
+  const transportLabel = (): string => (play === null ? '' : String(play.getAttribute('aria-label') ?? ''));
+  // The screenshot gate needs deterministic paint; start the measurement paused.
+  if (transportLabel() === '暂停') {
+    play?.click();
+    await sleep(200);
+  }
+  const track = studio.querySelector<HTMLElement>('.dshml-motion-track');
+  const inHandle = studio.querySelector<HTMLButtonElement>('.dshml-motion-handle-in');
+  if (track === null || inHandle === null) return { error: 'the motion timeline is not mounted' };
+
+  interface EncodeRecord {
+    api: string;
+    width: number;
+    height: number;
+  }
+  const encodes: EncodeRecord[] = [];
+  const canvasPrototype = HTMLCanvasElement.prototype;
+  const nativeDataUrl = canvasPrototype.toDataURL;
+  const nativeToBlob = canvasPrototype.toBlob;
+  const nativeWorkerPost = Worker.prototype.postMessage;
+  canvasPrototype.toDataURL = function patchedToDataUrl(type?: string, quality?: number): string {
+    encodes.push({ api: 'toDataURL', width: this.width, height: this.height });
+    return nativeDataUrl.call(this, type, quality);
+  };
+  canvasPrototype.toBlob = function patchedToBlob(callback: BlobCallback, type?: string, quality?: number): void {
+    encodes.push({ api: 'toBlob', width: this.width, height: this.height });
+    nativeToBlob.call(this, callback, type, quality);
+  };
+  Worker.prototype.postMessage = function patchedPostMessage(
+    this: Worker,
+    message: unknown,
+    transfer?: Transferable[],
+  ): void {
+    const bitmap = (message as { bitmap?: { width?: unknown; height?: unknown } } | null | undefined)?.bitmap;
+    if (
+      bitmap !== undefined &&
+      bitmap !== null &&
+      typeof bitmap.width === 'number' &&
+      typeof bitmap.height === 'number'
+    ) {
+      encodes.push({ api: 'worker', width: bitmap.width, height: bitmap.height });
+    }
+    if (transfer === undefined) (nativeWorkerPost as (value: unknown) => void).call(this, message);
+    else (nativeWorkerPost as (value: unknown, list: Transferable[]) => void).call(this, message, transfer);
+  } as Worker['postMessage'];
+
+  const longTasks: Array<{ duration: number; start: number }> = [];
+  let observer: PerformanceObserver | null = null;
+  try {
+    observer = new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) longTasks.push({ duration: entry.duration, start: entry.startTime });
+    });
+    observer.observe({ type: 'longtask' });
+  } catch {
+    observer = null;
+  }
+  const frameGaps: number[] = [];
+  let monitoring = true;
+  let lastFrame = performance.now();
+  let frameRequest = 0;
+  const onFrame = (now: number): void => {
+    if (!monitoring) return;
+    frameGaps.push(now - lastFrame);
+    lastFrame = now;
+    frameRequest = requestAnimationFrame(onFrame);
+  };
+  frameRequest = requestAnimationFrame(onFrame);
+
+  const rect = track.getBoundingClientRect();
+  const pointer = (fraction: number): PointerEventInit => ({
+    clientX: rect.left + rect.width * fraction,
+    clientY: rect.top + rect.height / 2,
+    pointerId: 1,
+    isPrimary: true,
+    pointerType: 'mouse',
+    bubbles: true,
+    cancelable: true,
+  });
+  const isAtlas = (record: EncodeRecord): boolean => record.height === 128 && record.width > 128;
+  const isPoster = (record: EncodeRecord): boolean => record.width === 128 && record.height === 128;
+  const summarize = (records: readonly EncodeRecord[]): Record<string, number> => ({
+    total: records.length,
+    atlas: records.filter(isAtlas).length,
+    poster: records.filter(isPoster).length,
+    worker: records.filter((record) => record.api === 'worker').length,
+    synchronous: records.filter((record) => record.api === 'toDataURL').length,
+  });
+  const longTaskSummary = (tasks: ReadonlyArray<{ duration: number }>): Record<string, number> => {
+    const long = tasks.filter((task) => task.duration >= 50);
+    return {
+      count: long.length,
+      totalMs: Math.round(long.reduce((sum, task) => sum + task.duration, 0) * 10) / 10,
+      maxMs: Math.round(Math.max(0, ...tasks.map((task) => task.duration)) * 10) / 10,
+    };
+  };
+  const maxFrameGap = (gaps: readonly number[]): number => Math.round(Math.max(0, ...gaps) * 10) / 10;
+  const resetProbe = (): void => {
+    encodes.length = 0;
+    longTasks.length = 0;
+    frameGaps.length = 0;
+    lastFrame = performance.now();
+  };
+
+  const labelBefore = transportLabel();
+  resetProbe();
+  const dragStartedAt = performance.now();
+  inHandle.dispatchEvent(new PointerEvent('pointerdown', { ...pointer(0.02), buttons: 1 }));
+  await sleep(60);
+  for (const fraction of [0.05, 0.08, 0.12, 0.16, 0.2]) {
+    window.dispatchEvent(new PointerEvent('pointermove', { ...pointer(fraction), buttons: 1 }));
+    await sleep(16);
+  }
+  // Hold past the 150 ms sample debounce: a drag that still schedules sampling
+  // would encode here, before the pointer is released.
+  await sleep(300);
+  const dragWindowMs = Math.round(performance.now() - dragStartedAt);
+  const during = {
+    encodes: summarize(encodes),
+    longTasks: longTaskSummary(longTasks),
+    frameGaps: [...frameGaps],
+    label: transportLabel(),
+  };
+  resetProbe();
+  const releaseStartedAt = performance.now();
+  window.dispatchEvent(new PointerEvent('pointerup', pointer(0.2)));
+  const deadline = performance.now() + 8000;
+  while (performance.now() < deadline) {
+    if (encodes.some(isAtlas) && encodes.some(isPoster)) break;
+    await sleep(30);
+  }
+  // Give a second, unwanted sampling round time to appear before freezing counts.
+  await sleep(700);
+  monitoring = false;
+  if (frameRequest !== 0) cancelAnimationFrame(frameRequest);
+  observer?.disconnect();
+  const after = {
+    encodes: summarize(encodes),
+    longTasks: longTaskSummary(longTasks),
+    frameGaps: [...frameGaps],
+    label: transportLabel(),
+  };
+  return {
+    capturedAt: new Date().toISOString(),
+    transportBefore: labelBefore,
+    viewport: { width: window.innerWidth, height: window.innerHeight },
+    drag: {
+      windowMs: dragWindowMs,
+      encodes: during.encodes,
+      longTasks: during.longTasks,
+      maxFrameGapMs: maxFrameGap(during.frameGaps),
+      pausedDuringDrag: during.label === '播放',
+    },
+    release: {
+      windowMs: Math.round(performance.now() - releaseStartedAt),
+      encodes: after.encodes,
+      longTasks: after.longTasks,
+      maxFrameGapMs: maxFrameGap(after.frameGaps),
+      transportResumed: after.label === '暂停',
+    },
+  };
+}
+
+/** Run the in-page perf probe over CDP and return its JSON report. */
+async function runMotionPerf(page: DshmlCdpPage): Promise<Record<string, unknown>> {
+  const report = await page.evaluateAsync('(' + motionPerfScript.toString() + ')()');
+  if (report === null || typeof report !== 'object') throw new Error('the motion perf probe produced no report');
+  return report as Record<string, unknown>;
+}
+
+/** Print the headline numbers of one perf report (the full report goes to JSON). */
+function printMotionPerf(report: Record<string, unknown>): void {
+  const section = (name: string): void => {
+    const block = report[name];
+    if (block === null || typeof block !== 'object') return;
+    const record = block as Record<string, unknown>;
+    const encodes = record['encodes'] as Record<string, number> | undefined;
+    const tasks = record['longTasks'] as Record<string, number> | undefined;
+    if (encodes === undefined || tasks === undefined) return;
+    console.log(
+      name +
+        ': encodes=' +
+        JSON.stringify(encodes) +
+        ' longTasks(>=50ms)=' +
+        tasks['count'] +
+        ' total=' +
+        tasks['totalMs'] +
+        'ms max=' +
+        tasks['maxMs'] +
+        'ms maxFrameGap=' +
+        String(record['maxFrameGapMs']) +
+        'ms window=' +
+        String(record['windowMs']) +
+        'ms',
+    );
+  };
+  section('drag');
+  section('release');
+}
+
+/**
  * Capture a README / design preview through CDP.
  *
  * `--screenshot` fires when `--virtual-time-budget` expires, and virtual time
@@ -4533,6 +5022,7 @@ async function capturePreviewScreenshot(
   profileDir: string,
   url: string,
   pngPath: string,
+  perfSink?: { report?: Record<string, unknown> } | null,
 ): Promise<DriverResult | null> {
   const page = await openCdpPage(edge, edgeArgs, profileDir, url);
   try {
@@ -4555,6 +5045,11 @@ async function capturePreviewScreenshot(
     });
     if (typeof shot.data !== 'string' || shot.data === '') throw new Error('CDP returned no screenshot data');
     writeFileSync(pngPath, Buffer.from(shot.data, 'base64'));
+
+    // The preview is captured above; the probe may now disturb the studio state.
+    if (perfSink !== undefined && perfSink !== null) {
+      perfSink.report = await runMotionPerf(page);
+    }
 
     try {
       const parsed: unknown = JSON.parse(resultText);
@@ -4658,6 +5153,11 @@ async function main(): Promise<void> {
     motionSample = { base64: bytes.toString('base64'), name: basename(absolute) };
   }
 
+  if (perfJsonPath !== null && (screenshotPath === null || openMode !== 'motion')) {
+    console.error('error: --perf-json only applies to --screenshot <path> --open motion');
+    process.exit(1);
+  }
+
   const tmpDir = mkdtempSync(join(tmpdir(), 'dshml-verify-'));
   const edge = findEdge();
   const edgeArgsBase = [
@@ -4705,6 +5205,7 @@ async function main(): Promise<void> {
               : openMode === 'custom'
                 ? 820
                 : 1500;
+      const perfSink: { report?: Record<string, unknown> } | null = perfJsonPath !== null ? {} : null;
       let result: DriverResult | null = null;
       try {
         // Every preview goes through CDP: `--screenshot` fires when its
@@ -4717,6 +5218,7 @@ async function main(): Promise<void> {
           profileDir,
           url,
           pngPath,
+          perfSink,
         );
       } catch (error) {
         console.error('error: screenshot failed: ' + readableError(error));
@@ -4740,6 +5242,20 @@ async function main(): Promise<void> {
       if (result !== null && result.consoleIssues.length > 0) {
         console.log('console issues: ' + result.consoleIssues.length);
       }
+      if (perfSink !== null) {
+        if (perfSink.report === undefined) {
+          rmSync(pngPath, { force: true });
+          console.error('error: the motion perf probe produced no report');
+          process.exit(1);
+        }
+        const report = perfSink.report;
+        report['gif'] = motionSample !== null ? motionSample.name : 'synthetic four-frame clip';
+        const target = resolve(ROOT, perfJsonPath as string);
+        mkdirSync(dirname(target), { recursive: true });
+        writeFileSync(target, JSON.stringify(report, null, 2));
+        printMotionPerf(report);
+        console.log('motion perf: ' + target + ' (' + String(report['gif']) + ')');
+      }
       return;
     }
 
@@ -4747,26 +5263,34 @@ async function main(): Promise<void> {
     const harnessPath = join(tmpDir, 'settings-models-verify.html');
     writeFileSync(harnessPath, harness);
     const url = pathToFileURL(harnessPath).href + '?mode=verify';
-    const run = runEdge(
-      edge,
-      [...edgeArgsBase, `--user-data-dir=${profileDir}`, '--virtual-time-budget=30000', '--dump-dom', url],
-      150000,
-    );
-    let result = parseResult(run.stdout);
+    // Read the result over CDP, in real time. The old `--virtual-time-budget` +
+    // `--dump-dom` path fast-forwarded the driver's own waits: once the motion
+    // sampler moved its encodes off the synchronous path (async `toBlob` /
+    // worker), the virtual clock could reach a "sampling finished?" poll before the
+    // real encode did, so the gate failed on how fast the machine was. CDP polls
+    // the result block the driver writes after its last assertion, exactly like the
+    // screenshot path already did for the same reason.
+    let result = await readResultViaCdp(edge, edgeArgsBase, `${profileDir}-cdp`, url);
     if (result === null) {
-      // `--dump-dom` depends on the one-shot launcher staying attached to its
-      // stdout, which newer Edge builds do not: the assertions still ran, the
-      // text simply never came back. Re-open the same page over CDP and read the
-      // result block the driver wrote.
-      console.log('note: the DOM dump carried no result block; reading it over CDP instead');
-      result = await readResultViaCdp(edge, edgeArgsBase, `${profileDir}-cdp`, url);
+      // Keep the one-shot dump as a diagnostic fallback for an environment where
+      // the CDP reader cannot attach; the harness is identical.
+      console.log('note: the CDP reader carried no result block; retrying with a DOM dump');
+      const run = runEdge(
+        edge,
+        [...edgeArgsBase, `--user-data-dir=${profileDir}`, '--virtual-time-budget=30000', '--dump-dom', url],
+        150000,
+      );
+      result = parseResult(run.stdout);
+      if (result === null) {
+        console.error('error: the harness page produced no result block.');
+        if (run.stderr) console.error(run.stderr.slice(0, 4000));
+        const dumpPath = join(tmpDir, 'dump.html');
+        writeFileSync(dumpPath, run.stdout || '');
+        console.error('kept dumped DOM: ' + dumpPath + ' (' + (run.stdout || '').length + ' bytes)');
+      }
     }
     if (result === null || result.mode !== 'verify') {
-      console.error('error: the harness page produced no result block.');
-      if (run.stderr) console.error(run.stderr.slice(0, 4000));
-      const dumpPath = join(tmpDir, 'dump.html');
-      writeFileSync(dumpPath, run.stdout || '');
-      console.error('kept dumped DOM: ' + dumpPath + ' (' + (run.stdout || '').length + ' bytes)');
+      console.error('error: the harness page produced no verify result block.');
       if (keptHarnessPath) writeFileSync(resolve(ROOT, keptHarnessPath), harness);
       process.exit(1);
     }
