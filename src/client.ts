@@ -65,10 +65,25 @@ const LABEL_CSS = `
 .dshml-model-icon-btn .dshml-model-mark { width: 22px; height: 22px; display: inline-flex; }
 .dshml-model-placeholder { opacity: .55; }
 .dshml-model-icon-disabled .dshml-model-mark { opacity: .35; }
-/* The host ships the model row as a grid; the plugin replaces it with a flex
-   row so the 22px icon seat can lead the row without displacing the input
-   tracks, and the delete action stays on the same line. */
-[data-dshml-model-row="1"] { display: flex; flex-direction: row; align-items: center; }
+/* Settings → Models: the model-ID field. The shipped page has had two shapes:
+   older builds put the input straight into the row grid, current builds wrap it
+   in the host's own column-flex .modelField label, so the 22px seat lands
+   inside that label and has to sit beside the input instead of leading the row.
+   Both shapes are a flex row here. The three layout properties are !important
+   on purpose: the host ships its Models CSS as a lazily loaded chunk, so its
+   .modelField { flex-direction: column } can land AFTER this stylesheet, and at
+   equal specificity that later rule wins — the 0.2.3-alpha.3 regression, where
+   align-items:center still applied but flex-direction:column stacked the
+   mark above the input. The input keeps min-width: 0 so it shrinks beside the
+   reserved 22px seat instead of overflowing the field. */
+[data-dshml-model-row="1"] {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+}
+[data-dshml-model-row="1"] > input {
+  min-width: 0;
+}
 
 /* Settings → Models: custom provider combobox over the native select. */
 .dshml-combo { position: relative; width: 100%; max-width: 240px; }

@@ -809,6 +809,24 @@ describe('generated client bundle', () => {
     }
   });
 
+  it('lays the model mark beside the model-ID input even when host field CSS lands later', () => {
+    // The host ships its Models CSS as a lazily loaded chunk, so a column rule for
+    // its `.modelField` label can be parsed after this stylesheet and win at equal
+    // specificity: under 0.2.3-alpha.3 `align-items:center` still applied, but the
+    // mark stacked above the input. The row direction is pinned !important, and the
+    // input keeps a shrinkable width beside the reserved 22px seat.
+    const { doc } = loadClient();
+    const style = expectPresent(doc.styleTags[0], 'the plugin stylesheet must be mounted');
+    const field = cssRule(style, '[data-dshml-model-row="1"]');
+    expect(field, 'the model-ID field is a flex row').toMatch(/display:\s*flex\s*!important/);
+    expect(field, 'the row direction outranks a later host rule').toMatch(/flex-direction:\s*row\s*!important/);
+    expect(field, 'the mark and the input share a horizontal centre line').toMatch(
+      /align-items:\s*center\s*!important/,
+    );
+    const input = cssRule(style, '[data-dshml-model-row="1"] > input');
+    expect(input, 'the input shrinks beside the 22px seat').toMatch(/min-width:\s*0/);
+  });
+
   it('draws the picker close button as a centred SVG glyph, not a text character', () => {
     // A typed `×` follows the user's system font, so its ink size and position
     // drift off the hit-area centre. The close mark is now a fixed 16px SVG and

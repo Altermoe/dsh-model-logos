@@ -1120,7 +1120,10 @@ async function browserDriver(config: DriverConfig): Promise<void> {
     );
   }
 
-  /** Model rows carry [data-dshml-model-row] once decorated; the button is `.dshml-model-icon-btn`. */
+  /**
+   * Decorated rows carry [data-dshml-model-row] (the model-ID field label on the
+   * 0.2.2-alpha.3+ markup); the button is `.dshml-model-icon-btn`.
+   */
   function modelRowNodes(): HTMLElement[] {
     return root ? qa('[data-dshml-model-row]', root) : [];
   }
@@ -2404,25 +2407,32 @@ async function browserDriver(config: DriverConfig): Promise<void> {
         : 'polluted options: ' + optionPollution.map((option) => option.value).join(', '),
     );
 
-    const rowStates = qa('.jrmgQW_modelEntry .jrmgQW_modelRow', root).map((row, index) => {
-      const first = row.firstElementChild;
+    // The 0.2.2-alpha.3+ Models page wraps each input in the host's column-flex
+    // `.modelField` label, so the decorated row is that label (the model-ID field)
+    // and the seat becomes a flex sibling of the input. The five-track row grid
+    // around it is left untouched.
+    const fieldRows = qa<HTMLElement>('.jrmgQW_modelEntry [data-dshml-model-row="1"]', root);
+    const rowStates = fieldRows.map((field, index) => {
+      const first = field.firstElementChild;
       const button =
-        first !== null && first.classList.contains('dshml-model-icon-btn') ? first : q('.dshml-model-icon-btn', row);
+        first !== null && first.classList.contains('dshml-model-icon-btn') ? first : q('.dshml-model-icon-btn', field);
       const mark = button ? q('.dshml-model-mark', button) : null;
+      const idInput = q<HTMLInputElement>('input[aria-label^="模型 ID"]', field);
       return {
         index,
-        row,
+        field,
         first,
-        marked: row.getAttribute('data-dshml-model-row') === '1',
+        marked: field.getAttribute('data-dshml-model-row') === '1',
         button,
-        childCount: row.children.length,
+        idInput,
+        childCount: field.children.length,
         hasSvg: !!mark && !!q('svg', mark),
         placeholder: !!button && !!q('.dshml-model-placeholder', button),
         ariaLabel: button ? button.getAttribute('aria-label') || '' : '',
       };
     });
     add(
-      'model-logo buttons on all three model rows',
+      'model-logo buttons lead the model-ID field on all three model rows',
       true,
       rowStates.length === config.modelRows &&
         rowStates.every(
@@ -2430,7 +2440,8 @@ async function browserDriver(config: DriverConfig): Promise<void> {
             state.marked &&
             state.button !== null &&
             state.first === state.button &&
-            state.childCount === 5 &&
+            state.idInput !== null &&
+            state.childCount === 2 &&
             state.ariaLabel !== '',
         ),
       JSON.stringify(
@@ -2466,15 +2477,63 @@ async function browserDriver(config: DriverConfig): Promise<void> {
       rowStates.length === config.modelRows && seatBoxes.every((value) => value === '22×22'),
       'seat boxes=' + JSON.stringify(seatBoxes),
     );
-    const rowLayouts = qa('.jrmgQW_modelEntry .jrmgQW_modelRow', root).map((row) => {
-      const style = getComputedStyle(row);
+    const rowLayouts = fieldRows.map((field) => {
+      const style = getComputedStyle(field);
       return style.display + '/' + style.flexDirection + '/' + style.alignItems;
     });
     add(
-      'model row becomes a flex row so the icon seat leads without displacing the inputs',
+      'the model-ID field is a flex row so the icon seat sits beside the input',
       true,
-      modelRows.length === config.modelRows && rowLayouts.every((layout) => layout === 'flex/row/center'),
-      'row layouts=' + JSON.stringify(rowLayouts),
+      fieldRows.length === config.modelRows && rowLayouts.every((layout) => layout === 'flex/row/center'),
+      'field layouts=' + JSON.stringify(rowLayouts),
+    );
+
+    // The mark and the model-ID input must share one horizontal centre line: the
+    // reported 0.2.3-alpha.3 regression stacked the mark above the input while
+    // `align-items:center` still held, because the host's column direction won.
+    const markInputPairs = fieldRows.map((field) => {
+      const button = q<HTMLElement>('.dshml-model-icon-btn', field);
+      const input = q<HTMLElement>('input[aria-label^="模型 ID"]', field);
+      if (button === null || input === null) return null;
+      const mark = button.getBoundingClientRect();
+      const box = input.getBoundingClientRect();
+      return {
+        beside: mark.right <= box.left + 0.5,
+        centreDelta: Math.abs(mark.top + mark.height / 2 - (box.top + box.height / 2)),
+      };
+    });
+    add(
+      'the model mark and the model-ID input sit on one horizontally centred line',
+      true,
+      markInputPairs.length === config.modelRows &&
+        markInputPairs.every((pair) => pair !== null && pair.beside && pair.centreDelta <= 1),
+      'mark/input pairs=' +
+        JSON.stringify(
+          markInputPairs.map((pair) =>
+            pair === null ? 'missing' : { beside: pair.beside, centreDelta: pair.centreDelta },
+          ),
+        ),
+    );
+
+    // The host's Models CSS is installed by the renderer after the plugin's own
+    // stylesheet and can also be more specific than the plugin's attribute
+    // selector. Reproduce that cascade — a later, child-combinator column rule for
+    // the field label — and require the tagged field to stay a row, then drop the
+    // probe. This is the shape that stacked the mark above the input on
+    // 0.2.3-alpha.3.
+    const lateHostStyle = document.createElement('style');
+    lateHostStyle.textContent = '.jrmgQW_modelRow .jrmgQW_modelField{display:flex;flex-direction:column;gap:6px}';
+    document.head.appendChild(lateHostStyle);
+    const lateLayouts = fieldRows.map((field) => {
+      const style = getComputedStyle(field);
+      return style.display + '/' + style.flexDirection + '/' + style.alignItems;
+    });
+    lateHostStyle.remove();
+    add(
+      'a later, more specific host field rule cannot stack the mark',
+      true,
+      fieldRows.length === config.modelRows && lateLayouts.every((layout) => layout === 'flex/row/center'),
+      'late-host field layouts=' + JSON.stringify(lateLayouts),
     );
 
     const selectHiddenOk = ((): boolean => {
@@ -4507,9 +4566,20 @@ async function browserDriver(config: DriverConfig): Promise<void> {
     const markerCount = qa('[data-dshml-vendor]', root || document).length;
     const rowMarkerCount = qa('[data-dshml-model-row]', root || document).length;
     const ownerCount = qa('[data-dshml-owner="1"]', root || document).length;
-    const rowsRestored = qa('.jrmgQW_modelEntry .jrmgQW_modelRow', root || document).every(
-      (row) => row.firstElementChild !== null && row.firstElementChild.tagName === 'INPUT',
+    // Disposal removes the stylesheet with the seats, so the host's own column
+    // field label comes back: the model-ID input is its first child again and the
+    // host cascade wins the direction. The five-track row grid was never touched.
+    const restoredFields = qa<HTMLElement>('.jrmgQW_modelEntry .jrmgQW_modelField', root || document).filter(
+      (field) => q('input[aria-label^="模型 ID"]', field) !== null,
     );
+    const rowsRestored =
+      restoredFields.length === config.modelRows &&
+      restoredFields.every(
+        (field) =>
+          field.firstElementChild !== null &&
+          field.firstElementChild.tagName === 'INPUT' &&
+          getComputedStyle(field).flexDirection === 'column',
+      );
     add(
       'dispose removes the inserted decoration',
       true,

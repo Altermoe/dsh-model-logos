@@ -648,7 +648,7 @@ above.
      Idempotent: a pass reconciles the seat in place and writes only on change.
 3. **Model rows**: `input` in the modal whose `aria-label` matches
    `/^(?:Model ID|模型 ?ID|Display name|显示名称)\s+\d+$/` (model id input,
-   first column). For its `input.parentElement` (the model row):
+   first column). For its `input.parentElement` (the decorated row):
    - resolve `modelId` from the `Model ID` input's `value`;
    - resolve `providerId` from: the enclosing add-card's provider `<select>` value,
      else the enclosing `li`'s provider-name text mapped through the directory,
@@ -656,10 +656,20 @@ above.
    - insert the model-logo seat (`type=button`) as the first child of the row from
      the first decoration pass — even while the provider identity is still
      unresolved, in which case it shows the dashed placeholder. Add
-     `data-dshml-model-row`; the plugin stylesheet turns the host's grid row into a
-     flex row (`display:flex; flex-direction:row; align-items:center`), so the seat's
-     22px leads the row without displacing the input tracks and the delete action
-     stays on the same line;
+     `data-dshml-model-row`; the plugin stylesheet turns the row into a flex row
+     (`display:flex; flex-direction:row; align-items:center`, all `!important`), so
+     the seat's 22px sits beside the input with both on one centre line;
+   - the row's shape depends on the host release: older builds put the input
+     straight into a grid row (the seat then leads five row children); the
+     0.2.2-alpha.3+ Models page wraps each input in the host's own column-flex
+     `.modelField` label, so the seat lands inside that label and becomes the
+     input's sibling. The three layout properties are `!important` because the
+     renderer installs the host's Models stylesheet (`meta.stylesheets`) in
+     `document.head`, where it can land after this plugin's style tag; at equal
+     specificity that later rule's `flex-direction: column` then wins — the shape
+     of the 0.2.3-alpha.3 regression, where the mark stacked above the input. `min-width:0` on the input lets it
+     shrink beside the reserved seat. The display name of the row is read from the
+     enclosing per-model container when the decorated field no longer holds it;
    - click → re-resolve the identity, then `dshmlOpenIconPicker({ providerId,
      modelId, ... })`;
    - refresh logo when the id input changes (capture `input` listener).

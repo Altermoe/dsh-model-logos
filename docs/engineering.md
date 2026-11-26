@@ -367,12 +367,14 @@ that recorded them, not from the current build.
   the settings-section registration, and
   that `apply()` disposers remove the stylesheet, listeners and observer.
 - `scripts/verify-dom.ts` drives the faithful Settings fixture in headless Edge:
-  **89 assertions pass** — vendor logos on official rows/editor titles (including
+  **158 assertions pass** — vendor logos on official rows/editor titles (including
   the localized DeepSeek account row), none on the declared custom provider but its
   empty 22px name seat, the reserved **22px mark base** for provider-name seats and
   the model-row icon seat (dropping either seat re-inserts it on the same task, so
-  the row's text never moves), the **36px picker preview**, model-row buttons and
-  the flex model row, the hidden native select, the custom combobox (option marks,
+  the row's text never moves), the **36px picker preview**, model-row buttons beside
+  the model-ID input on one horizontally centred line even when a later, more
+  specific host field rule tries to stack them, the hidden native select, the
+  custom combobox (option marks,
   write-back, bubbling `change`, face re-sync), the picker groups (vendor before
   model, both populated, official Chinese brand labels (`阿里巴巴`, `谷歌`,
   `千问`, …) instead of a community translation, search keeps only the matching
@@ -418,14 +420,24 @@ that recorded them, not from the current build.
   centred within 1px of the 28×28 hit area, `currentColor` inheriting the button
   colour); the bundle test pins the flex centring and the absence of font-based
   sizing in the rule.
-- **Settings model rows become flex rows.** The host ships `.jrmgQW_modelRow` as a
-  grid with four tracks; the plugin used to add a fifth `auto` track so the leading
-  icon seat could reserve its 22px. The stylesheet now turns the tagged row into
-  `display:flex; flex-direction:row; align-items:center` instead, so the seat leads
-  the row without taking a grid track away from the model-ID and display-name inputs,
-  and the delete action stays on the same line. `verify:dom` pins the computed
-  `flex/row/center` layout and the 22×22 seat, and that disposal restores the host's
-  grid row.
+- **Settings model rows become flex rows, wherever the host puts the input.** The
+  Models page has shipped two row shapes: an older grid row with the inputs as
+  direct children, and the 0.2.2-alpha.3+ five-track grid whose fields are host
+  column-flex `.modelField` labels wrapped around each input. The decorator targets
+  the model-ID input's parent either way, and the stylesheet turns that element
+  into `display:flex; flex-direction:row; align-items:center`: the seat either
+  leads the old row or sits beside the input inside the field label, always on one
+  centre line, and `min-width:0` keeps the input shrinkable beside the 22px seat.
+  Those three layout properties are `!important` because the renderer installs the
+  host's lazily loaded `meta.stylesheets` in `document.head`, where it can land
+  after the plugin's own style tag; a later (or more specific)
+  `.modelField { flex-direction: column }` then wins at equal specificity — the
+  0.2.3-alpha.3 regression, where
+  `align-items:center` still applied but `flex-direction:column` stacked the mark
+  above the input. `verify:dom` pins the computed `flex/row/center` layout, the
+  mark/input centre line and left-to-right order, a late more-specific host column
+  rule that must not stack them, the 22×22 seat, and that disposal restores the
+  host's column field label.
 - **Settings decoration is write-idempotent.** The decorator re-runs on a
   `MutationObserver` over `document.body`, and re-writing identical markup into its
   own inserted marks (`innerHTML` always replaces children) used to feed that
@@ -754,3 +766,27 @@ that recorded them, not from the current build.
   `v0.8.0`, the npm tarball (`prepublishOnly` re-ran `verify`) and the release asset
   packed with `pnpm pack` all name the release commit, which changes only
   `package.json`, this record and `docs/awesome-plugin.md` §8.
+
+- **The model seat stays beside the model-ID input on 0.2.3-alpha.3.** The shipped
+  Models page changed its row markup in the 0.2.2-alpha.3 line: the five-track
+  row grid now wraps each input in the host's own column-flex `.modelField` label.
+  The decorator targets the model-ID input's parent, so the 22px seat became a
+  child of that label; the row stayed a column because the renderer installs the
+  host's lazily loaded `meta.stylesheets` in `document.head`, where a later (or
+  more specific) `.modelField { flex-direction: column }` can win at equal
+  specificity. `align-items:center` still applied, so the mark rendered centred
+  directly above the input — the reported regression. The
+  `[data-dshml-model-row]` rule now pins `display:flex`, `flex-direction:row` and
+  `align-items:center` with `!important`, and the input keeps `min-width:0` so it
+  shrinks beside the reserved seat; the model display name is read from the
+  enclosing per-model container when the decorated field no longer holds it.
+  The Settings fixture was refreshed to the 0.2.2-alpha.3+ row markup (field
+  labels, reorder handle, name track) and `verify:dom` pins the computed
+  `flex/row/center` layout, the mark/input centre line and left-to-right order, a
+  later more-specific host column rule that must not stack them, and that disposal
+  restores the host's column field label; the bundle test pins the `!important`
+  direction and the shrinkable input. `pnpm run verify` passes **192 unit/bundle
+  tests** across 13 files (lint 0 errors), `pnpm run verify:dom` passes **158/158
+  assertions** in headless Chrome, `pnpm run preview` refreshes the design sheets,
+  and `pnpm run verify:live` served `rev=aae85c5d8670` (the 492,212-byte served
+  bundle, 59 artwork entries).

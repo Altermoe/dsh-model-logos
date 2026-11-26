@@ -542,6 +542,14 @@ function dshmlOwnerProvider(
   return null;
 }
 
+/** The `Display name` / `显示名称` input inside one model-row scope, when present. */
+function dshmlModelNameInput(scope: ParentNode): HTMLInputElement | null {
+  for (const input of scope.querySelectorAll<HTMLInputElement>('input[aria-label]')) {
+    if (DSHML_MODEL_NAME_LABEL.test(input.getAttribute('aria-label') ?? '')) return input;
+  }
+  return null;
+}
+
 /** Build model identity data for one row. */
 function dshmlModelIdentity(
   row: HTMLElement,
@@ -550,13 +558,27 @@ function dshmlModelIdentity(
 ): ModelRowIdentity | null {
   const inputs = [...row.querySelectorAll<HTMLInputElement>('input')];
   let idInput: HTMLInputElement | null = null;
-  let nameInput: HTMLInputElement | null = null;
   for (const input of inputs) {
     const label = input.getAttribute('aria-label') ?? '';
-    if (idInput === null && DSHML_MODEL_ID_LABEL.test(label)) idInput = input;
-    else if (nameInput === null && DSHML_MODEL_NAME_LABEL.test(label)) nameInput = input;
+    if (DSHML_MODEL_ID_LABEL.test(label)) {
+      idInput = input;
+      break;
+    }
   }
   if (idInput === null) return null;
+  // The 0.2.2-alpha.3+ Models page wraps every field in its own column-flex
+  // `.modelField` label, so the decorated row (the model-ID field) no longer
+  // contains the display-name input. Fall back to the enclosing per-model
+  // container, but only when it holds exactly this one model-ID field: a broader
+  // ancestor could reach another row's name.
+  let nameInput = dshmlModelNameInput(row);
+  if (nameInput === null && row.parentElement !== null) {
+    const scope = row.parentElement;
+    const idInputs = [...scope.querySelectorAll<HTMLInputElement>('input[aria-label]')].filter((input) =>
+      DSHML_MODEL_ID_LABEL.test(input.getAttribute('aria-label') ?? ''),
+    );
+    if (idInputs.length === 1 && idInputs[0] === idInput) nameInput = dshmlModelNameInput(scope);
+  }
   const modelId = idInput.value.trim();
   if (modelId === '') return null;
   const owner = dshmlOwnerProvider(row, providers, providerIds);
@@ -570,7 +592,15 @@ function dshmlModelIdentity(
   };
 }
 
-/** Update all model rows in the dialog. */
+/**
+ * Update all model rows in the dialog.
+ *
+ * The decorated row is the model-ID input's parent: the row grid itself in older
+ * builds, and the host's own field label in 0.2.2-alpha.3+, where the seat is a
+ * flex sibling of the input (see the `[data-dshml-model-row]` rule). Either way
+ * the seat is the field's first child, so the input never moves to make room for
+ * it after the first pass.
+ */
 function dshmlDecorateModelRows(
   root: Element,
   providers: readonly CatalogProvider[],
@@ -603,8 +633,8 @@ function dshmlDecorateModelRows(
       });
       row.insertBefore(button, row.firstChild);
     }
-    // Keep the seat — and the 22px grid column it occupies — whether or not the
-    // row can be resolved yet; the dashed placeholder is the icon skeleton.
+    // Keep the seat — and the space it reserves beside the input — whether or not
+    // the row can be resolved yet; the dashed placeholder is the icon skeleton.
     dshmlWriteModelMark(button, identity === null ? null : dshmlModelMark(identity.provider, identity.model));
     if (row.firstElementChild !== button) row.insertBefore(button, row.firstChild);
   }
